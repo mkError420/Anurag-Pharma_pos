@@ -93,7 +93,7 @@ export default function Suppliers() {
 
   // PO cart for multiple products
   const [poCart, setPoCart] = useState([]);
-  
+
   // Track which cart item is being edited
   const [editingCartItemIndex, setEditingCartItemIndex] = useState(null);
 
@@ -194,7 +194,7 @@ export default function Suppliers() {
   const editCartItem = (index) => {
     const item = poCart[index];
     setEditingCartItemIndex(index);
-    
+
     // Populate form with cart item data
     setPoFormData(prev => ({
       ...prev,
@@ -260,6 +260,9 @@ export default function Suppliers() {
 
   // Supplier Profile - Supplied Products search
   const [suppliedProductSearch, setSuppliedProductSearch] = useState('');
+
+  // Directory Search Term
+  const [directorySearchTerm, setDirectorySearchTerm] = useState('');
 
   // Pagination states
   const [supplierPage, setSupplierPage] = useState(1);
@@ -1190,8 +1193,8 @@ export default function Suppliers() {
     }
     if (poSearchTerm.trim() !== '') {
       const term = poSearchTerm.toLowerCase();
-      filtered = filtered.filter(o => 
-        o.supplier_name?.toLowerCase().includes(term) || 
+      filtered = filtered.filter(o =>
+        o.supplier_name?.toLowerCase().includes(term) ||
         String(o.id).includes(term)
       );
     }
@@ -2146,7 +2149,7 @@ export default function Suppliers() {
             </svg>
             <span>Add New Supplier</span>
           </button>
-          {activeTab === 'directory' && selectedSupplierIds.length > 0 && (
+          {isAdmin && activeTab === 'directory' && selectedSupplierIds.length > 0 && (
             <button
               onClick={handleBulkDeleteSuppliers}
               className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2"
@@ -2194,13 +2197,41 @@ export default function Suppliers() {
 
       {/* --- TAB: DIRECTORY --- */}
       {activeTab === 'directory' && (() => {
-        const totalSupplierPages = Math.ceil(suppliers.length / itemsPerPage);
+        const filteredSuppliers = suppliers.filter(s => {
+          if (!directorySearchTerm) return true;
+          const search = directorySearchTerm.toLowerCase();
+          return (s.name && s.name.toLowerCase().includes(search)) ||
+            (s.contact_name && s.contact_name.toLowerCase().includes(search)) ||
+            (s.email && s.email.toLowerCase().includes(search)) ||
+            (s.phone && s.phone.toLowerCase().includes(search));
+        });
+        const totalSupplierPages = Math.ceil(filteredSuppliers.length / itemsPerPage);
         const indexOfFirstSupplier = (supplierPage - 1) * itemsPerPage;
         const indexOfLastSupplier = supplierPage * itemsPerPage;
-        const paginatedSuppliers = suppliers.slice(indexOfFirstSupplier, indexOfLastSupplier);
+        const paginatedSuppliers = filteredSuppliers.slice(indexOfFirstSupplier, indexOfLastSupplier);
 
         return (
           <div className="space-y-4">
+            {/* Search Bar */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+              <div className="relative w-full sm:w-80">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search vendors by name, email, or phone..."
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                  value={directorySearchTerm}
+                  onChange={(e) => {
+                    setDirectorySearchTerm(e.target.value);
+                    setSupplierPage(1);
+                  }}
+                />
+              </div>
+            </div>
             <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -2210,8 +2241,8 @@ export default function Suppliers() {
                         <input
                           type="checkbox"
                           className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                          checked={suppliers.length > 0 && suppliers.every(s => selectedSupplierIds.includes(s.id))}
-                          onChange={(e) => handleSelectAllSuppliers(e, suppliers)}
+                          checked={filteredSuppliers.length > 0 && filteredSuppliers.every(s => selectedSupplierIds.includes(s.id))}
+                          onChange={(e) => handleSelectAllSuppliers(e, filteredSuppliers)}
                         />
                       </th>
                       <th className="p-4">Supplier Name</th>
@@ -2274,6 +2305,14 @@ export default function Suppliers() {
                             >
                               Edit
                             </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDelete(supplier.id)}
+                                className="text-rose-600 hover:text-rose-800 font-semibold text-xs border border-rose-200 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition-colors"
+                              >
+                                Delete
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))
@@ -2287,7 +2326,7 @@ export default function Suppliers() {
             {totalSupplierPages > 1 && (
               <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
                 <div className="text-xs font-semibold text-slate-500">
-                  Showing <span className="text-slate-800">{indexOfFirstSupplier + 1}</span> to <span className="text-slate-800">{Math.min(indexOfLastSupplier, suppliers.length)}</span> of <span className="text-slate-800">{suppliers.length}</span> entries
+                  Showing <span className="text-slate-800">{indexOfFirstSupplier + 1}</span> to <span className="text-slate-800">{Math.min(indexOfLastSupplier, filteredSuppliers.length)}</span> of <span className="text-slate-800">{filteredSuppliers.length}</span> entries
                 </div>
                 <div className="flex items-center space-x-1.5">
                   <button
@@ -2358,7 +2397,7 @@ export default function Suppliers() {
                     ))}
                   </div>
                 </div>
-                
+
                 <div className="relative w-full sm:w-64">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3790,7 +3829,7 @@ export default function Suppliers() {
                         <td className="p-3 font-mono font-bold text-slate-500">{item.product_sku}</td>
                         <td className="p-3 font-semibold text-slate-800">
                           <div>{item.product_name}</div>
-    {/*                       <div className="flex flex-wrap gap-1 items-center mt-0.5">
+                          {/*                       <div className="flex flex-wrap gap-1 items-center mt-0.5">
                             {item.product_category && (
                               <span className="inline-block bg-indigo-50 text-indigo-700 text-[9px] font-bold px-1.5 py-0.25 rounded border border-indigo-100">
                                 {item.product_category}
