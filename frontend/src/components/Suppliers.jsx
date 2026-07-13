@@ -2595,18 +2595,15 @@ export default function Suppliers() {
 
       {/* --- TAB: COST PRICE LOGS --- */}
       {activeTab === 'logs' && (() => {
-        const logsItemsPerPage = 50;
-        const totalLogPages = Math.ceil(costLogs.length / logsItemsPerPage);
+        const logsItemsPerPage = 15;
+        const totalLogPages = Math.max(1, Math.ceil(costLogs.length / logsItemsPerPage));
         const indexOfFirstLog = (logsPage - 1) * logsItemsPerPage;
         const indexOfLastLog = logsPage * logsItemsPerPage;
         const paginatedLogs = costLogs.slice(indexOfFirstLog, indexOfLastLog);
 
-        let startPage = Math.max(1, logsPage - 9);
-        let endPage = startPage + 19;
-        if (endPage > totalLogPages) {
-          endPage = totalLogPages;
-          startPage = Math.max(1, endPage - 19);
-        }
+        const currentBlock = Math.floor((logsPage - 1) / 20);
+        let startPage = currentBlock * 20 + 1;
+        let endPage = Math.min(startPage + 19, totalLogPages);
 
         const visiblePages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
 
@@ -2712,7 +2709,12 @@ export default function Suppliers() {
                   </button>
 
                   {startPage > 1 && (
-                    <span className="text-slate-400 text-xs font-bold px-1">...</span>
+                    <button
+                      onClick={() => setLogsPage(startPage - 1)}
+                      className="px-2 py-1 text-slate-400 hover:text-slate-700 text-xs font-bold transition-colors"
+                    >
+                      ...
+                    </button>
                   )}
                   {visiblePages.map((page) => (
                     <button
@@ -2727,7 +2729,12 @@ export default function Suppliers() {
                     </button>
                   ))}
                   {endPage < totalLogPages && (
-                    <span className="text-slate-400 text-xs font-bold px-1">...</span>
+                    <button
+                      onClick={() => setLogsPage(endPage + 1)}
+                      className="px-2 py-1 text-slate-400 hover:text-slate-700 text-xs font-bold transition-colors"
+                    >
+                      ...
+                    </button>
                   )}
 
                   <button
