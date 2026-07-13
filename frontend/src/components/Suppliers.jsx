@@ -59,6 +59,9 @@ export default function Suppliers() {
   const [supplierCsvFile, setSupplierCsvFile] = useState(null);
   const [supplierCsvUploading, setSupplierCsvUploading] = useState(false);
   const [selectedSupplierIds, setSelectedSupplierIds] = useState([]);
+  const [poSearchFocusedIndex, setPoSearchFocusedIndex] = useState(-1);
+  const [supplierSearchFocusedIndex, setSupplierSearchFocusedIndex] = useState(-1);
+  const [productSearchFocusedIndex, setProductSearchFocusedIndex] = useState(-1);
 
   // Supplier basic form state
   const [formData, setFormData] = useState({
@@ -2370,6 +2373,21 @@ export default function Suppliers() {
                     onChange={(e) => {
                       setPoSearchTerm(e.target.value);
                       setPoPage(1);
+                      setPoSearchFocusedIndex(-1);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setPoSearchFocusedIndex(prev => (prev < paginatedPOs.length - 1 ? prev + 1 : prev));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setPoSearchFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (poSearchFocusedIndex >= 0 && paginatedPOs[poSearchFocusedIndex]) {
+                          openPoDetails(paginatedPOs[poSearchFocusedIndex].id);
+                        }
+                      }
                     }}
                   />
                 </div>
@@ -2429,8 +2447,8 @@ export default function Suppliers() {
                         </td>
                       </tr>
                     ) : (
-                      paginatedPOs.map((po) => (
-                        <tr key={po.id} className="hover:bg-slate-50/50 transition-colors">
+                      paginatedPOs.map((po, index) => (
+                        <tr key={po.id} className={`hover:bg-slate-50/50 transition-colors ${poSearchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''}`}>
                           <td className="p-4 font-mono font-bold text-slate-650">#PO-{po.id}</td>
                           <td className="p-4 font-semibold text-slate-800">{po.supplier_name}</td>
                           <td className="p-4 text-slate-600">{formatDate(po.order_date).split(',')[0]}</td>
@@ -3088,12 +3106,36 @@ export default function Suppliers() {
                       onChange={(e) => {
                         setSupplierSearch(e.target.value);
                         setShowSupplierSuggestions(true);
+                        setSupplierSearchFocusedIndex(-1);
                         if (poFormData.supplier_id) {
                           setPoFormData(prev => ({ ...prev, supplier_id: '' }));
                         }
                       }}
-                      onFocus={() => setShowSupplierSuggestions(true)}
+                      onFocus={() => { setShowSupplierSuggestions(true); setSupplierSearchFocusedIndex(-1); }}
                       onBlur={() => setTimeout(() => setShowSupplierSuggestions(false), 200)}
+                      onKeyDown={(e) => {
+                        if (showSupplierSuggestions) {
+                          const query = supplierSearch.toLowerCase();
+                          const suggestions = suppliers.filter(s => s.name.toLowerCase().includes(query));
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setSupplierSearchFocusedIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : prev));
+                          } else if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setSupplierSearchFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (supplierSearchFocusedIndex >= 0 && suggestions[supplierSearchFocusedIndex]) {
+                              setSupplierSearch(suggestions[supplierSearchFocusedIndex].name);
+                              setPoFormData(prev => ({ ...prev, supplier_id: String(suggestions[supplierSearchFocusedIndex].id) }));
+                              setShowSupplierSuggestions(false);
+                              setSupplierSearchFocusedIndex(-1);
+                            }
+                          }
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                        }
+                      }}
                       placeholder="Search supplier name..."
                       className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-medium"
                     />
@@ -3113,7 +3155,7 @@ export default function Suppliers() {
                       if (suggestions.length === 0) return null;
                       return (
                         <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto divide-y divide-slate-100">
-                          {suggestions.map(s => (
+                          {suggestions.map((s, idx) => (
                             <div
                               key={s.id}
                               onClick={() => {
@@ -3121,7 +3163,7 @@ export default function Suppliers() {
                                 setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
                                 setShowSupplierSuggestions(false);
                               }}
-                              className="p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors"
+                              className={`p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors ${supplierSearchFocusedIndex === idx ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
                             >
                               <div className="text-xs font-semibold text-slate-800">{s.name}</div>
                               {s.contact_name && <div className="text-[10px] text-slate-400">Contact: {s.contact_name}</div>}
@@ -3142,9 +3184,40 @@ export default function Suppliers() {
                   onChange={(e) => {
                     setProductSearch(e.target.value);
                     setShowProductSuggestions(true);
+                    setProductSearchFocusedIndex(-1);
                   }}
-                  onFocus={() => setShowProductSuggestions(true)}
+                  onFocus={() => { setShowProductSuggestions(true); setProductSearchFocusedIndex(-1); }}
                   onBlur={() => setTimeout(() => setShowProductSuggestions(false), 200)}
+                  onKeyDown={(e) => {
+                    if (showProductSuggestions) {
+                      const query = productSearch.toLowerCase();
+                      const suggestions = productsList.filter(p => p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query));
+                      const totalOptions = suggestions.length + 1; // +1 for the "Create New" option
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setProductSearchFocusedIndex(prev => (prev < totalOptions - 1 ? prev + 1 : prev));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setProductSearchFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (productSearchFocusedIndex === 0) {
+                          setProductSearch('+ New Product (Create on-the-fly)');
+                          handlePoProductChange('new_product');
+                          setShowProductSuggestions(false);
+                          setProductSearchFocusedIndex(-1);
+                        } else if (productSearchFocusedIndex > 0 && suggestions[productSearchFocusedIndex - 1]) {
+                          const p = suggestions[productSearchFocusedIndex - 1];
+                          setProductSearch(`${p.name} (${p.sku})`);
+                          handlePoProductChange(String(p.id));
+                          setShowProductSuggestions(false);
+                          setProductSearchFocusedIndex(-1);
+                        }
+                      }
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
                   placeholder="Search existing product (Name or SKU)..."
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-medium"
                 />
@@ -3163,11 +3236,11 @@ export default function Suppliers() {
                           handlePoProductChange('new_product');
                           setShowProductSuggestions(false);
                         }}
-                        className="p-2.5 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors text-indigo-650 font-bold text-xs"
+                        className={`p-2.5 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors text-indigo-650 font-bold text-xs ${productSearchFocusedIndex === 0 ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
                       >
                         + Create New Product On-The-Fly
                       </div>
-                      {suggestions.map(p => (
+                      {suggestions.map((p, idx) => (
                         <div
                           key={p.id}
                           onClick={() => {
@@ -3175,7 +3248,7 @@ export default function Suppliers() {
                             handlePoProductChange(String(p.id));
                             setShowProductSuggestions(false);
                           }}
-                          className="p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors"
+                          className={`p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors ${productSearchFocusedIndex === idx + 1 ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
                         >
                           <div className="text-xs font-semibold text-slate-800">{p.name}</div>
                           <div className="text-[10px] text-slate-400 flex justify-between">
