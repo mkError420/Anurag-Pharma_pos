@@ -132,18 +132,18 @@ class SupplierController {
      * Retrieves aggregated PO items for a specific date range across all purchase orders.
      */
     public static function getFilteredPOItems() {
-        Auth::authenticate();
-        Auth::enforceTenant();
-
-        $shopId = Auth::$shopId;
-        $startDate = $_GET['start_date'] ?? null;
-        $endDate = $_GET['end_date'] ?? null;
-
-        if (empty($startDate) || empty($endDate)) {
-            Auth::jsonError('Please provide both start_date and end_date.', 400);
-        }
-
         try {
+            Auth::authenticate();
+            Auth::enforceTenant();
+
+            $shopId = Auth::$shopId;
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
+
+            if (empty($startDate) || empty($endDate)) {
+                Auth::jsonError('Please provide both start_date and end_date.', 400);
+            }
+
             // Check which columns exist in purchase_order_items table
             $pdo = DB::getConnection();
             $columnExists = function($table, $column) use ($pdo) {
@@ -167,7 +167,7 @@ class SupplierController {
                     p.sku,
                     p.name AS product_name,
                     poi.$costPriceCol AS cost_price,
-                    p.selling_price AS sale_price,
+                    poi.selling_price AS sale_price,
                     SUM(poi.$qtyOrderedCol) AS qty_ordered,
                     SUM(poi.$qtyReceivedCol) AS qty_received,
                     MAX(poi.expiry_date) AS expiry_date,
@@ -176,7 +176,7 @@ class SupplierController {
                 JOIN purchase_orders po ON poi.purchase_order_id = po.id
                 JOIN products p ON poi.product_id = p.id
                 WHERE po.shop_id = ? AND DATE(po.order_date) BETWEEN ? AND ?
-                GROUP BY poi.product_id, p.sku, p.name, poi.$costPriceCol, p.selling_price
+                GROUP BY poi.product_id, p.sku, p.name, poi.$costPriceCol, poi.selling_price
                 ORDER BY p.name ASC
             ";
 
@@ -203,7 +203,9 @@ class SupplierController {
 
         } catch (\Exception $e) {
             error_log('Fetch Filtered PO Items Error: ' . $e->getMessage());
-            Auth::jsonError('Server error retrieving filtered purchase order items: ' . $e->getMessage(), 500);
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode(['error' => 'Server error retrieving filtered purchase order items: ' . $e->getMessage()]);
         }
     }
 

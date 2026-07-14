@@ -641,6 +641,7 @@ class AnalyticsController {
                         p.sku as product_sku,
                         SUM(si.quantity) as total_quantity_sold,
                         SUM(si.subtotal) as total_revenue,
+                        SUM(si.quantity * COALESCE(si.cost_price, p.cost_price, 0)) as total_cost,
                         GROUP_CONCAT(DISTINCT s.id SEPARATOR ", ") as invoice_ids
                     FROM sale_items si
                     JOIN products p ON si.product_id = p.id
@@ -656,6 +657,7 @@ class AnalyticsController {
                 $ps['product_id'] = (int)$ps['product_id'];
                 $ps['total_quantity_sold'] = (int)$ps['total_quantity_sold'];
                 $ps['total_revenue'] = (float)$ps['total_revenue'];
+                $ps['total_cost'] = (float)$ps['total_cost'];
             }
 
             header('Content-Type: application/json');
