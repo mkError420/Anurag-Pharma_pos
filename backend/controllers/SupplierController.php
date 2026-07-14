@@ -511,7 +511,7 @@ class SupplierController {
                 }
             } else {
                 // It's an existing product (selected in the PO dropdown). We should also update its category and supplier if provided.
-                if (!empty($item['category'])) {
+              /*   if (!empty($item['category'])) {
                     DB::query('UPDATE products SET category = ?, supplier_id = ? WHERE id = ? AND shop_id = ?', [
                         $item['category'],
                         $supplierId,
@@ -523,8 +523,29 @@ class SupplierController {
                         $supplierId,
                         $productId,
                         $shopId
-                    ]);
+                    ]); */
+            // It's an existing product. Update its SKU, category, and supplier if provided.
+                $updateFields = [];
+                $updateParams = [];
+
+                if (!empty($item['sku'])) {
+                    // Check if the new SKU is already taken by another product in the same shop
+                    $stmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ? AND id != ?', [$shopId, $item['sku'], $productId]);
+                    if ($stmt->fetch()) {
+                        throw new \Exception("SKU '{$item['sku']}' is already in use by another product.");
+                    }
+                    $updateFields[] = 'sku = ?';
+                    $updateParams[] = $item['sku'];
                 }
+
+                $updateFields[] = 'category = ?';
+                $updateParams[] = !empty($item['category']) ? $item['category'] : null;
+                $updateFields[] = 'supplier_id = ?';
+                $updateParams[] = $supplierId;
+
+                $updateParams[] = $productId;
+                $updateParams[] = $shopId;
+                DB::query('UPDATE products SET ' . implode(', ', $updateFields) . ' WHERE id = ? AND shop_id = ?', $updateParams);
             }
 
             $subtotal = $item['quantity'] * $item['cost_price'];

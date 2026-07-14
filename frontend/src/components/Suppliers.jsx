@@ -670,13 +670,11 @@ export default function Suppliers() {
       const prod = productsList.find(p => String(p.id) === String(productId));
       if (prod) {
         setPoFormData(prev => ({
-          ...prev,
+          ...prev, // Keep existing form data
           product_id: productId,
           is_new: false,
           name: prod.name,
-          sku: prod.sku,
           category: prod.category || '',
-          cost_price: prod.cost_price,
           selling_price: prod.price,
           unit: prod.unit || 'piece',
           low_stock_threshold: prod.low_stock_threshold || '10'
@@ -3482,10 +3480,9 @@ export default function Suppliers() {
                   type="text"
                   value={poFormData.sku}
                   onChange={(e) => setPoFormData({ ...poFormData, sku: e.target.value })}
-                  disabled={!poFormData.is_new && editingCartItemIndex === null}
                   required
                   placeholder="SKU Code"
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 disabled:bg-slate-50 font-semibold font-mono"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold font-mono"
                 />
               </div>
 
