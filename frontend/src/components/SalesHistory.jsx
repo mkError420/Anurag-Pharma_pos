@@ -791,7 +791,12 @@ export default function SalesHistory() {
         <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Edit Sale #{editSaleData.id}</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-bold text-slate-800">Edit Sale #{editSaleData.id}</h2>
+                {editSaleData.customer_name && (
+                  <span className="text-sm font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">Customer: {editSaleData.customer_name}</span>
+                )}
+              </div>
               <p className="text-sm text-slate-500 mt-1">Modify items, discount, tax, or payment method</p>
             </div>
             <button onClick={() => setShowEditModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
@@ -983,7 +988,7 @@ export default function SalesHistory() {
             <button
               onClick={saveEditSale}
               disabled={editSaleLoading || editSaleData.items.length === 0}
-              className="px-5 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow-lg shadow-indigo-200 transition-all"
+              className="px-5 py-2.5 text-sm font-bold text-white bg-gray-600 hover:bg-purple-700 disabled:opacity-50 rounded-xl shadow-lg shadow-indigo-200 transition-all"
             >
               {editSaleLoading ? 'Saving...' : 'Save Changes'}
             </button>

@@ -2496,6 +2496,28 @@ export default function Suppliers() {
 
         return (
           <div className="space-y-4">
+            {/* PO Totals */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                <p className="text-xs font-semibold text-slate-500 uppercase">Total Purchase Amount</p>
+                <p className="text-2xl font-bold text-slate-800 mt-1">
+                  {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0))}
+                </p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                <p className="text-xs font-semibold text-slate-500 uppercase">Total Paid</p>
+                <p className="text-2xl font-bold text-emerald-600 mt-1">
+                  {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0))}
+                </p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                <p className="text-xs font-semibold text-slate-500 uppercase">Total Due</p>
+                <p className="text-2xl font-bold text-rose-600 mt-1">
+                  {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.due_amount || 0), 0))}
+                </p>
+              </div>
+            </div>
+
             {/* PO Filters bar */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 shadow-xs">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
