@@ -799,6 +799,10 @@ class ProductController {
         $endDate = $_GET['end_date'] ?? null;
 
         try {
+            // Check if original_quantity_received column exists
+            $columnCheck = DB::query("SHOW COLUMNS FROM purchase_order_items LIKE 'original_quantity_received'");
+            $hasOriginalQtyColumn = $columnCheck->fetch() !== false;
+
             // Verify product exists and belongs to the shop (if shop is specified)
             $sql = 'SELECT name, sku, stock_quantity, shop_id FROM products WHERE id = ?';
             $params = [$productId];
@@ -877,7 +881,7 @@ class ProductController {
                 UNION ALL
                 
                 -- Purchases
-                SELECT COALESCE(po.received_date, po.created_at) AS event_date, COALESCE(poi.quantity_received, poi.quantity_ordered) AS qty_change, 0 AS qty_sold,
+                SELECT COALESCE(po.received_date, po.created_at) AS event_date, " . ($hasOriginalQtyColumn ? "COALESCE(poi.original_quantity_received, poi.quantity_received, poi.quantity_ordered)" : "COALESCE(poi.quantity_received, poi.quantity_ordered)") . " AS qty_change, 0 AS qty_sold,
                        'purchase' AS type, poi.cost_price AS cost_price, NULL AS sold_price, poi.subtotal AS subtotal, 0 AS discount,
                        po.id AS reference_id, CONCAT('PO-', po.id) AS reference_number
                 FROM purchase_order_items poi

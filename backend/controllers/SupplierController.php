@@ -750,17 +750,18 @@ class SupplierController {
             $requestedPaidAmount = isset($requestData['paid_amount']) ? (float)$requestData['paid_amount'] : ($poInfo ? (float)$poInfo['paid_amount'] : 0.00);
 
             // REVERT PREVIOUS PO EFFECTS IF IT WAS ALREADY RECEIVED OR ORDERED
+            // NOTE: We do NOT revert stock for received POs because:
+            // 1. Sales may have occurred based on the original quantity
+            // 2. Editing a PO should only change the PO record, not historical stock movements
+            // 3. The stock history should reflect what actually happened, not what was edited later
             if ($poStatus === 'received') {
                 $stmt = DB::query('SELECT product_id, quantity_received FROM purchase_order_items WHERE purchase_order_id = ? AND shop_id = ?', [$poId, $shopId]);
                 $oldItems = $stmt->fetchAll();
 
+                // Store old items for later comparison with new items
+                $oldItemsMap = [];
                 foreach ($oldItems as $item) {
-                    if ((int)$item['quantity_received'] > 0) {
-                        DB::query(
-                            'UPDATE products SET stock_quantity = GREATEST(stock_quantity - ?, 0) WHERE id = ? AND shop_id = ?',
-                            [(int)$item['quantity_received'], (int)$item['product_id'], $shopId]
-                        );
-                    }
+                    $oldItemsMap[(int)$item['product_id']] = (int)$item['quantity_received'];
                 }
             }
             
@@ -771,11 +772,117 @@ class SupplierController {
                 );
             }
 
-            // Sync items (delete and re-insert)
-            DB::query('DELETE FROM purchase_order_items WHERE purchase_order_id = ? AND shop_id = ?', [$poId, $shopId]);
-
-            // Re-insert items and get total amount
-            $totalAmount = self::processAndInsertPoItems($poId, $shopId, $supplierId, $items);
+            // Sync items
+            if ($poStatus === 'received') {
+                // For received POs, preserve historical accuracy by using original_quantity_received
+                // Ensure column exists
+                $columnCheck = DB::query("SHOW COLUMNS FROM purchase_order_items LIKE 'original_quantity_received'");
+                if ($columnCheck->fetch() === false) {
+                    DB::query("ALTER TABLE purchase_order_items ADD COLUMN original_quantity_received DECIMAL(10,3) NULL DEFAULT NULL");
+                }
+                
+                // Back up original quantity_received before any changes
+                DB::query(
+                    'UPDATE purchase_order_items SET original_quantity_received = quantity_received WHERE purchase_order_id = ? AND shop_id = ? AND original_quantity_received IS NULL',
+                    [$poId, $shopId]
+                );
+                
+                // Calculate total amount and update items
+                $totalAmount = 0.0;
+                foreach ($items as $item) {
+                    $productId = (int)$item['product_id'];
+                    $qtyOrdered = (int)$item['quantity_ordered'];
+                    $costPrice = (float)$item['cost_price'];
+                    $sellingPrice = (float)($item['selling_price'] ?? 0);
+                    
+                    // Get current item data
+                    $checkStmt = DB::query('SELECT id, quantity_ordered, quantity_received FROM purchase_order_items WHERE purchase_order_id = ? AND product_id = ? AND shop_id = ?', [$poId, $productId, $shopId]);
+                    $existingItem = $checkStmt->fetch();
+                    
+                    if ($existingItem) {
+                        $oldQtyOrdered = (int)$existingItem['quantity_ordered'];
+                        $qtyReceived = (int)$existingItem['quantity_received'];
+                        
+                        // Calculate net change in quantity_ordered
+                        $netChange = $qtyOrdered - $oldQtyOrdered;
+                        
+                        // Update item: preserve quantity_received, update quantity_ordered
+                        DB::query(
+                            'UPDATE purchase_order_items SET quantity_ordered = ?, cost_price = ?, selling_price = ?, subtotal = ? WHERE id = ?',
+                            [$qtyOrdered, $costPrice, $sellingPrice > 0 ? $sellingPrice : $costPrice, $qtyOrdered * $costPrice, $existingItem['id']]
+                        );
+                        
+                        // Apply net stock change via inventory adjustment
+                        if ($netChange !== 0) {
+                            DB::query(
+                                'INSERT INTO inventory_adjustments (shop_id, product_id, difference, reason, created_at) VALUES (?, ?, ?, ?, NOW())',
+                                [$shopId, $productId, $netChange, 'PO Edit: Quantity adjusted from ' . $oldQtyOrdered . ' to ' . $qtyOrdered . ' in PO #' . $poId]
+                            );
+                            DB::query(
+                                'UPDATE products SET stock_quantity = GREATEST(stock_quantity + ?, 0), cost_price = ?, price = ? WHERE id = ? AND shop_id = ?',
+                                [$netChange, $costPrice, $sellingPrice > 0 ? $sellingPrice : $costPrice, $productId, $shopId]
+                            );
+                        } else {
+                            // Only price change
+                            DB::query(
+                                'UPDATE products SET cost_price = ?, price = ? WHERE id = ? AND shop_id = ?',
+                                [$costPrice, $sellingPrice > 0 ? $sellingPrice : $costPrice, $productId, $shopId]
+                            );
+                        }
+                        
+                        $totalAmount += $qtyOrdered * $costPrice;
+                    } else {
+                        // New item added
+                        $subtotal = $qtyOrdered * $costPrice;
+                        DB::query(
+                            'INSERT INTO purchase_order_items (purchase_order_id, product_id, quantity_ordered, quantity_received, original_quantity_received, cost_price, selling_price, subtotal, shop_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            [$poId, $productId, $qtyOrdered, $qtyOrdered, $qtyOrdered, $costPrice, $sellingPrice > 0 ? $sellingPrice : $costPrice, $subtotal, $shopId]
+                        );
+                        
+                        // Add stock
+                        DB::query(
+                            'INSERT INTO inventory_adjustments (shop_id, product_id, difference, reason, created_at) VALUES (?, ?, ?, ?, NOW())',
+                            [$shopId, $productId, $qtyOrdered, 'PO Edit: New product added to PO #' . $poId]
+                        );
+                        DB::query(
+                            'UPDATE products SET stock_quantity = stock_quantity + ?, cost_price = ?, price = ? WHERE id = ? AND shop_id = ?',
+                            [$qtyOrdered, $costPrice, $sellingPrice > 0 ? $sellingPrice : $costPrice, $productId, $shopId]
+                        );
+                        
+                        $totalAmount += $subtotal;
+                    }
+                }
+                
+                // Remove items no longer in PO
+                $newProductIds = array_map(function($item) { return (int)$item['product_id']; }, $items);
+                if (!empty($newProductIds)) {
+                    $placeholders = str_repeat('?,', count($newProductIds) - 1) . '?';
+                    $removeStmt = DB::query(
+                        'SELECT id, product_id, quantity_received FROM purchase_order_items WHERE purchase_order_id = ? AND shop_id = ? AND product_id NOT IN (' . $placeholders . ')',
+                        array_merge([$poId, $shopId], $newProductIds)
+                    );
+                    $removedItems = $removeStmt->fetchAll();
+                    
+                    foreach ($removedItems as $removedItem) {
+                        $removedProductId = (int)$removedItem['product_id'];
+                        $removedQty = (int)$removedItem['quantity_received'];
+                        
+                        DB::query(
+                            'INSERT INTO inventory_adjustments (shop_id, product_id, difference, reason, created_at) VALUES (?, ?, ?, ?, NOW())',
+                            [$shopId, $removedProductId, -$removedQty, 'PO Edit: Product removed from PO #' . $poId]
+                        );
+                        DB::query(
+                            'UPDATE products SET stock_quantity = GREATEST(stock_quantity - ?, 0) WHERE id = ? AND shop_id = ?',
+                            [$removedQty, $removedProductId, $shopId]
+                        );
+                        DB::query('DELETE FROM purchase_order_items WHERE id = ?', [$removedItem['id']]);
+                    }
+                }
+            } else {
+                // For ordered POs, use the original delete and re-insert logic
+                DB::query('DELETE FROM purchase_order_items WHERE purchase_order_id = ? AND shop_id = ?', [$poId, $shopId]);
+                $totalAmount = self::processAndInsertPoItems($poId, $shopId, $supplierId, $items);
+            }
 
             if ($paymentBasis === 'credit') {
                 if ($requestedPaidAmount < 0) {
@@ -788,28 +895,6 @@ class SupplierController {
                 $dueAmount = 0.00;
             }
 
-            // Apply new stock if PO was already received
-            if ($poStatus === 'received') {
-                $stmt = DB::query('SELECT product_id, quantity_ordered, cost_price, selling_price FROM purchase_order_items WHERE purchase_order_id = ? AND shop_id = ?', [$poId, $shopId]);
-                $newItems = $stmt->fetchAll();
-
-                foreach ($newItems as $nItem) {
-                    $productId = (int)$nItem['product_id'];
-                    $qtyOrdered = (int)$nItem['quantity_ordered'];
-                    $costPrice = (float)$nItem['cost_price'];
-                    $sellingPrice = (float)$nItem['selling_price'];
-
-                    DB::query(
-                        'UPDATE purchase_order_items SET quantity_received = ? WHERE purchase_order_id = ? AND product_id = ? AND shop_id = ?',
-                        [$qtyOrdered, $poId, $productId, $shopId]
-                    );
-
-                    DB::query(
-                        'UPDATE products SET stock_quantity = stock_quantity + ?, cost_price = ?, price = ? WHERE id = ? AND shop_id = ?',
-                        [$qtyOrdered, $costPrice, $sellingPrice > 0 ? $sellingPrice : $costPrice, $productId, $shopId]
-                    );
-                }
-            }
 
             // Update main PO total
             DB::query(
