@@ -1509,12 +1509,8 @@ export default function Suppliers() {
       return acc;
     }, {});
 
-    // Calculate Total Spent based on Cost Price * Active Stock
-    const calculatedTotalSpent = uniqueProducts.reduce((sum, p) => {
-      const cost = parseFloat(p.current_cost) || 0;
-      const stock = parseFloat(p.stock_quantity) || 0;
-      return sum + (cost * stock);
-    }, 0);
+    // Total Spent = sum of paid_amount across all purchase orders for this supplier
+    const calculatedTotalSpent = sPOs.reduce((sum, po) => sum + (parseFloat(po.paid_amount) || 0), 0);
 
     return (
       <div className="space-y-6">
@@ -1605,7 +1601,7 @@ export default function Suppliers() {
               </div>
               <div className="mt-4">
                 <span className="block text-2xl font-black text-slate-800">{formatCurrency(calculatedTotalSpent)}</span>
-                <span className="text-xs text-slate-400">Based on Cost Price × Active Stock</span>
+                <span className="text-xs text-slate-400">Total paid across all purchase orders</span>
               </div>
             </div>
 

@@ -48,8 +48,7 @@ class AnalyticsController {
             $totalCOGS = (float)($stmt->fetchColumn() ?: 0);
 
             // 3. Purchasing Costs
-            // 3. Purchasing Costs
-            $poSql = "SELECT SUM(paid_amount) AS total_paid 
+            $poSql = "SELECT SUM(total_amount) AS total_po, SUM(paid_amount) AS total_paid, SUM(due_amount) AS total_due
                       FROM purchase_orders 
                       WHERE " . ($hasShop ? "shop_id = ?" : "1=1") . " AND status IN ('ordered', 'received')";
             $poParams = $hasShop ? [$shopId] : [];
@@ -62,12 +61,9 @@ class AnalyticsController {
             }
             $stmt = DB::query($poSql, $poParams);
             $poRow = $stmt->fetch();
-            $totalPurchasingCash = (float)($poRow['total_paid'] ?? 0);
-
-            // Link Product Purchase Cost dynamically to Total Inventory Value (Total Spent)
-            $productPurchaseSql = "SELECT SUM(cost_price * stock_quantity) AS total_purchased FROM products WHERE " . ($hasShop ? "shop_id = ?" : "1=1");
-            $stmt = DB::query($productPurchaseSql, $hasShop ? [$shopId] : []);
-            $totalPurchasing = (float)($stmt->fetchColumn() ?: 0);
+            $totalPurchasing     = (float)($poRow['total_po']   ?? 0);  // total_amount  (cash + credit)
+            $totalPurchasingCash = (float)($poRow['total_paid'] ?? 0);  // paid_amount   (cash only)
+            $totalPurchasingDue  = (float)($poRow['total_due']  ?? 0);  // due_amount    (credit owed in period)
 
             // 4. Other Costs
             $otherSql = 'SELECT SUM(amount) AS total_other_costs FROM other_costs WHERE ' . ($hasShop ? 'shop_id = ?' : '1=1');
@@ -91,10 +87,8 @@ class AnalyticsController {
             $stmt = DB::query($wastageSql, $wastageParams);
             $totalWastage = (float)($stmt->fetchColumn() ?: 0);
 
-            // 6. Supplier Due Balance
-            $supplierDueSql = 'SELECT SUM(due_balance) AS total_due FROM suppliers WHERE ' . ($hasShop ? 'shop_id = ?' : '1=1');
-            $stmt = DB::query($supplierDueSql, $hasShop ? [$shopId] : []);
-            $totalSupplierDue = (float)($stmt->fetchColumn() ?: 0);
+            // 6. Supplier Due Balance — credit owed within the filtered period (from PO query above)
+            $totalSupplierDue = $totalPurchasingDue;
 
             // 7. Customer Due Balance
             $customerDueSql = 'SELECT SUM(due_balance) AS total_due FROM customers WHERE ' . ($hasShop ? 'shop_id = ?' : '1=1');
