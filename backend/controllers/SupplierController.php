@@ -562,7 +562,7 @@ class SupplierController {
     public static function createPurchaseOrder($requestData) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'shop_staff']);
 
         $shopId = Auth::$shopId;
         $supplierId = $requestData['supplier_id'] ?? null;
@@ -855,7 +855,7 @@ class SupplierController {
     public static function updatePurchaseOrderStatus($id, $requestData) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'shop_staff']);
 
         $poId = (int)$id;
         $shopId = Auth::$shopId;

@@ -1295,7 +1295,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                                 ? 'bg-rose-50 text-rose-600 border border-rose-100'
                                 : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                                 }`}>
-                                {remainingQty} left
+                                {remainingQty} {product.unit || 'pcs'} left
                               </span>
                             </td>
                             <td className="p-3 text-center">
@@ -2723,7 +2723,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               <svg className="w-3.5 h-3.5 text-amber-600 disabled:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="text-xs">Hold</span>
+              <span className="text-xs">Due</span>
             </button>
             <button
               onClick={handleCheckout}
