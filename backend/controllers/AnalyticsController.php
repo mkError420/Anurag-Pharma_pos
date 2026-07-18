@@ -90,9 +90,16 @@ class AnalyticsController {
             // 6. Supplier Due Balance — credit owed within the filtered period (from PO query above)
             $totalSupplierDue = $totalPurchasingDue;
 
-            // 7. Customer Due Balance
-            $customerDueSql = 'SELECT SUM(due_balance) AS total_due FROM customers WHERE ' . ($hasShop ? 'shop_id = ?' : '1=1');
-            $stmt = DB::query($customerDueSql, $hasShop ? [$shopId] : []);
+            // 7. Customer Due Balance — sum of due_amount on sales within the filtered period
+            // (matches the same period as sales_revenue so the figures are consistent)
+            $customerDueSql = 'SELECT SUM(due_amount) AS total_due FROM sales WHERE ' . ($hasShop ? 'shop_id = ?' : '1=1');
+            $customerDueParams = $hasShop ? [$shopId] : [];
+            if (!empty($startDate) && !empty($endDate)) {
+                $customerDueSql .= ' AND created_at BETWEEN ? AND ?';
+                $customerDueParams[] = "$startDate 00:00:00";
+                $customerDueParams[] = "$endDate 23:59:59";
+            }
+            $stmt = DB::query($customerDueSql, $customerDueParams);
             $totalCustomerDue = (float)($stmt->fetchColumn() ?: 0);
 
             // 8. Customer Returns (Refunds)

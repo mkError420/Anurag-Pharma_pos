@@ -836,9 +836,10 @@ export default function SalesHistory() {
     );
   }).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0) || (b.id || 0) - (a.id || 0));
 
-  const salesDue = filteredSales.reduce((sum, s) => sum + parseFloat(s.due_amount || 0), 0);
-  const heldBillsDue = heldBills.filter(b => b.status === 'held').reduce((sum, b) => sum + parseFloat(b.due_amount || 0), 0);
-  const totalDue = salesDue + heldBillsDue;
+  // Total due is summed only from sales records. Held bills with status='held' are
+  // automatically created as a mirror whenever a sale has due_amount > 0, so
+  // including both would double-count every due amount.
+  const totalDue = filteredSales.reduce((sum, s) => sum + parseFloat(s.due_amount || 0), 0);
   const totalSalesCount = filteredSales.length;
   const totalRevenue = filteredSales.reduce((sum, s) => sum + parseFloat(s.final_amount || 0), 0);
 
