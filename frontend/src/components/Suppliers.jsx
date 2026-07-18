@@ -2215,7 +2215,7 @@ export default function Suppliers() {
           <p className="text-sm text-slate-500">Manage vendor profiles, purchase orders, and cost price changes</p>
         </div>
         <div className="flex items-center space-x-3 w-full sm:w-auto">
-          { (isAdmin || user.role === 'shop_staff') && (
+          {(isAdmin || user.role === 'shop_staff') && (
             <button
               onClick={() => openAddPo()}
               className="bg-[#C4A484] hover:bg-[#A67B5B] text-white font-semibold py-2.5 px-5 border border-slate-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
@@ -2495,7 +2495,7 @@ export default function Suppliers() {
                 <span>View details</span>
               </button>
             </div>
-                        {/* PO Totals */}
+            {/* PO Totals */}
             {/* PO Filters bar */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 shadow-xs">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
@@ -2637,16 +2637,16 @@ export default function Suppliers() {
                             >
                               View
                             </button>
-                              { (isAdmin || user.role === 'shop_staff') && (
-                                po.status === 'ordered' && (
-                                  <button
-                                    onClick={() => openPoDetails(po.id)}
-                                    className="text-emerald-600 hover:text-emerald-900 font-bold text-xs border border-emerald-100 bg-emerald-50 px-2.5 py-1 rounded-lg transition-colors animate-pulse"
-                                  >
-                                    Receive Stocks
-                                  </button>
-                                )
-                              )}
+                            {(isAdmin || user.role === 'shop_staff') && (
+                              po.status === 'ordered' && (
+                                <button
+                                  onClick={() => openPoDetails(po.id)}
+                                  className="text-emerald-600 hover:text-emerald-900 font-bold text-xs border border-emerald-100 bg-emerald-50 px-2.5 py-1 rounded-lg transition-colors animate-pulse"
+                                >
+                                  Receive Stocks
+                                </button>
+                              )
+                            )}
                             <button
                               onClick={() => openEditPo(po)}
                               disabled={!isAdmin}
@@ -2921,6 +2921,224 @@ export default function Suppliers() {
 
       {/* --- RECEIVE MODAL --- */}
       {showReceiveModal && renderReceiveModal()}
+
+      {/* ===== FILTERED PO ITEMS MODAL ===== */}
+      {showFilteredPOModal && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-10 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden mb-10">
+            {/* Header */}
+            <div className="bg-white px-6 py-5 flex items-center justify-between border-b border-slate-100">
+              <div>
+                <h2 className="text-slate-800 font-extrabold text-lg tracking-tight">Filtered Product Details</h2>
+                <p className="text-slate-500 text-xs mt-0.5">
+                  Purchased products from <span className="font-bold">{poStartDate}</span> to <span className="font-bold">{poEndDate}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowFilteredPOModal(false); setFilteredPOItemsData(null); }}
+                className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-50 rounded-xl transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6">
+              {filteredPOLoading ? (
+                <div className="py-20 flex flex-col items-center justify-center space-y-4">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+                  <p className="text-slate-400 text-sm font-medium">Loading products...</p>
+                </div>
+              ) : filteredPOItemsData ? (() => {
+                const items = filteredPOItemsData;
+                return (
+                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    {items.length === 0 ? (
+                      <div className="py-12 text-center text-slate-400 text-sm">
+                        No products were ordered in this date range.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm border-collapse">
+                          <thead>
+                            <tr className="bg-white border-b border-slate-100">
+                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">SKU</th>
+                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Product Name</th>
+                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cost Price</th>
+                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sale Price</th>
+                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Qty Ordered</th>
+                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Qty Received</th>
+                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Expiry Date</th>
+                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Subtotal</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {items.map((p) => (
+                              <tr key={p.product_id} className="hover:bg-slate-50/50 transition-colors bg-white">
+                                <td className="px-5 py-5 align-middle">
+                                  <div className="text-[13px] font-bold text-slate-500 font-mono tracking-tight">{p.sku || 'N/A'}</div>
+                                </td>
+                                <td className="px-5 py-5 align-middle">
+                                  <div className="font-bold text-slate-700 text-[14px]">{p.product_name}</div>
+                                </td>
+                                <td className="px-5 py-5 align-middle">
+                                  <span className="font-medium text-slate-600 text-[14px]">৳{parseFloat(p.cost_price).toFixed(2)}</span>
+                                </td>
+                                <td className="px-5 py-5 align-middle">
+                                  <span className="font-medium text-slate-600 text-[14px]">৳{parseFloat(p.sale_price).toFixed(2)}</span>
+                                </td>
+                                <td className="px-5 py-5 align-middle">
+                                  <span className="font-bold text-slate-700 text-[14px]">
+                                    {parseFloat(p.qty_ordered)} <span className="font-medium text-slate-400 text-[13px] font-normal ml-1">Carton</span>
+                                  </span>
+                                </td>
+                                <td className="px-5 py-5 align-middle">
+                                  <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 font-bold px-3 py-1.5 rounded text-[14px]">
+                                    {parseFloat(p.qty_received)} <span className="font-medium text-emerald-500 text-[13px] font-normal ml-0.5">Carton</span>
+                                  </span>
+                                </td>
+                                <td className="px-5 py-5 align-middle">
+                                  <span className="text-slate-400 text-[13px]">{p.expiry_date || '-'}</span>
+                                </td>
+                                <td className="px-5 py-5 align-middle">
+                                  <span className="font-extrabold text-slate-800 text-[15px]">৳{parseFloat(p.total_subtotal).toFixed(2)}</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })() : (
+                <div className="py-16 text-center text-slate-400 text-sm">No data available.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== COST PRICE LOG VIEW MODAL ===== */}
+      {showCostLogViewModal && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-10 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden mb-10">
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-5 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="bg-white/20 p-2 rounded-xl">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-white font-extrabold text-lg tracking-tight">Cost Price Log Details</h2>
+                  <p className="text-indigo-100 text-xs mt-0.5">Log ID: #{selectedCostLog?.id}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowCostLogViewModal(false); setSelectedCostLog(null); }}
+                className="text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-xl transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6">
+              {costLogViewLoading ? (
+                <div className="py-20 flex flex-col items-center justify-center space-y-4">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+                  <p className="text-slate-400 text-sm font-medium">Loading log details...</p>
+                </div>
+              ) : selectedCostLog ? (
+                <div className="space-y-6">
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Product Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Product Name</p>
+                        <p className="font-semibold text-slate-800">{selectedCostLog.product_name}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">SKU</p>
+                        <p className="font-mono text-sm font-bold text-slate-600">{selectedCostLog.product_sku}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Category</p>
+                        <p className="font-medium text-slate-700">{selectedCostLog.product_category || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Supplier</p>
+                        <p className="font-medium text-slate-700">{selectedCostLog.supplier_name || 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Price Change Details</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Old Cost Price</p>
+                        <p className="font-semibold text-slate-600">{formatCurrency(selectedCostLog.old_cost_price)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">New Cost Price</p>
+                        <p className="font-extrabold text-slate-800">{formatCurrency(selectedCostLog.new_cost_price)}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-xs text-slate-500 mb-1">Difference</p>
+                        {(() => {
+                          const diff = parseFloat(selectedCostLog.new_cost_price) - parseFloat(selectedCostLog.old_cost_price);
+                          return diff === 0 ? (
+                            <span className="text-slate-400 font-semibold">No change</span>
+                          ) : diff > 0 ? (
+                            <span className="text-rose-600 font-bold bg-rose-50 border border-rose-100 px-3 py-1 rounded-lg text-sm inline-flex items-center">
+                              +{formatCurrency(diff)} ▲ (Increase)
+                            </span>
+                          ) : (
+                            <span className="text-emerald-600 font-bold bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-lg text-sm inline-flex items-center">
+                              {formatCurrency(diff)} ▼ (Decrease)
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Additional Information</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Reason / Reference</p>
+                        <p className="font-medium text-indigo-600">{selectedCostLog.reason || selectedCostLog.change_reason || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Date Logged</p>
+                        <p className="font-medium text-slate-700">{formatDate(selectedCostLog.created_at)}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+                      <button
+                        onClick={() => deleteCostLog(selectedCostLog.id)}
+                        className="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        <span>Delete Log</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="py-16 text-center text-slate-400 text-sm">No data available.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
@@ -3731,7 +3949,7 @@ export default function Suppliers() {
                 {poFormData.payment_basis === 'credit' && (
                   <div className="text-xs text-slate-500">
                     Remaining Due: <span className="text-sm font-bold text-rose-650">
-                      {isEditPoMode && selectedPo 
+                      {isEditPoMode && selectedPo
                         ? formatCurrency(selectedPo.due_amount || 0)
                         : formatCurrency(calculatePOTotal() - (parseFloat(poFormData.paid_amount || 0)))
                       }
@@ -4487,239 +4705,4 @@ export default function Suppliers() {
     );
   }
 
-  // RETURN JSX
-  return (
-    <>
-      {/* ===== FILTERED PO ITEMS MODAL ===== */}
-      {showFilteredPOModal && (
-        <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-10 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden mb-10">
-            {/* Header */}
-            <div className="bg-white px-6 py-5 flex items-center justify-between border-b border-slate-100">
-              <div>
-                <h2 className="text-slate-800 font-extrabold text-lg tracking-tight">Filtered Product Details</h2>
-                <p className="text-slate-500 text-xs mt-0.5">
-                  Purchased products from <span className="font-bold">{poStartDate}</span> to <span className="font-bold">{poEndDate}</span>
-                </p>
-              </div>
-              <button
-                onClick={() => { setShowFilteredPOModal(false); setFilteredPOItemsData(null); }}
-                className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-50 rounded-xl transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="p-6">
-              {filteredPOLoading ? (
-                <div className="py-20 flex flex-col items-center justify-center space-y-4">
-                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
-                  <p className="text-slate-400 text-sm font-medium">Loading products...</p>
-                </div>
-              ) : filteredPOItemsData ? (() => {
-                const items = filteredPOItemsData;
-
-                return (
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                    {items.length === 0 ? (
-                      <div className="py-12 text-center text-slate-400 text-sm">
-                        No products were ordered in this date range.
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm border-collapse">
-                          <thead>
-                            <tr className="bg-white border-b border-slate-100">
-                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">SKU</th>
-                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Product Name</th>
-                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cost Price</th>
-                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sale Price</th> {/* Corrected typo */}
-                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Qty Ordered</th>
-                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Qty Received</th>
-                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Expiry Date</th> {/* Corrected typo */}
-                              <th className="px-5 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Subtotal</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-50">
-                            {items.map((p, idx) => {
-                              return (
-                                <tr key={p.product_id} className="hover:bg-slate-50/50 transition-colors bg-white">
-                                  <td className="px-5 py-5 align-middle">
-                                    <div className="text-[13px] font-bold text-slate-500 font-mono tracking-tight">{p.sku || 'N/A'}</div>
-                                  </td> {/* Corrected typo */}
-                                  <td className="px-5 py-5 align-middle">
-                                    <div className="font-bold text-slate-700 text-[14px]">{p.product_name}</div>
-                                  </td>
-                                  <td className="px-5 py-5 align-middle">
-                                    <span className="font-medium text-slate-600 text-[14px]">৳{parseFloat(p.cost_price).toFixed(2)}</span>
-                                  </td>
-                                  <td className="px-5 py-5 align-middle">
-                                    <span className="font-medium text-slate-600 text-[14px]">৳{parseFloat(p.sale_price).toFixed(2)}</span>
-                                  </td>
-                                  <td className="px-5 py-5 align-middle">
-                                    <span className="font-bold text-slate-700 text-[14px]">
-                                      {parseFloat(p.qty_ordered)} <span className="font-medium text-slate-400 text-[13px] font-normal ml-1">Carton</span>
-                                    </span>
-                                  </td>
-                                  <td className="px-5 py-5 align-middle">
-                                    <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 font-bold px-3 py-1.5 rounded text-[14px]">
-                                      {parseFloat(p.qty_received)} <span className="font-medium text-emerald-500 text-[13px] font-normal ml-0.5">Carton</span>
-                                    </span>
-                                  </td>
-                                  <td className="px-5 py-5 align-middle">
-                                    <span className="text-slate-400 text-[13px]">{p.expiry_date || '-'}</span>
-                                  </td>
-                                  <td className="px-5 py-5 align-middle">
-                                    <span className="font-extrabold text-slate-800 text-[15px]">৳{parseFloat(p.total_subtotal).toFixed(2)}</span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                );
-              })() : (
-                <div className="py-16 text-center text-slate-400 text-sm">No data available.</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== COST PRICE LOG VIEW MODAL ===== */}
-      {showCostLogViewModal && (
-        <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-10 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden mb-10">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-5 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="bg-white/20 p-2 rounded-xl">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-white font-extrabold text-lg tracking-tight">Cost Price Log Details</h2>
-                  <p className="text-indigo-100 text-xs mt-0.5">Log ID: #{selectedCostLog?.id}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => { setShowCostLogViewModal(false); setSelectedCostLog(null); }}
-                className="text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-xl transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="p-6">
-              {costLogViewLoading ? (
-                <div className="py-20 flex flex-col items-center justify-center space-y-4">
-                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
-                  <p className="text-slate-400 text-sm font-medium">Loading log details...</p>
-                </div>
-              ) : selectedCostLog ? (
-                <div className="space-y-6">
-                  {/* Product Info */}
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Product Information</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Product Name</p>
-                        <p className="font-semibold text-slate-800">{selectedCostLog.product_name}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">SKU</p>
-                        <p className="font-mono text-sm font-bold text-slate-600">{selectedCostLog.product_sku}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Category</p>
-                        <p className="font-medium text-slate-700">{selectedCostLog.product_category || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Supplier</p>
-                        <p className="font-medium text-slate-700">{selectedCostLog.supplier_name || 'N/A'}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Price Change Info */}
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Price Change Details</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Old Cost Price</p>
-                        <p className="font-semibold text-slate-600">{formatCurrency(selectedCostLog.old_cost_price)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">New Cost Price</p>
-                        <p className="font-extrabold text-slate-800">{formatCurrency(selectedCostLog.new_cost_price)}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <p className="text-xs text-slate-500 mb-1">Difference</p>
-                        {(() => {
-                          const diff = parseFloat(selectedCostLog.new_cost_price) - parseFloat(selectedCostLog.old_cost_price);
-                          return diff === 0 ? (
-                            <span className="text-slate-400 font-semibold">No change</span>
-                          ) : diff > 0 ? (
-                            <span className="text-rose-600 font-bold bg-rose-50 border border-rose-100 px-3 py-1 rounded-lg text-sm inline-flex items-center">
-                              +{formatCurrency(diff)} ▲ (Increase)
-                            </span>
-                          ) : (
-                            <span className="text-emerald-600 font-bold bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-lg text-sm inline-flex items-center">
-                              {formatCurrency(diff)} ▼ (Decrease)
-                            </span>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Additional Info */}
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Additional Information</h3>
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Reason / Reference</p>
-                        <p className="font-medium text-indigo-600">{selectedCostLog.reason || selectedCostLog.change_reason || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Date Logged</p>
-                        <p className="font-medium text-slate-700">{formatDate(selectedCostLog.created_at)}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  {isAdmin && (
-                    <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
-                      <button
-                        onClick={() => deleteCostLog(selectedCostLog.id)}
-                        className="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        <span>Delete Log</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="py-16 text-center text-slate-400 text-sm">No data available.</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
 }
