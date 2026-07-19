@@ -40,6 +40,13 @@ export default function ManualOrders() {
   const [activeDropdownIndex, setActiveDropdownIndex] = useState(null);
   const [dropdownFocusedIndex, setDropdownFocusedIndex] = useState(-1);
 
+  // Customer autocomplete state
+  const [customers, setCustomers] = useState([]);
+  const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [customerFocusedIndex, setCustomerFocusedIndex] = useState(-1);
+  const [customerSearchField, setCustomerSearchField] = useState(''); // 'name' or 'phone'
+
   // Form State
   const [formData, setFormData] = useState({
     salesman_name: '',
@@ -87,6 +94,7 @@ export default function ManualOrders() {
     fetchProducts();
     fetchShopInfo();
     fetchSalesHistory();
+    fetchCustomers();
   }, []);
 
   const triggerAlert = (type, message) => {
@@ -161,6 +169,20 @@ export default function ManualOrders() {
     }
   };
 
+  const fetchCustomers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/customers`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setCustomers(await response.json());
+      }
+    } catch (e) {
+      console.error('Failed to fetch customers', e);
+    }
+  };
+
   // Calculations
   const calculateTotals = (items, discountAmt, taxAmt) => {
     const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.unit_price || 0) * parseFloat(item.quantity || 0)), 0);
@@ -177,6 +199,41 @@ export default function ManualOrders() {
       p.name.toLowerCase().includes(lowerTerm) ||
       (p.sku && p.sku.toLowerCase().includes(lowerTerm))
     );
+  };
+
+  const getFilteredCustomers = (term, field) => {
+    if (!term) return [];
+    const lowerTerm = term.toLowerCase();
+    return customers.filter(c => {
+      if (field === 'customer_name') {
+        return c.name && c.name.toLowerCase().includes(lowerTerm);
+      } else if (field === 'customer_phone') {
+        return c.phone && c.phone.toLowerCase().includes(lowerTerm);
+      }
+      return false;
+    }).slice(0, 10); // Limit to 10 suggestions
+  };
+
+  const handleCustomerInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Update suggestions
+    const suggestions = getFilteredCustomers(value, field);
+    setCustomerSuggestions(suggestions);
+    setCustomerSearchField(field);
+    setShowCustomerDropdown(suggestions.length > 0);
+    setCustomerFocusedIndex(-1);
+  };
+
+  const handleCustomerSelect = (customer) => {
+    setFormData(prev => ({
+      ...prev,
+      customer_name: customer.name || '',
+      customer_phone: customer.phone || '',
+      customer_address: customer.address || ''
+    }));
+    setShowCustomerDropdown(false);
+    setCustomerSuggestions([]);
   };
 
   // Form handlers
@@ -1019,29 +1076,97 @@ export default function ManualOrders() {
                   />
                 </div>
 
-                <div>
+                <div className="relative">
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Customer Name {formData.payment_method === 'credit' ? '*' : ''}</label>
                   <input
                     type="text"
                     name="customer_name"
                     value={formData.customer_name}
-                    onChange={handleInputChange}
+                    onChange={(e) => handleCustomerInputChange('customer_name', e.target.value)}
+                    onFocus={() => { if (formData.customer_name) { setCustomerSuggestions(getFilteredCustomers(formData.customer_name, 'customer_name')); setShowCustomerDropdown(true); setCustomerSearchField('customer_name'); setCustomerFocusedIndex(-1); } }}
+                    onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                    onKeyDown={(e) => {
+                      if (showCustomerDropdown && customerSearchField === 'customer_name') {
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          setCustomerFocusedIndex(prev => (prev < customerSuggestions.length - 1 ? prev + 1 : prev));
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setCustomerFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (customerFocusedIndex >= 0 && customerSuggestions[customerFocusedIndex]) {
+                            handleCustomerSelect(customerSuggestions[customerFocusedIndex]);
+                          }
+                        } else if (e.key === 'Escape') {
+                          setShowCustomerDropdown(false);
+                        }
+                      }
+                    }}
                     required={formData.payment_method === 'credit'}
                     placeholder="Walk-in Customer / Buyer"
                     className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
                   />
+                  {showCustomerDropdown && customerSearchField === 'customer_name' && customerSuggestions.length > 0 && (
+                    <div className="absolute left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto w-full">
+                      {customerSuggestions.map((customer, idx) => (
+                        <div
+                          key={customer.id}
+                          onClick={() => handleCustomerSelect(customer)}
+                          className={`p-2.5 text-xs hover:bg-slate-100 cursor-pointer border-b border-slate-50 last:border-0 ${customerFocusedIndex === idx ? 'bg-indigo-100 ring-1 ring-indigo-500 text-indigo-900' : 'text-slate-700'}`}
+                        >
+                          <div className="font-semibold">{customer.name}</div>
+                          {customer.phone && <div className="text-[10px] text-slate-500">{customer.phone}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                <div>
+                <div className="relative">
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Customer Phone</label>
                   <input
                     type="text"
                     name="customer_phone"
                     value={formData.customer_phone}
-                    onChange={handleInputChange}
+                    onChange={(e) => handleCustomerInputChange('customer_phone', e.target.value)}
+                    onFocus={() => { if (formData.customer_phone) { setCustomerSuggestions(getFilteredCustomers(formData.customer_phone, 'customer_phone')); setShowCustomerDropdown(true); setCustomerSearchField('customer_phone'); setCustomerFocusedIndex(-1); } }}
+                    onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                    onKeyDown={(e) => {
+                      if (showCustomerDropdown && customerSearchField === 'customer_phone') {
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          setCustomerFocusedIndex(prev => (prev < customerSuggestions.length - 1 ? prev + 1 : prev));
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setCustomerFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (customerFocusedIndex >= 0 && customerSuggestions[customerFocusedIndex]) {
+                            handleCustomerSelect(customerSuggestions[customerFocusedIndex]);
+                          }
+                        } else if (e.key === 'Escape') {
+                          setShowCustomerDropdown(false);
+                        }
+                      }
+                    }}
                     placeholder="Phone number"
                     className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
                   />
+                  {showCustomerDropdown && customerSearchField === 'customer_phone' && customerSuggestions.length > 0 && (
+                    <div className="absolute left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto w-full">
+                      {customerSuggestions.map((customer, idx) => (
+                        <div
+                          key={customer.id}
+                          onClick={() => handleCustomerSelect(customer)}
+                          className={`p-2.5 text-xs hover:bg-slate-100 cursor-pointer border-b border-slate-50 last:border-0 ${customerFocusedIndex === idx ? 'bg-indigo-100 ring-1 ring-indigo-500 text-indigo-900' : 'text-slate-700'}`}
+                        >
+                          <div className="font-semibold">{customer.phone}</div>
+                          {customer.name && <div className="text-[10px] text-slate-500">{customer.name}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div>
