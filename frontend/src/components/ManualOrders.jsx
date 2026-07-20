@@ -35,6 +35,8 @@ export default function ManualOrders() {
   // Current user / Shop details
   const [currentUser, setCurrentUser] = useState(null);
   const [shopDetails, setShopDetails] = useState({ name: '', email: '', phone: '', address: '', tax_rate: 10.00 });
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = user.role === 'shop_admin';
 
   // Active product search dropdown row index
   const [activeDropdownIndex, setActiveDropdownIndex] = useState(null);
@@ -49,6 +51,7 @@ export default function ManualOrders() {
 
   // Form State
   const [formData, setFormData] = useState({
+    order_date: new Date().toISOString().split('T')[0],
     salesman_name: '',
     customer_name: '',
     customer_phone: '',
@@ -240,6 +243,7 @@ export default function ManualOrders() {
   const openNewOrder = () => {
     setEditingOrder(null);
     setFormData({
+      order_date: new Date().toISOString().split('T')[0],
       salesman_name: '',
       customer_name: '',
       customer_phone: '',
@@ -264,6 +268,7 @@ export default function ManualOrders() {
 
       setEditingOrder(detail);
       setFormData({
+        order_date: detail.created_at ? detail.created_at.split(' ')[0].split('T')[0] : new Date().toISOString().split('T')[0],
         salesman_name: detail.salesman_name,
         customer_name: detail.customer_name || '',
         customer_phone: detail.customer_phone || '',
@@ -411,6 +416,7 @@ export default function ManualOrders() {
       const token = localStorage.getItem('token');
       const { discountAmount } = calculateTotals(filteredItems, formData.discount);
       const payload = {
+        order_date: formData.order_date,
         salesman_name: formData.salesman_name,
         customer_name: formData.customer_name || null,
         customer_phone: formData.customer_phone || null,
@@ -1062,6 +1068,18 @@ export default function ManualOrders() {
             </div>
 
             <form onSubmit={(e) => handleFormSubmit(e, false)} className="mt-4 space-y-4 flex-1 overflow-y-auto pr-1">
+              {isAdmin && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Order Date</label>
+                  <input
+                    type="date"
+                    name="order_date"
+                    value={formData.order_date}
+                    onChange={handleInputChange}
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Salesman Name *</label>

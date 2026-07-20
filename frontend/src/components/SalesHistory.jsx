@@ -846,6 +846,7 @@ export default function SalesHistory() {
   }, 0);
   const totalSalesCount = filteredSales.length;
   const totalRevenue = filteredSales.reduce((sum, s) => sum + parseFloat(s.final_amount || 0), 0);
+  const totalCollected = filteredSales.reduce((sum, s) => sum + parseFloat(s.paid_amount || 0), 0);
 
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
   const indexOfLastSale = currentPage * itemsPerPage;
@@ -1229,7 +1230,7 @@ export default function SalesHistory() {
           </div>
           <div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Collected</p>
-            <h3 className="text-xl font-extrabold text-emerald-600"><span className="text-sm">BDT:</span> {totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</h3>
+            <h3 className="text-xl font-extrabold text-emerald-600"><span className="text-sm">BDT:</span> {totalCollected.toLocaleString('en-IN', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</h3>
           </div>
         </div>
         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center space-x-3">

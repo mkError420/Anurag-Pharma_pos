@@ -7,5 +7,15 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true // Exposes to local network if needed
+  },
+  build: {
+    // Add cache-busting to asset filenames
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/[name].[hash].js',
+        chunkFileNames: 'assets/[name].[hash].js',
+        assetFileNames: 'assets/[name].[hash].[ext]'
+      }
+    }
   }
 });

@@ -20,6 +20,12 @@ header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-W
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Credentials: true");
 
+// Disable caching for all API responses
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+header("Expires: Wed, 11 Jan 1984 05:00:00 GMT");
+
 // Handle OPTIONS requests (CORS preflight) immediately before running router logic
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
@@ -253,6 +259,7 @@ $routes = [
         '/^analytics$/' => function() { AnalyticsController::getDashboardData(); },
         '/^analytics\/daily-products$/' => function() { AnalyticsController::getDailyProductSales(); },
         '/^analytics\/filtered-profit$/' => function() { AnalyticsController::getFilteredProfitBreakdown(); },
+        '/^analytics\/sales-due-breakdown$/' => function() { AnalyticsController::getSalesDueBreakdown(); },
         // Held Bills
         '/^held-bills$/' => function() { HeldBillController::listHeldBills(); },
         // Manual Orders

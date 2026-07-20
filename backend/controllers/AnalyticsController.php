@@ -32,8 +32,9 @@ class AnalyticsController {
             $totalSalesCash = (float)($salesRow['total_paid'] ?? 0);
             $salesCount = (int)($salesRow['sales_count'] ?? 0);
 
-            // 2. COGS (Cost of Goods Sold)
-            $cogsSql = 'SELECT SUM(si.quantity * p.cost_price) AS cogs 
+            // 2. COGS (Cost of Goods Sold) from Sales
+            $cogsSql = 'SELECT 
+                            SUM(si.quantity * p.cost_price) AS cogs
                         FROM sale_items si 
                         JOIN products p ON si.product_id = p.id
                         JOIN sales s ON si.sale_id = s.id
@@ -46,6 +47,19 @@ class AnalyticsController {
             }
             $stmt = DB::query($cogsSql, $cogsParams);
             $totalCOGS = (float)($stmt->fetchColumn() ?: 0);
+
+            // 2.5. Customer Due from Sales (separate query to avoid duplication from sale_items join)
+            $dueSql = 'SELECT SUM(due_amount) AS total_due
+                       FROM sales
+                       WHERE ' . ($hasShop ? 'shop_id = ?' : '1=1');
+            $dueParams = $hasShop ? [$shopId] : [];
+            if (!empty($startDate) && !empty($endDate)) {
+                $dueSql .= ' AND created_at BETWEEN ? AND ?';
+                $dueParams[] = "$startDate 00:00:00";
+                $dueParams[] = "$endDate 23:59:59";
+            }
+            $stmt = DB::query($dueSql, $dueParams);
+            $totalCustomerDue = (float)($stmt->fetchColumn() ?: 0);
 
             // 3. Purchasing Costs
             $poSql = "SELECT SUM(total_amount) AS total_po, SUM(paid_amount) AS total_paid, SUM(due_amount) AS total_due
@@ -89,15 +103,6 @@ class AnalyticsController {
 
             // 6. Supplier Due Balance — credit owed within the filtered period (from PO query above)
             $totalSupplierDue = $totalPurchasingDue;
-
-            // 7. Customer Due Balance — sum of current customer due_balance (outstanding receivables)
-            // This syncs with the actual due section and shows total outstanding balance from all customers
-            $customerDueSql = 'SELECT SUM(due_balance) AS total_due FROM customers WHERE ' . ($hasShop ? 'shop_id = ?' : '1=1');
-            $customerDueParams = $hasShop ? [$shopId] : [];
-            // Note: customer due_balance is a running total, not filtered by date
-            // This ensures it syncs properly with the due section showing actual outstanding balances
-            $stmt = DB::query($customerDueSql, $customerDueParams);
-            $totalCustomerDue = (float)($stmt->fetchColumn() ?: 0);
 
             // 8. Customer Returns (Refunds)
             $returnsSql = 'SELECT SUM(refund_amount) AS total_refunds FROM customer_returns WHERE ' . ($hasShop ? 'shop_id = ?' : '1=1');
@@ -664,6 +669,76 @@ class AnalyticsController {
         } catch (\Exception $e) {
             error_log('Fetch daily product sales error: ' . $e->getMessage());
             Auth::jsonError('Server error retrieving daily product sales.', 500);
+        }
+    }
+
+    /**
+     * GET /analytics/sales-due-breakdown
+     * Returns detailed breakdown of sales transactions with due amounts
+     * Query params: start_date, end_date
+     */
+    public static function getSalesDueBreakdown() {
+        Auth::authenticate();
+        Auth::authorize(['super_admin', 'shop_admin']);
+
+        $shopId = Auth::$shopId;
+        $hasShop = $shopId !== null;
+        $startDate = $_GET['start_date'] ?? null;
+        $endDate = $_GET['end_date'] ?? null;
+
+        try {
+            $sql = 'SELECT 
+                        s.id,
+                        s.created_at,
+                        s.final_amount,
+                        s.paid_amount,
+                        s.due_amount,
+                        s.payment_method,
+                        c.name as customer_name,
+                        c.phone as customer_phone,
+                        u.name as staff_name,
+                        (SELECT GROUP_CONCAT(p.name SEPARATOR ", ") 
+                         FROM sale_items si 
+                         JOIN products p ON si.product_id = p.id 
+                         WHERE si.sale_id = s.id) as product_names
+                    FROM sales s
+                    LEFT JOIN customers c ON s.customer_id = c.id
+                    LEFT JOIN users u ON s.user_id = u.id
+                    WHERE ' . ($hasShop ? 's.shop_id = ?' : '1=1') . ' 
+                    AND s.due_amount > 0';
+            
+            $params = $hasShop ? [$shopId] : [];
+
+            if (!empty($startDate) && !empty($endDate)) {
+                $sql .= ' AND s.created_at BETWEEN ? AND ?';
+                $params[] = "$startDate 00:00:00";
+                $params[] = "$endDate 23:59:59";
+            }
+
+            $sql .= ' ORDER BY s.created_at DESC';
+
+            $stmt = DB::query($sql, $params);
+            $salesWithDue = $stmt->fetchAll();
+
+            $totalDue = 0;
+            foreach ($salesWithDue as &$sale) {
+                $sale['id'] = (int)$sale['id'];
+                $sale['final_amount'] = (float)$sale['final_amount'];
+                $sale['paid_amount'] = (float)$sale['paid_amount'];
+                $sale['due_amount'] = (float)$sale['due_amount'];
+                $totalDue += $sale['due_amount'];
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'total_due_balance' => $totalDue,
+                'sales_count' => count($salesWithDue),
+                'transactions' => $salesWithDue
+            ]);
+
+        } catch (\Exception $e) {
+            error_log('Sales due breakdown error: ' . $e->getMessage());
+            Auth::jsonError('Server error retrieving sales due breakdown.', 500);
         }
     }
 }

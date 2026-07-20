@@ -17,6 +17,9 @@ export default function TotalRevenue() {
   const [alert, setAlert] = useState(null);
   const [shops, setShops] = useState([]);
   const [selectedShopId, setSelectedShopId] = useState('');
+  const [salesDueBreakdown, setSalesDueBreakdown] = useState(null);
+  const [showDueBreakdownModal, setShowDueBreakdownModal] = useState(false);
+  const [dueBreakdownLoading, setDueBreakdownLoading] = useState(false);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -39,7 +42,6 @@ export default function TotalRevenue() {
   }, [isSuperAdmin]);
 
   const fetchRevenue = async () => {
-    setLoading(true);
     setError(null);
     try {
       const token = localStorage.getItem('token');
@@ -56,7 +58,12 @@ export default function TotalRevenue() {
       }
 
       const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+        cache: 'no-store'
       });
 
       if (!response.ok) {
@@ -73,12 +80,57 @@ export default function TotalRevenue() {
   };
 
   useEffect(() => {
+    setLoading(true);
     fetchRevenue();
+  }, [startDate, endDate, selectedShopId]);
+
+  // Auto-refresh every 60 seconds for real-time data
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchRevenue();
+    }, 60000); // 60 seconds
+
+    return () => clearInterval(interval);
   }, [startDate, endDate, selectedShopId]);
 
   const triggerAlert = (type, message) => {
     setAlert({ type, message });
     setTimeout(() => setAlert(null), 4000);
+  };
+
+  const fetchSalesDueBreakdown = async () => {
+    setDueBreakdownLoading(true);
+    setShowDueBreakdownModal(true);
+    try {
+      const token = localStorage.getItem('token');
+      let url = `${API_BASE_URL}/analytics/sales-due-breakdown`;
+      const queryParams = [];
+      if (startDate) queryParams.push(`start_date=${startDate}`);
+      if (endDate) queryParams.push(`end_date=${endDate}`);
+      if (isSuperAdmin && selectedShopId) {
+        queryParams.push(`shop_id=${selectedShopId}`);
+      }
+
+      if (queryParams.length > 0) {
+        url += `?${queryParams.join('&')}`;
+      }
+
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to retrieve sales due breakdown.');
+      }
+
+      const data = await response.json();
+      setSalesDueBreakdown(data);
+    } catch (err) {
+      setError(err.message);
+      setShowDueBreakdownModal(false);
+    } finally {
+      setDueBreakdownLoading(false);
+    }
   };
 
   const formatCurrency = (val) => {
@@ -265,6 +317,16 @@ export default function TotalRevenue() {
         </div>
         <div className="flex items-center space-x-3">
           <button
+            onClick={() => { setLoading(true); fetchRevenue(); }}
+            disabled={loading}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-5 border border-indigo-600 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Refresh</span>
+          </button>
+          <button
             onClick={exportToCSV}
             disabled={loading || !revenueData}
             className="bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-5 border border-slate-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -378,7 +440,12 @@ export default function TotalRevenue() {
               <div className="mt-4">
                 <span className="block text-2xl font-black text-slate-800">{formatCurrency(revenueData.sales_revenue)}</span>
                 <span className="text-xs font-bold text-emerald-600 mt-1 block">Cash Collected: {formatCurrency(revenueData.sales_cash_received)}</span>
-                <span className="text-xs font-bold text-rose-600 mt-1 block">Due Balance (Receivable): {formatCurrency(revenueData.customer_due)}</span>
+                <button 
+                  onClick={fetchSalesDueBreakdown}
+                  className="text-xs font-bold text-rose-600 mt-1 block hover:text-rose-700 hover:underline cursor-pointer bg-transparent border-0 p-0 text-left"
+                >
+                  Due Balance (Receivable): {formatCurrency(revenueData.customer_due)}
+                </button>
                 <span className="text-xs text-slate-455 mt-1 block">From {revenueData.sales_count} sales transactions</span>
               </div>
             </div>
@@ -1329,6 +1396,84 @@ export default function TotalRevenue() {
       ) : (
         <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-450">
           No financial records found.
+        </div>
+      )}
+
+      {/* Sales Due Breakdown Modal */}
+      {showDueBreakdownModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowDueBreakdownModal(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Sales Transactions Due Balance Breakdown</h2>
+                <p className="text-sm text-slate-500 mt-1">Detailed view of all sales with outstanding due amounts</p>
+              </div>
+              <button onClick={() => setShowDueBreakdownModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {dueBreakdownLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : salesDueBreakdown ? (
+                <div className="space-y-4">
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex justify-between items-center">
+                    <div>
+                      <span className="text-sm font-semibold text-indigo-700">Total Due Balance</span>
+                      <p className="text-xs text-indigo-600">From {salesDueBreakdown.sales_count} sales transactions</p>
+                    </div>
+                    <span className="text-2xl font-black text-indigo-800">{formatCurrency(salesDueBreakdown.total_due_balance)}</span>
+                  </div>
+
+                  {salesDueBreakdown.transactions.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200">
+                            <th className="p-3 text-left font-semibold text-slate-700">Sale ID</th>
+                            <th className="p-3 text-left font-semibold text-slate-700">Date</th>
+                            <th className="p-3 text-left font-semibold text-slate-700">Customer</th>
+                            <th className="p-3 text-left font-semibold text-slate-700">Products</th>
+                            <th className="p-3 text-right font-semibold text-slate-700">Total</th>
+                            <th className="p-3 text-right font-semibold text-slate-700">Paid</th>
+                            <th className="p-3 text-right font-semibold text-slate-700">Due</th>
+                            <th className="p-3 text-left font-semibold text-slate-700">Staff</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {salesDueBreakdown.transactions.map((sale) => (
+                            <tr key={sale.id} className="border-b border-slate-100 hover:bg-slate-50">
+                              <td className="p-3 font-medium text-slate-800">#{sale.id}</td>
+                              <td className="p-3 text-slate-600">{new Date(sale.created_at).toLocaleString()}</td>
+                              <td className="p-3 text-slate-600">
+                                {sale.customer_name || 'Walk-in'}
+                                {sale.customer_phone && <span className="block text-xs text-slate-400">{sale.customer_phone}</span>}
+                              </td>
+                              <td className="p-3 text-slate-600 max-w-xs truncate" title={sale.product_names}>{sale.product_names || '-'}</td>
+                              <td className="p-3 text-right font-medium text-slate-800">{formatCurrency(sale.final_amount)}</td>
+                              <td className="p-3 text-right font-medium text-emerald-600">{formatCurrency(sale.paid_amount)}</td>
+                              <td className="p-3 text-right font-bold text-rose-600">{formatCurrency(sale.due_amount)}</td>
+                              <td className="p-3 text-slate-600">{sale.staff_name || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-slate-500">
+                      No sales transactions with due amounts found in the selected period.
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       )}
     </div>

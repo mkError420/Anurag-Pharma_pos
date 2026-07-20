@@ -10,6 +10,13 @@ Header always set Access-Control-Allow-Methods "POST, GET, OPTIONS, DELETE, PUT"
 Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-Auth-Token"
 Header always set Access-Control-Allow-Credentials "true"
 
+# 2. Disable Caching for API responses
+<IfModule mod_headers.c>
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "Wed, 11 Jan 1984 05:00:00 GMT"
+</IfModule>
+
 # 2. Automatically bypass preflight checks
 RewriteEngine On
 
