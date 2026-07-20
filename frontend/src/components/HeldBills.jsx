@@ -747,7 +747,7 @@ export default function HeldBills({ onResume = () => { }, onHeldBillsChange = ()
                               </button>
                             )}
                             {/* Resume button */}
-                            <button
+                           {/*  <button
                               onClick={() => onResume(bill)}
                               disabled={bill.status !== 'held' || itemsList.length === 0}
                               className="bg-slate-600 disabled:bg-slate-150 disabled:text-slate-400 text-white font-semibold py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm inline-flex items-center space-x-1"
@@ -757,7 +757,7 @@ export default function HeldBills({ onResume = () => { }, onHeldBillsChange = ()
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.2" />
                               </svg>
                               <span>Resume</span>
-                            </button>
+                            </button> */}
                             {/* Delete button */}
                             <button
                               onClick={() => handleDelete(bill.id)}
