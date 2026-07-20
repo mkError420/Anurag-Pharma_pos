@@ -641,12 +641,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     const parsedPaid = overridePaidAmount !== null
       ? overridePaidAmount
       : (() => {
-          if (activeTab.paidAmount === '' || activeTab.paidAmount === null || activeTab.paidAmount === undefined) {
-            return activeTab.isPaidTouched ? 0 : finalTotal;
-          }
-          const v = parseFloat(activeTab.paidAmount);
-          return isNaN(v) ? 0 : v;
-        })();
+        if (activeTab.paidAmount === '' || activeTab.paidAmount === null || activeTab.paidAmount === undefined) {
+          return activeTab.isPaidTouched ? 0 : finalTotal;
+        }
+        const v = parseFloat(activeTab.paidAmount);
+        return isNaN(v) ? 0 : v;
+      })();
     const dueAmount = Math.max(0, finalTotal - parsedPaid);
 
     if (parsedPaid < 0) {
@@ -755,12 +755,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       const paid = overridePaidAmount !== null
         ? overridePaidAmount
         : (() => {
-            if (activeTab.paidAmount === '' || activeTab.paidAmount === null || activeTab.paidAmount === undefined) {
-              return activeTab.isPaidTouched ? 0 : finalTotal;
-            }
-            const v = parseFloat(activeTab.paidAmount);
-            return isNaN(v) ? 0 : v;
-          })();
+          if (activeTab.paidAmount === '' || activeTab.paidAmount === null || activeTab.paidAmount === undefined) {
+            return activeTab.isPaidTouched ? 0 : finalTotal;
+          }
+          const v = parseFloat(activeTab.paidAmount);
+          return isNaN(v) ? 0 : v;
+        })();
       const outstandingDue = Math.max(0, finalTotal - paid);
 
       // Successful Checkout routine
@@ -1173,7 +1173,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
             <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
-            <span>Resume Held Bills</span>
+            <span>Due Bills</span>
             {heldBills.filter(b => b.status === 'held').length > 0 && (
               <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border border-white animate-pulse">
                 {heldBills.filter(b => b.status === 'held').length}
