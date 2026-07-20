@@ -366,6 +366,14 @@ class ManualOrderController {
                 }
             }
 
+            // Delete associated held_bill entry if order was held
+            if ($order['status'] === 'held') {
+                DB::query(
+                    'DELETE FROM held_bills WHERE shop_id = ? AND notes LIKE ?',
+                    [$shopId, 'Held from Manual Order #' . $orderId]
+                );
+            }
+
             // Delete associated items first
             DB::query('DELETE FROM manual_order_items WHERE order_id = ? AND shop_id = ?', [$orderId, $shopId]);
 
@@ -391,25 +399,79 @@ class ManualOrderController {
 
         $orderId = (int)$id;
         $shopId = Auth::$shopId;
+        $userId = Auth::$user['id'];
 
         try {
-            $stmt = DB::query('SELECT status FROM manual_orders WHERE id = ? AND shop_id = ?', [$orderId, $shopId]);
+            DB::beginTransaction();
+
+            $stmt = DB::query('SELECT * FROM manual_orders WHERE id = ? AND shop_id = ? FOR UPDATE', [$orderId, $shopId]);
             $order = $stmt->fetch();
 
             if (!$order) {
+                DB::rollBack();
                 Auth::jsonError('Manual order not found.', 404);
             }
 
             if ($order['status'] !== 'pending') {
+                DB::rollBack();
                 Auth::jsonError('Only pending manual orders can be held.', 400);
             }
 
+            // Fetch order items
+            $stmt = DB::query('SELECT moi.*, p.name as product_name, p.sku as product_sku FROM manual_order_items moi JOIN products p ON moi.product_id = p.id WHERE moi.order_id = ? AND moi.shop_id = ?', [$orderId, $shopId]);
+            $orderItems = $stmt->fetchAll();
+
+            // Calculate total amount
+            $totalAmount = 0.00;
+            $itemsForHeldBill = [];
+            foreach ($orderItems as $item) {
+                $subtotal = (float)$item['subtotal'];
+                $totalAmount += $subtotal;
+                $itemsForHeldBill[] = [
+                    'product_id' => (int)$item['product_id'],
+                    'product_name' => $item['product_name'],
+                    'product_sku' => $item['product_sku'],
+                    'quantity' => (float)$item['quantity'],
+                    'unit_price' => (float)$item['unit_price'],
+                    'subtotal' => $subtotal
+                ];
+            }
+
+            $finalAmount = $totalAmount - (float)$order['discount'] + (float)$order['tax'];
+            
+            // For credit sales, the full amount is due. For cash sales, no due amount.
+            $dueAmount = ($order['payment_method'] === 'credit') ? $finalAmount : 0.00;
+            $discountPercent = $totalAmount > 0 ? ((float)$order['discount'] / $totalAmount) * 100 : 0;
+
+            // Update manual order status
             DB::query('UPDATE manual_orders SET status = "held" WHERE id = ? AND shop_id = ?', [$orderId, $shopId]);
 
+            // Create held_bill entry
+            DB::query(
+                'INSERT INTO held_bills (shop_id, user_id, customer_id, customer_name, customer_phone, customer_address, discount_percent, discount_amount, notes, items, due_amount, status) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "held")',
+                [
+                    $shopId,
+                    $userId,
+                    $order['customer_id'] !== null ? (int)$order['customer_id'] : null,
+                    $order['customer_name'],
+                    $order['customer_phone'],
+                    $order['customer_address'],
+                    $discountPercent,
+                    (float)$order['discount'],
+                    'Held from Manual Order #' . $orderId,
+                    json_encode($itemsForHeldBill),
+                    $dueAmount
+                ]
+            );
+
+            DB::commit();
+
             header('Content-Type: application/json');
-            echo json_encode(['message' => 'Manual order held successfully.']);
+            echo json_encode(['message' => 'Manual order held successfully and added to Held Bills.']);
 
         } catch (\Exception $e) {
+            DB::rollBack();
             error_log('Hold manual order error: ' . $e->getMessage());
             Auth::jsonError('Server error holding manual order.', 500);
         }
@@ -424,23 +486,37 @@ class ManualOrderController {
         $shopId = Auth::$shopId;
 
         try {
-            $stmt = DB::query('SELECT status FROM manual_orders WHERE id = ? AND shop_id = ?', [$orderId, $shopId]);
+            DB::beginTransaction();
+
+            $stmt = DB::query('SELECT status FROM manual_orders WHERE id = ? AND shop_id = ? FOR UPDATE', [$orderId, $shopId]);
             $order = $stmt->fetch();
 
             if (!$order) {
+                DB::rollBack();
                 Auth::jsonError('Manual order not found.', 404);
             }
 
             if ($order['status'] !== 'held') {
+                DB::rollBack();
                 Auth::jsonError('Only held manual orders can be unheld.', 400);
             }
 
+            // Update manual order status
             DB::query('UPDATE manual_orders SET status = "pending" WHERE id = ? AND shop_id = ?', [$orderId, $shopId]);
 
+            // Delete corresponding held_bill entry
+            DB::query(
+                'DELETE FROM held_bills WHERE shop_id = ? AND notes LIKE ?',
+                [$shopId, 'Held from Manual Order #' . $orderId]
+            );
+
+            DB::commit();
+
             header('Content-Type: application/json');
-            echo json_encode(['message' => 'Manual order unheld successfully.']);
+            echo json_encode(['message' => 'Manual order unheld successfully and removed from Held Bills.']);
 
         } catch (\Exception $e) {
+            DB::rollBack();
             error_log('Unhold manual order error: ' . $e->getMessage());
             Auth::jsonError('Server error unholding manual order.', 500);
         }
@@ -581,6 +657,29 @@ class ManualOrderController {
                     [$dueAmount, $resolvedCustomerId, $shopId]
                 );
             }
+
+            // If due_amount > 0, create a held_bill entry to track it in the "Due Bills" section
+            if ($dueAmount > 0 && $resolvedCustomerId) {
+                $cStmt = DB::query('SELECT name, phone, address FROM customers WHERE id = ? AND shop_id = ?', [$resolvedCustomerId, $shopId]);
+                $cust = $cStmt->fetch();
+
+                if ($cust) {
+                    $note = "Due from Manual Order Sale #" . $saleId;
+                    $discountPercent = $calculatedTotal > 0 ? (((float)$order['discount'] / $calculatedTotal) * 100) : 0.00;
+
+                    DB::query(
+                        "INSERT INTO held_bills (shop_id, user_id, customer_id, customer_name, customer_phone, customer_address, discount_percent, discount_amount, notes, items, due_amount, status, created_at) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'held', ?)",
+                        [
+                            $shopId, $userId, $resolvedCustomerId, $cust['name'], $cust['phone'] ?: null, $cust['address'] ?: null,
+                            $discountPercent, (float)$order['discount'], $note, json_encode($validatedItems), $dueAmount,
+                            date('Y-m-d H:i:s')
+                        ]
+                    );
+                }
+            }
+
+
 
             // Update manual order status
             DB::query(
