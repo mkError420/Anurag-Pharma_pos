@@ -72,6 +72,7 @@ require_once __DIR__ . '/controllers/HeldBillController.php';
 require_once __DIR__ . '/controllers/ManualOrderController.php';
 require_once __DIR__ . '/controllers/OtherController.php';
 require_once __DIR__ . '/controllers/OtherSalesController.php';
+require_once __DIR__ . '/controllers/TransactionController.php';
 
 // Parse Request URI and Method
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -270,6 +271,8 @@ $routes = [
         '/^other-costs$/' => function() { OtherController::listOtherCosts(); },
         // Other Sales
         '/^other-sales$/' => function() { OtherSalesController::listOtherSales(); },
+        // Transactions
+        '/^transactions$/' => function() { TransactionController::listTransactions(); },
         // Wastages
         '/^wastages$/' => function() { OtherController::listWastages(); },
         // Returns

@@ -244,7 +244,6 @@ export default function Suppliers() {
       cost_price: '',
       selling_price: '',
       quantity_ordered: 1,
-      quantity_ordered: 0,
       unit: 'piece'
     }));
   };
@@ -644,7 +643,6 @@ export default function Suppliers() {
       cost_price: '',
       selling_price: '',
       quantity_ordered: 1,
-      quantity_ordered: 0,
       unit: 'piece',
       low_stock_threshold: '10',
       payment_basis: 'cash',

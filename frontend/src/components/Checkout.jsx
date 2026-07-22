@@ -21,7 +21,7 @@ const createNewSaleTab = (index) => ({
   saleDate: new Date().toBDISODateString(),
 });
 
-export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBill = null, onClearResumedHeldBill = () => { } }) {
+export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBill = null, onClearResumedHeldBill = () => { }, onNavigate = () => { } }) {
   // --- STATE MANAGEMENT ---
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -246,11 +246,21 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     activeTab?.reduceDueAmount
   ]);
 
-  // Auto-focus barcode reader input when active
+  // Helper to detect mobile screen width or touch capabilities
+  const isMobileDevice = () => {
+    return window.innerWidth < 1024 || ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  };
+
+  // Auto-focus barcode reader input when active (Desktop / barcode scanner hardware only)
   useEffect(() => {
     if (!autoFocusBarcode) return;
 
     const keepFocus = () => {
+      // Do not auto-focus on mobile devices to prevent soft keyboard from auto-opening
+      if (isMobileDevice()) {
+        return;
+      }
+
       // If modal is open, do not steal focus
       if (receipt || showHeldBillsModal || showHoldBillModal) {
         return;
@@ -272,9 +282,19 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
     keepFocus();
 
-    // Add event listener to capture click events to recover focus
-    const handleDocumentClick = () => {
-      setTimeout(keepFocus, 100);
+    // Add event listener to capture click events to recover focus or hide keyboard on mobile
+    const handleDocumentClick = (e) => {
+      if (isMobileDevice()) {
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+          const isInteractiveTarget = e.target.closest('input, textarea, select, button, label, a');
+          if (!isInteractiveTarget) {
+            active.blur();
+          }
+        }
+      } else {
+        setTimeout(keepFocus, 100);
+      }
     };
 
     document.addEventListener('click', handleDocumentClick);
@@ -1164,11 +1184,21 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
           <h2 className="text-2xl font-bold text-slate-800">POS Checkout</h2>
           <p className="text-sm text-slate-500">Scan SKU or search item names to build a customer cart</p>
         </div>
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigate('/manual-orders')}
+            className="relative bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold py-2.5 px-3.5 sm:px-4 border border-indigo-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>Sales Orders</span>
+          </button>
           <button
             type="button"
             onClick={() => setShowHeldBillsModal(true)}
-            className="relative bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-4 border border-slate-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
+            className="relative bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-3.5 sm:px-4 border border-slate-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
           >
             <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -1177,6 +1207,23 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
             {heldBills.filter(b => b.status === 'held').length > 0 && (
               <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border border-white animate-pulse">
                 {heldBills.filter(b => b.status === 'held').length}
+              </span>
+            )}
+          </button>
+
+          {/* Mobile-only View Cart Button (Marked Header Area) */}
+          <button
+            type="button"
+            onClick={() => setMobileCartOpen(true)}
+            className="lg:hidden relative bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 px-3.5 sm:px-4 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 0a2 2 0 100 4 2 2 0 000-4z" />
+            </svg>
+            <span>View Cart</span>
+            {(activeTab?.cart?.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0) || 0) > 0 && (
+              <span className="bg-indigo-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full ml-0.5">
+                {activeTab?.cart?.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0)}
               </span>
             )}
           </button>
@@ -1391,25 +1438,6 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
           {renderCartPanelContent()}
         </div>
 
-      </div>
-
-      {/* 4. MOBILE BOTTOM DRAWER STICKY NAV BAR */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-3 flex justify-between items-center shadow-2xl lg:hidden z-35">
-        <div>
-          <p className="text-xs text-slate-400 font-medium">Active Cart</p>
-          <p className="text-lg font-bold text-slate-800">
-            {activeTab?.cart?.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0) || 0} Items - <span className="text-indigo-600">৳{getFinalTotal().toFixed(3)}</span>
-          </p>
-        </div>
-        <button
-          onClick={() => setMobileCartOpen(true)}
-          className="bg-slate-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg transition-colors flex items-center space-x-2"
-        >
-          <span>View Cart</span>
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
       </div>
 
       {/* Mobile Cart Backdrop Drawer */}

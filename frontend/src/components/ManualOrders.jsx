@@ -6,6 +6,7 @@ export default function ManualOrders() {
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [salesHistory, setSalesHistory] = useState([]);
+  const [currentSalesPage, setCurrentSalesPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [alert, setAlert] = useState(null);
@@ -42,6 +43,9 @@ export default function ManualOrders() {
   const [activeDropdownIndex, setActiveDropdownIndex] = useState(null);
   const [dropdownFocusedIndex, setDropdownFocusedIndex] = useState(-1);
 
+  // Subtotal editing state: { index, value } or null
+  const [editingSubtotal, setEditingSubtotal] = useState(null);
+
   // Customer autocomplete state
   const [customers, setCustomers] = useState([]);
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
@@ -57,8 +61,8 @@ export default function ManualOrders() {
     customer_phone: '',
     customer_address: '',
     payment_method: 'cash',
-    discount: 0,
-    tax: 0,
+    discountPercent: 0,
+    discountAmount: 0,
     notes: '',
     items: [] // { product_id, quantity, unit_price, max_stock, searchTerm }
   });
@@ -150,7 +154,7 @@ export default function ManualOrders() {
           email: shop.email || prev.email,
           phone: shop.phone || prev.phone,
           address: shop.address || prev.address,
-          tax_rate: parseFloat(shop.tax_rate) !== undefined ? parseFloat(shop.tax_rate) : 10.00
+          tax_rate: (shop.tax_rate !== null && shop.tax_rate !== undefined) ? parseFloat(shop.tax_rate) : 0
         }));
       }
     } catch (e) {
@@ -187,12 +191,26 @@ export default function ManualOrders() {
   };
 
   // Calculations
-  const calculateTotals = (items, discountAmt, taxAmt) => {
+  const calculateTotals = (items, discPercent, discAmount) => {
     const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.unit_price || 0) * parseFloat(item.quantity || 0)), 0);
-    const discountAmount = parseFloat(discountAmt || 0);
-    const taxAmount = parseFloat(taxAmt || 0);
-    const finalAmount = Math.max(0, subtotal - discountAmount + taxAmount);
-    return { subtotal, discountAmount, tax: taxAmount, finalAmount };
+    const pct = parseFloat(discPercent || 0);
+    const flat = parseFloat(discAmount || 0);
+    const percentDiscountAmount = subtotal * (pct / 100);
+    const totalDiscountAmount = percentDiscountAmount + flat;
+
+    const taxRate = parseFloat(shopDetails.tax_rate || 10.00) / 100;
+    const taxAmount = (subtotal - totalDiscountAmount) * taxRate;
+
+    const finalAmount = Math.max(0, Math.round((subtotal - totalDiscountAmount) + taxAmount));
+
+    return {
+      subtotal,
+      discountPercent: pct,
+      discountAmount: flat,
+      totalDiscountAmount,
+      tax: taxAmount,
+      finalAmount
+    };
   };
 
   const getFilteredProducts = (term) => {
@@ -219,7 +237,7 @@ export default function ManualOrders() {
 
   const handleCustomerInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    
+
     // Update suggestions
     const suggestions = getFilteredCustomers(value, field);
     setCustomerSuggestions(suggestions);
@@ -249,10 +267,10 @@ export default function ManualOrders() {
       customer_phone: '',
       customer_address: '',
       payment_method: 'cash',
-      discount: 0,
-      tax: 0,
+      discountPercent: 0,
+      discountAmount: 0,
       notes: '',
-      items: [{ product_id: '', quantity: '', unit_price: '', max_stock: 0, searchTerm: '' }]
+      items: [{ product_id: '', quantity: '', unit_price: '', cost_price: '', max_stock: 0, searchTerm: '' }]
     });
     setShowFormModal(true);
   };
@@ -274,8 +292,8 @@ export default function ManualOrders() {
         customer_phone: detail.customer_phone || '',
         customer_address: detail.customer_address || '',
         payment_method: detail.payment_method,
-        discount: parseFloat(detail.discount) || 0,
-        tax: parseFloat(detail.tax) || 0,
+        discountPercent: 0,
+        discountAmount: parseFloat(detail.discount) || 0,
         notes: detail.notes || '',
         items: detail.items.map(item => {
           const prod = products.find(p => p.id === item.product_id);
@@ -283,6 +301,7 @@ export default function ManualOrders() {
             product_id: item.product_id,
             quantity: parseFloat(item.quantity),
             unit_price: parseFloat(item.unit_price),
+            cost_price: item.cost_price !== undefined && item.cost_price !== null ? parseFloat(item.cost_price) : (prod ? parseFloat(prod.purchase_cost || prod.cost_price || 0) : ''),
             max_stock: prod ? prod.stock_quantity : item.quantity, // fallback
             searchTerm: prod ? prod.name : ''
           };
@@ -308,6 +327,8 @@ export default function ManualOrders() {
         item.quantity = value === '' ? '' : Math.max(0, parseFloat(value) || 0);
       } else if (field === 'unit_price') {
         item.unit_price = value === '' ? '' : Math.max(0, parseFloat(value) || 0);
+      } else if (field === 'cost_price') {
+        item.cost_price = value === '' ? '' : Math.max(0, parseFloat(value) || 0);
       }
 
       newItems[index] = item;
@@ -339,24 +360,26 @@ export default function ManualOrders() {
 
       if (selectedProd) {
         item.product_id = selectedProd.id;
-        item.unit_price = ''; // Shop admin will set value manually
+        item.unit_price = selectedProd.price ? parseFloat(selectedProd.price) : ''; // Shop admin will set value manually or use default
+        item.cost_price = (selectedProd.purchase_cost !== undefined && selectedProd.purchase_cost !== null)
+          ? parseFloat(selectedProd.purchase_cost)
+          : (selectedProd.cost_price !== undefined ? parseFloat(selectedProd.cost_price) : '');
         item.quantity = '';
         item.max_stock = selectedProd.stock_quantity;
         item.searchTerm = selectedProd.name;
       } else {
         item.product_id = '';
         item.unit_price = '';
+        item.cost_price = '';
         item.quantity = '';
         item.max_stock = 0;
         item.searchTerm = '';
       }
 
       newItems[index] = item;
-      const { tax } = calculateTotals(newItems, prev.discount);
       return {
         ...prev,
-        items: newItems,
-        tax
+        items: newItems
       };
     });
   };
@@ -364,19 +387,56 @@ export default function ManualOrders() {
   const addFormItem = () => {
     setFormData(prev => ({
       ...prev,
-      items: [...prev.items, { product_id: '', quantity: '', unit_price: '', max_stock: 0, searchTerm: '' }]
+      items: [...prev.items, { product_id: '', quantity: '', unit_price: '', cost_price: '', max_stock: 0, searchTerm: '' }]
     }));
   };
 
   const removeFormItem = (index) => {
     setFormData(prev => {
       const newItems = prev.items.filter((_, idx) => idx !== index);
-      const { tax } = calculateTotals(newItems, prev.discount);
       return {
         ...prev,
-        items: newItems.length === 0 ? [{ product_id: '', quantity: '', unit_price: '', max_stock: 0, searchTerm: '' }] : newItems,
-        tax
+        items: newItems.length === 0 ? [{ product_id: '', quantity: '', unit_price: '', cost_price: '', max_stock: 0, searchTerm: '' }] : newItems
       };
+    });
+  };
+
+  const handleSubtotalChange = (index, rawValue) => {
+    // Limit to 3 decimal places while typing
+    const parts = rawValue.split('.');
+    if (parts[1] && parts[1].length > 3) {
+      rawValue = parts[0] + '.' + parts[1].substring(0, 3);
+    }
+    setEditingSubtotal({ index, value: rawValue });
+  };
+
+  const commitSubtotal = (index) => {
+    if (!editingSubtotal || editingSubtotal.index !== index) {
+      setEditingSubtotal(null);
+      return;
+    }
+    const rawValue = editingSubtotal.value;
+    setEditingSubtotal(null);
+
+    setFormData(prev => {
+      const newItems = [...prev.items];
+      const item = { ...newItems[index] };
+      const qty = parseFloat(item.quantity) || 0;
+
+      if (rawValue === '' || rawValue === undefined) {
+        item.unit_price = '';
+        newItems[index] = item;
+        return { ...prev, items: newItems };
+      }
+
+      const parsedSubtotal = parseFloat(rawValue);
+      if (isNaN(parsedSubtotal)) return prev;
+
+      if (qty > 0) {
+        item.unit_price = parseFloat((parsedSubtotal / qty).toFixed(3));
+      }
+      newItems[index] = item;
+      return { ...prev, items: newItems };
     });
   };
 
@@ -414,7 +474,7 @@ export default function ManualOrders() {
 
     try {
       const token = localStorage.getItem('token');
-      const { discountAmount } = calculateTotals(filteredItems, formData.discount);
+      const { totalDiscountAmount, tax } = calculateTotals(filteredItems, formData.discountPercent, formData.discountAmount);
       const payload = {
         order_date: formData.order_date,
         salesman_name: formData.salesman_name,
@@ -422,8 +482,8 @@ export default function ManualOrders() {
         customer_phone: formData.customer_phone || null,
         customer_address: formData.customer_address || null,
         payment_method: formData.payment_method,
-        discount: discountAmount,
-        tax: parseFloat(formData.tax) || 0,
+        discount: totalDiscountAmount,
+        tax: tax,
         notes: formData.notes,
         items: filteredItems
       };
@@ -736,7 +796,7 @@ export default function ManualOrders() {
   const cashOrders = searchedOrders.filter(order => order.payment_method === 'cash');
   const creditOrders = searchedOrders.filter(order => order.payment_method === 'credit');
 
-  const totals = calculateTotals(formData.items, formData.discount, formData.tax);
+  const totals = calculateTotals(formData.items, formData.discountPercent, formData.discountAmount);
 
   return (
     <div className="space-y-6">
@@ -834,11 +894,10 @@ export default function ManualOrders() {
                         <div className="text-[9px] text-slate-400 mt-0.5">{new Date(order.created_at).toLocaleDateString()}</div>
                       </td>
                       <td className="py-2.5 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold capitalize ${
-                          order.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' : 
-                          order.status === 'held' ? 'bg-blue-100 text-blue-700' : 
-                          'bg-amber-100 text-amber-700'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold capitalize ${order.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
+                          order.status === 'held' ? 'bg-blue-100 text-blue-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
                           {order.status}
                         </span>
                       </td>
@@ -917,11 +976,10 @@ export default function ManualOrders() {
                       </td>
                       <td className="py-2.5 text-center">
                         <div className="flex flex-col items-center space-y-1">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold capitalize ${
-                            order.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' : 
-                            order.status === 'held' ? 'bg-blue-100 text-blue-700' : 
-                            'bg-amber-100 text-amber-700'
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold capitalize ${order.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
+                            order.status === 'held' ? 'bg-blue-100 text-blue-700' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>
                             {order.status}
                           </span>
                           {order.status === 'confirmed' && (
@@ -1011,19 +1069,18 @@ export default function ManualOrders() {
                     <td colSpan="9" className="py-8 text-center text-slate-400">No sales history recorded.</td>
                   </tr>
                 ) : (
-                  salesHistory.map((sale) => (
+                  salesHistory.slice((currentSalesPage - 1) * 15, currentSalesPage * 15).map((sale) => (
                     <tr key={sale.id} className="hover:bg-slate-50/40">
                       <td className="py-2.5 pr-2 font-semibold text-indigo-600">#{sale.id}</td>
                       <td className="py-2.5 pr-2 text-[10px] text-slate-400">{new Date(sale.created_at).toLocaleDateString()}</td>
                       <td className="py-2.5 pr-2 font-medium text-slate-700">{sale.customer_name || 'Walk-in'}</td>
                       <td className="py-2.5 pr-2 text-[10px] text-slate-500">{sale.cashier_name || 'System'}</td>
                       <td className="py-2.5 pr-2">
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold capitalize ${
-                          sale.payment_method === 'cash' ? 'bg-emerald-50 text-emerald-700' : 
-                          sale.payment_method === 'card' ? 'bg-blue-50 text-blue-700' : 
-                          sale.payment_method === 'mobile_pay' ? 'bg-purple-50 text-purple-700' : 
-                          'bg-slate-50 text-slate-700'
-                        }`}>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold capitalize ${sale.payment_method === 'cash' ? 'bg-emerald-50 text-emerald-700' :
+                          sale.payment_method === 'card' ? 'bg-blue-50 text-blue-700' :
+                            sale.payment_method === 'mobile_pay' ? 'bg-purple-50 text-purple-700' :
+                              'bg-slate-50 text-slate-700'
+                          }`}>
                           {sale.payment_method === 'other' ? 'Credit' : sale.payment_method}
                         </span>
                       </td>
@@ -1037,7 +1094,7 @@ export default function ManualOrders() {
                         )}
                       </td>
                       <td className="py-2.5 text-center">
-                        <button 
+                        <button
                           onClick={() => loadInvoiceDetails(sale.id)}
                           className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1 rounded font-bold text-[10px]"
                         >
@@ -1050,6 +1107,61 @@ export default function ManualOrders() {
               </tbody>
             </table>
           </div>
+
+          {/* Sales History Pagination Controls */}
+          {salesHistory.length > 0 && (
+            <div className="pt-3 border-t border-slate-100 flex flex-wrap justify-between items-center gap-2 text-xs">
+              <span className="text-slate-500 font-medium text-[11px]">
+                Showing {((currentSalesPage - 1) * 15) + 1} - {Math.min(currentSalesPage * 15, salesHistory.length)} of {salesHistory.length} sales
+              </span>
+
+              <div className="flex items-center space-x-1">
+                {/* Previous Button */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentSalesPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentSalesPage === 1}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs transition-colors flex items-center space-x-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  <span>Prev</span>
+                </button>
+
+                {/* Page Number Buttons (up to 20 pages max) */}
+                {Array.from(
+                  { length: Math.min(20, Math.ceil(salesHistory.length / 15) || 1) },
+                  (_, i) => i + 1
+                ).map(pageNum => (
+                  <button
+                    key={pageNum}
+                    type="button"
+                    onClick={() => setCurrentSalesPage(pageNum)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${currentSalesPage === pageNum
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+
+                {/* Next Button */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentSalesPage(prev => Math.min(Math.min(20, Math.ceil(salesHistory.length / 15) || 1), prev + 1))}
+                  disabled={currentSalesPage >= Math.min(20, Math.ceil(salesHistory.length / 15) || 1)}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs transition-colors flex items-center space-x-1"
+                >
+                  <span>Next</span>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>
@@ -1314,9 +1426,15 @@ export default function ManualOrders() {
                             </div>
                           )}
                         </div>
+                          {item.product_id && item.cost_price !== '' && item.cost_price !== undefined && (
+                            <div className="mt-1.5 flex items-center gap-1.5">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cost Price:</span>
+                              <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">৳{parseFloat(item.cost_price).toFixed(2)}</span>
+                            </div>
+                          )}
                       </div>
 
-                      <div className="w-full md:w-28">
+                      <div className="w-full md:w-24">
                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Quantity</label>
                         <input
                           type="number"
@@ -1328,8 +1446,10 @@ export default function ManualOrders() {
                         />
                       </div>
 
-                      <div className="w-full md:w-36">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Unit Price (৳)</label>
+
+
+                      <div className="w-full md:w-28">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Sales Price (৳)</label>
                         <input
                           type="number"
                           step="0.01"
@@ -1339,9 +1459,30 @@ export default function ManualOrders() {
                         />
                       </div>
 
-                      <div className="w-full md:w-32 text-right">
-                        <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Subtotal</span>
-                        <span className="text-sm font-semibold text-slate-700">৳{((parseFloat(item.unit_price) || 0) * (parseFloat(item.quantity) || 0)).toFixed(2)}</span>
+                      <div className="w-full md:w-32">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Subtotal</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={editingSubtotal && editingSubtotal.index === idx
+                            ? editingSubtotal.value
+                            : ((parseFloat(item.unit_price) || 0) * (parseFloat(item.quantity) || 0)).toFixed(3)
+                          }
+                          onFocus={(e) => {
+                            const computed = ((parseFloat(item.unit_price) || 0) * (parseFloat(item.quantity) || 0)).toFixed(3);
+                            setEditingSubtotal({ index: idx, value: computed });
+                            setTimeout(() => e.target.select(), 0);
+                          }}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || /^\d*\.?\d{0,3}$/.test(val)) {
+                              handleSubtotalChange(idx, val);
+                            }
+                          }}
+                          onBlur={() => commitSubtotal(idx)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } }}
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs font-semibold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
                       </div>
 
                       <button
@@ -1362,27 +1503,38 @@ export default function ManualOrders() {
               <div className="border-t border-slate-100 pt-4 flex flex-col md:flex-row justify-between gap-4">
                 <div className="w-full md:w-1/3 space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Discount (৳)</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Discount (%)</label>
                     <input
                       type="number"
-                      name="discount"
-                      value={formData.discount}
+                      name="discountPercent"
+                      value={formData.discountPercent || ''}
                       min="0"
-                      onChange={handleInputChange}
-                      placeholder="E.g. 50"
-                      className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                      max="100"
+                      step="0.1"
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        discountPercent: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)) 
+                      }))}
+                      disabled={parseFloat(formData.discountAmount || 0) > 0}
+                      placeholder="E.g. 10"
+                      className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Tax (৳)</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Discount (৳)</label>
                     <input
                       type="number"
-                      name="tax"
-                      value={formData.tax}
+                      name="discountAmount"
+                      value={formData.discountAmount || ''}
                       min="0"
-                      onChange={handleInputChange}
-                      placeholder="E.g. 15"
-                      className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                      step="1"
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        discountAmount: Math.max(0, parseFloat(e.target.value) || 0) 
+                      }))}
+                      disabled={parseFloat(formData.discountPercent || 0) > 0}
+                      placeholder="E.g. 50"
+                      className="w-full border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
                     />
                   </div>
                 </div>
@@ -1392,18 +1544,16 @@ export default function ManualOrders() {
                     <span>Subtotal:</span>
                     <span className="font-semibold text-slate-800">৳{totals.subtotal.toFixed(2)}</span>
                   </div>
-                  {totals.discountAmount > 0 && (
+                  {totals.totalDiscountAmount > 0 && (
                     <div className="flex justify-between text-rose-500">
                       <span>Discount:</span>
-                      <span>-৳{totals.discountAmount.toFixed(2)}</span>
+                      <span>-৳{totals.totalDiscountAmount.toFixed(2)}</span>
                     </div>
                   )}
-                  {totals.tax > 0 && (
-                    <div className="flex justify-between text-slate-650">
-                      <span>Tax:</span>
-                      <span>+৳{totals.tax.toFixed(2)}</span>
-                    </div>
-                  )}
+                  <div className="flex justify-between text-slate-650">
+                    <span>Tax ({shopDetails.tax_rate}%):</span>
+                    <span>+৳{totals.tax.toFixed(2)}</span>
+                  </div>
                   <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-2 text-base">
                     <span>Total Amount:</span>
                     <span>৳{totals.finalAmount.toFixed(2)}</span>
@@ -1794,6 +1944,7 @@ export default function ManualOrders() {
                       <tr className="bg-slate-50 border-b border-slate-150 font-bold text-slate-450 uppercase">
                         <th className="p-3">Product Description</th>
                         <th className="p-3 text-center">Qty</th>
+                        <th className="p-3 text-right">Cost Price</th>
                         <th className="p-3 text-right">Unit Price</th>
                         <th className="p-3 text-right">Subtotal</th>
                       </tr>
@@ -1803,6 +1954,9 @@ export default function ManualOrders() {
                         <tr key={item.id}>
                           <td className="p-3 font-medium">{item.product_name}</td>
                           <td className="p-3 text-center">{item.quantity} {item.unit || 'pcs'}</td>
+                          <td className="p-3 text-right text-slate-500 font-mono">
+                            {item.cost_price !== undefined && item.cost_price !== null ? `৳${parseFloat(item.cost_price).toFixed(2)}` : '-'}
+                          </td>
                           <td className="p-3 text-right">৳{parseFloat(item.unit_price).toFixed(2)}</td>
                           <td className="p-3 text-right font-semibold text-slate-800">৳{parseFloat(item.subtotal).toFixed(2)}</td>
                         </tr>
