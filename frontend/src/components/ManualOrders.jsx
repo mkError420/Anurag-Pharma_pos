@@ -35,7 +35,7 @@ export default function ManualOrders() {
 
   // Current user / Shop details
   const [currentUser, setCurrentUser] = useState(null);
-  const [shopDetails, setShopDetails] = useState({ name: '', email: '', phone: '', address: '', tax_rate: 10.00 });
+  const [shopDetails, setShopDetails] = useState({ name: '', email: '', phone: '', address: '', tax_rate: 0 });
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user.role === 'shop_admin';
 
@@ -90,7 +90,7 @@ export default function ManualOrders() {
           email: u.shop_email || '',
           phone: u.shop_phone || '',
           address: u.shop_address || '',
-          tax_rate: 10.00 // Default, will update if shops API works
+          tax_rate: 0 // Default, will update if shops API works
         });
       }
     } catch (e) {
@@ -198,10 +198,10 @@ export default function ManualOrders() {
     const percentDiscountAmount = subtotal * (pct / 100);
     const totalDiscountAmount = percentDiscountAmount + flat;
 
-    const taxRate = parseFloat(shopDetails.tax_rate || 10.00) / 100;
+    const taxRate = (shopDetails.tax_rate !== null && shopDetails.tax_rate !== undefined) ? parseFloat(shopDetails.tax_rate) / 100 : 0;
     const taxAmount = (subtotal - totalDiscountAmount) * taxRate;
 
-    const finalAmount = Math.max(0, Math.round((subtotal - totalDiscountAmount) + taxAmount));
+    const finalAmount = Math.max(0, Math.round(((subtotal - totalDiscountAmount) + taxAmount) * 100) / 100);
 
     return {
       subtotal,
@@ -538,7 +538,10 @@ export default function ManualOrders() {
       });
       const data = await response.json();
 
-      if (!response.ok) throw new Error(data.error || 'Failed to confirm order.');
+      if (!response.ok) {
+        console.error('Confirm order error:', data);
+        throw new Error(data.error || 'Failed to confirm order.');
+      }
 
       triggerAlert('success', 'Order confirmed and invoice generated successfully!');
       fetchOrders();
@@ -548,6 +551,7 @@ export default function ManualOrders() {
       // Load invoice modal details
       await loadInvoiceDetails(data.sale_id);
     } catch (err) {
+      console.error('Confirm order exception:', err);
       triggerAlert('error', err.message);
     }
   };
@@ -1000,7 +1004,6 @@ export default function ManualOrders() {
                         {order.status === 'pending' ? (
                           <>
                             <button onClick={() => openEditOrder(order)} className="text-indigo-660 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Edit</button>
-                            <button onClick={() => handleHoldOrder(order.id)} className="text-amber-600 hover:text-amber-900 border border-amber-100 px-2 py-1 rounded font-medium">Hold</button>
                             <button onClick={() => handleConfirmOrder(order.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded">Confirm</button>
                             <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
                           </>
