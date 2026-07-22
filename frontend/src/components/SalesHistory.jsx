@@ -39,6 +39,10 @@ export default function SalesHistory() {
   const [customerSearchFocusedIndex, setCustomerSearchFocusedIndex] = useState(-1);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
+  // Subtotal editing state for the Edit Sale modal
+  const [editingSubtotal, setEditingSubtotal] = useState(null); // { index, value }
+
+
   const customerDropdownRef = useRef(null);
   // Modal viewer state
   const [selectedSale, setSelectedSale] = useState(null);
@@ -473,8 +477,28 @@ export default function SalesHistory() {
   };
 
   const handleEditItemSubtotal = (idx, newSubtotal) => {
+    // Allow decimal input while typing
+    if (newSubtotal === '' || /^\d*\.?\d*$/.test(newSubtotal)) {
+      setEditingSubtotal({ index: idx, value: newSubtotal });
+    }
+  };
+
+  const commitSubtotalChange = (idx) => {
+    if (!editingSubtotal || editingSubtotal.index !== idx) return;
+
+    const newSubtotalValue = parseFloat(editingSubtotal.value);
+    setEditingSubtotal(null); // Clear editing state
+
+    if (isNaN(newSubtotalValue)) return;
+
     const newData = { ...editSaleData };
-    newData.items[idx].subtotal = parseFloat(newSubtotal) || 0;
+    const item = newData.items[idx];
+    const qty = parseFloat(item.quantity) || 0;
+
+    item.subtotal = newSubtotalValue;
+    if (qty > 0) {
+      item.unit_price = parseFloat((newSubtotalValue / qty).toFixed(3));
+    }
     updateEditSaleTotals(newData);
   };
 
@@ -827,9 +851,13 @@ export default function SalesHistory() {
   const filteredSales = sales.filter((sale) => {
     const query = search.toLowerCase().trim();
     if (!query) return true;
+
+    const isWalkInSearch = 'walk-in customer'.includes(query);
+
     return (
       String(sale.id).includes(query) ||
-      (sale.customer_name && sale.customer_name.toLowerCase().includes(query)) ||
+      (sale.customer_name && sale.customer_name.toLowerCase().includes(query)) || // Existing customers
+      (!sale.customer_name && isWalkInSearch) || // For "Walk-in Customer"
       (sale.staff_name && sale.staff_name.toLowerCase().includes(query)) ||
       (sale.payment_method && sale.payment_method.toLowerCase().includes(query)) ||
       (sale.final_amount && String(sale.final_amount).includes(query))
@@ -1029,12 +1057,20 @@ export default function SalesHistory() {
                       </td>
                       <td className="p-3 text-right font-bold text-slate-700">
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="decimal"
                           className="w-24 h-8 text-right border border-slate-200 rounded-md text-sm font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          value={item.subtotal.toFixed(3)}
+                          value={
+                            editingSubtotal && editingSubtotal.index === idx
+                              ? editingSubtotal.value
+                              : item.subtotal.toFixed(3)
+                          }
+                          onFocus={() => setEditingSubtotal({ index: idx, value: item.subtotal.toFixed(3) })}
                           onChange={(e) => handleEditItemSubtotal(idx, e.target.value)}
-                          min="0"
-                          step="0.01"
+                          onBlur={() => commitSubtotalChange(idx)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitSubtotalChange(idx);
+                          }}
                         />
                       </td>
                       <td className="p-3 text-center">

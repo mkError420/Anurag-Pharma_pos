@@ -669,7 +669,7 @@ class ManualOrderController {
 
                     DB::query(
                         "INSERT INTO held_bills (shop_id, user_id, customer_id, customer_name, customer_phone, customer_address, discount_percent, discount_amount, notes, items, due_amount, status, created_at) 
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'held', ?)",
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'held', ?)",
                         [
                             $shopId, $userId, $resolvedCustomerId, $cust['name'], $cust['phone'] ?: null, $cust['address'] ?: null,
                             $discountPercent, (float)$order['discount'], $note, json_encode($validatedItems), $dueAmount,

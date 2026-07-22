@@ -52,6 +52,7 @@ export default function ManualOrders() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [customerFocusedIndex, setCustomerFocusedIndex] = useState(-1);
   const [customerSearchField, setCustomerSearchField] = useState(''); // 'name' or 'phone'
+  const [isCashSalesVisible, setIsCashSalesVisible] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -858,7 +859,7 @@ export default function ManualOrders() {
 
         {/* COLUMN 1: CASH SALES */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
-          <div className="border-b border-slate-100 pb-3 flex justify-between items-center bg-slate-50/50 -mx-4 -mt-4 p-4 rounded-t-2xl">
+          <div className="border-b border-slate-100 pb-3 flex justify-between items-center bg-slate-50/50 -mx-4 -mt-4 p-4 rounded-t-2xl cursor-pointer" onClick={() => setIsCashSalesVisible(!isCashSalesVisible)}>
             <div>
               <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
@@ -866,74 +867,83 @@ export default function ManualOrders() {
               </h3>
               <p className="text-xs text-slate-400">Cash drafts, orders, and confirmed transactions</p>
             </div>
-            <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded border border-emerald-100">{cashOrders.length} Orders</span>
+            <div className="flex items-center space-x-2">
+              <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded border border-emerald-100">{cashOrders.length} Orders</span>
+              <button className="p-2 rounded-full hover:bg-slate-200 transition-colors">
+                <svg className={`w-5 h-5 text-slate-500 transition-transform duration-300 ${isCashSalesVisible ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 text-slate-450 font-bold uppercase tracking-wider">
-                  <th className="pb-2">Details</th>
-                  <th className="pb-2 text-center">Status</th>
-                  <th className="pb-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-650">
-                {loading ? (
-                  <tr>
-                    <td colSpan="3" className="py-8 text-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-indigo-600 mx-auto"></div>
-                    </td>
+          {isCashSalesVisible && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 text-slate-450 font-bold uppercase tracking-wider">
+                    <th className="pb-2">Details</th>
+                    <th className="pb-2 text-center">Status</th>
+                    <th className="pb-2 text-right">Actions</th>
                   </tr>
-                ) : cashOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan="3" className="py-8 text-center text-slate-400">No cash sales recorded.</td>
-                  </tr>
-                ) : (
-                  cashOrders.map((order) => (
-                    <tr key={order.id} className="hover:bg-slate-50/40">
-                      <td className="py-2.5 pr-2">
-                        <div className="font-semibold text-slate-800">{order.salesman_name}</div>
-                        <div className="text-[10px] text-slate-400">Buyer: {order.customer_name || 'Walk-in'}</div>
-                        <div className="text-[9px] text-slate-400 mt-0.5">{new Date(order.created_at).toLocaleDateString()}</div>
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold capitalize ${order.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
-                          order.status === 'held' ? 'bg-blue-100 text-blue-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}>
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-right space-x-1.5 whitespace-nowrap">
-                        <button onClick={() => openDetails(order)} className="text-slate-500 hover:text-slate-900 border border-slate-200 px-2 py-1 rounded font-medium">View</button>
-                        {order.status === 'pending' ? (
-                          <>
-                            <button onClick={() => openEditOrder(order)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Edit</button>
-                            <button onClick={() => handleHoldOrder(order.id)} className="text-amber-600 hover:text-amber-900 border border-amber-100 px-2 py-1 rounded font-medium">Hold</button>
-                            <button onClick={() => handleConfirmOrder(order.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded">Confirm</button>
-                            <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
-                          </>
-                        ) : order.status === 'held' ? (
-                          <>
-                            <button onClick={() => handleUnholdOrder(order.id)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Unhold</button>
-                            <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
-                          </>
-                        ) : (
-                          <>
-                            {order.sale_id && (
-                              <button onClick={() => loadInvoiceDetails(order.sale_id)} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1 rounded font-bold">Receipt</button>
-                            )}
-                            <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
-                          </>
-                        )}
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-650">
+                  {loading ? (
+                    <tr>
+                      <td colSpan="3" className="py-8 text-center">
+                        <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-indigo-600 mx-auto"></div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : cashOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan="3" className="py-8 text-center text-slate-400">No cash sales recorded.</td>
+                    </tr>
+                  ) : (
+                    cashOrders.map((order) => (
+                      <tr key={order.id} className="hover:bg-slate-50/40">
+                        <td className="py-2.5 pr-2">
+                          <div className="font-semibold text-slate-800">{order.salesman_name}</div>
+                          <div className="text-[10px] text-slate-400">Buyer: {order.customer_name || 'Walk-in'}</div>
+                          <div className="text-[9px] text-slate-400 mt-0.5">{new Date(order.created_at).toLocaleDateString()}</div>
+                        </td>
+                        <td className="py-2.5 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold capitalize ${order.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
+                            order.status === 'held' ? 'bg-blue-100 text-blue-700' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-right space-x-1.5 whitespace-nowrap">
+                          <button onClick={() => openDetails(order)} className="text-slate-500 hover:text-slate-900 border border-slate-200 px-2 py-1 rounded font-medium">View</button>
+                          {order.status === 'pending' ? (
+                            <>
+                              <button onClick={() => openEditOrder(order)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Edit</button>
+                              <button onClick={() => handleHoldOrder(order.id)} className="text-amber-600 hover:text-amber-900 border border-amber-100 px-2 py-1 rounded font-medium">Hold</button>
+                              <button onClick={() => handleConfirmOrder(order.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded">Confirm</button>
+                              <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
+                            </>
+                          ) : order.status === 'held' ? (
+                            <>
+                              <button onClick={() => handleUnholdOrder(order.id)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Unhold</button>
+                              <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
+                            </>
+                          ) : (
+                            <>
+                              {order.sale_id && (
+                                <button onClick={() => loadInvoiceDetails(order.sale_id)} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1 rounded font-bold">Receipt</button>
+                              )}
+                              <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* COLUMN 2: CREDIT SALES */}

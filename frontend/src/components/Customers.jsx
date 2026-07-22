@@ -425,6 +425,28 @@ export default function Customers() {
     });
   };
 
+  const handleEditItemSubtotal = (productId, rawValue) => {
+    // Allow decimal input
+    if (rawValue === '' || /^\d*\.?\d*$/.test(rawValue)) {
+      setEditForm(prev => {
+        const updatedItems = prev.items.map(item => {
+          if (item.product_id === productId) {
+            const qty = parseFloat(item.quantity) || 0;
+            const newSubtotal = parseFloat(rawValue) || 0;
+            let newUnitPrice = item.unit_price;
+            if (qty > 0) {
+              newUnitPrice = newSubtotal / qty;
+            }
+            // Store rawValue in a temporary field to keep the input uncontrolled during typing
+            return { ...item, unit_price: newUnitPrice, rawSubtotal: rawValue };
+          }
+          return item;
+        });
+        return { ...prev, items: updatedItems };
+      });
+    }
+  };
+
   const handleRemoveEditItem = (productId) => {
     setEditForm(prev => ({
       ...prev,
@@ -1528,7 +1550,7 @@ export default function Customers() {
                                       <th className="p-2 text-right w-24">Unit Price</th>
                                       <th className="p-2 text-right w-24">Total</th>
                                       <th className="p-2 text-center w-12"></th>
-                                    </tr>
+                                    </tr>_
                                   </thead>
                                   <tbody className="divide-y divide-slate-100">
                                     {editForm.items.map((item, idx) => (
@@ -1544,8 +1566,23 @@ export default function Customers() {
                                             required
                                           />
                                         </td>
-                                        <td className="p-2 text-right">৳{parseFloat(item.unit_price).toFixed(2)}</td>
-                                        <td className="p-2 text-right font-bold text-slate-900">৳{(parseFloat(item.unit_price) * parseInt(item.quantity || 0, 10)).toFixed(2)}</td>
+                                        <td className="p-2 text-right">
+                                          <input
+                                            type="number"
+                                            step="any"
+                                            value={parseFloat(item.unit_price).toFixed(3)}
+                                            readOnly
+                                            className="w-24 border-none bg-transparent p-1 text-right text-slate-600 text-xs"
+                                          />
+                                        </td>
+                                        <td className="p-2 text-right font-bold text-slate-900">
+                                          <input
+                                            type="text" // Use text to allow flexible decimal typing
+                                            value={item.rawSubtotal !== undefined ? item.rawSubtotal : (parseFloat(item.unit_price) * parseInt(item.quantity || 0, 10)).toFixed(3)}
+                                            onChange={(e) => handleEditItemSubtotal(item.product_id, e.target.value)}
+                                            className="w-24 border border-slate-200 rounded p-1 text-right font-bold focus:ring-1 focus:ring-indigo-500 outline-none"
+                                          />
+                                        </td>
                                         <td className="p-2 text-center">
                                           <button
                                             type="button"

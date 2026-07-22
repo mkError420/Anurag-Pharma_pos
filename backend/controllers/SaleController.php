@@ -166,8 +166,8 @@ class SaleController {
 
             // Save sale header
             DB::query(
-                'INSERT INTO sales (shop_id, customer_id, user_id, total_amount, discount, tax, final_amount, paid_amount, due_amount, payment_method, points_earned, points_redeemed, points_redeemed_value, created_at) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO sales (shop_id, customer_id, user_id, total_amount, discount, tax, final_amount, paid_amount, due_amount, payment_method, points_earned, points_redeemed, points_redeemed_value, created_at, notes) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $shopId,
                     $customerId ? (int)$customerId : null,
@@ -182,7 +182,8 @@ class SaleController {
                     $pointsEarned,
                     $redeemPoints,
                     $pointsRedeemedValue,
-                    $createdAtDatetime
+                    $createdAtDatetime,
+                    '' // Assuming notes are not passed from this specific flow, providing an empty string.
                 ]
             );
             $saleId = DB::lastInsertId();
