@@ -818,15 +818,26 @@ export default function ManualOrders() {
           <h2 className="text-2xl font-bold text-slate-800">Manual Sales Order Entry</h2>
           <p className="text-sm text-slate-500">Record and invoice sales collected manually by salesmen</p>
         </div>
-        <button
-          onClick={openNewOrder}
-          className="bg-slate-600 hover:bg-indigo-750 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-          </svg>
-          <span>New Manual Order</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setIsCashSalesVisible(!isCashSalesVisible)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <span>Cash Sales</span>
+          </button>
+          <button
+            onClick={openNewOrder}
+            className="bg-slate-600 hover:bg-indigo-750 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>New Manual Order</span>
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -858,26 +869,21 @@ export default function ManualOrders() {
       <div className="flex flex-col gap-6">
 
         {/* COLUMN 1: CASH SALES */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
-          <div className="border-b border-slate-100 pb-3 flex justify-between items-center bg-slate-50/50 -mx-4 -mt-4 p-4 rounded-t-2xl cursor-pointer" onClick={() => setIsCashSalesVisible(!isCashSalesVisible)}>
-            <div>
-              <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-                <span>Cash Sales Column</span>
-              </h3>
-              <p className="text-xs text-slate-400">Cash drafts, orders, and confirmed transactions</p>
+        {isCashSalesVisible && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
+            <div className="border-b border-slate-100 pb-3 flex justify-between items-center bg-slate-50/50 -mx-4 -mt-4 p-4 rounded-t-2xl">
+              <div>
+                <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+                  <span>Cash Sales Column</span>
+                </h3>
+                <p className="text-xs text-slate-400">Cash drafts, orders, and confirmed transactions</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded border border-emerald-100">{cashOrders.length} Orders</span>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded border border-emerald-100">{cashOrders.length} Orders</span>
-              <button className="p-2 rounded-full hover:bg-slate-200 transition-colors">
-                <svg className={`w-5 h-5 text-slate-500 transition-transform duration-300 ${isCashSalesVisible ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            </div>
-          </div>
 
-          {isCashSalesVisible && (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -943,8 +949,8 @@ export default function ManualOrders() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* COLUMN 2: CREDIT SALES */}
         <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4 shadow-xs">
