@@ -444,6 +444,11 @@ class DB {
                 } catch (\Exception $e) {}
             }
 
+            // Check if notes column exists on sales table
+            if ($tableExists('sales') && !$columnExists('sales', 'notes')) {
+                $pdo->exec("ALTER TABLE `sales` ADD COLUMN `notes` TEXT NULL");
+            }
+
             // Seed Super Admin if table has no users
             $stmt = $pdo->query("SELECT COUNT(*) FROM `users` WHERE `role` = 'super_admin'");
             if ($stmt->fetchColumn() == 0) {

@@ -57,16 +57,6 @@
     return originalParse(str);
   };
 
-  // Add custom method to format Date object into YYYY-MM-DD in Asia/Dhaka
-  OriginalDate.prototype.toBDISODateString = function() {
-    return new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Dhaka',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(this);
-  };
-
   // Override toLocaleString, toLocaleDateString, toLocaleTimeString to default to Asia/Dhaka
   const originalToLocaleString = OriginalDate.prototype.toLocaleString;
   OriginalDate.prototype.toLocaleString = function(locales, options) {
@@ -84,6 +74,16 @@
   OriginalDate.prototype.toLocaleTimeString = function(locales, options) {
     const opts = { timeZone: 'Asia/Dhaka', ...options };
     return originalToLocaleTimeString.call(this, locales, opts);
+  };
+
+  // Add custom method to format Date object into YYYY-MM-DD in Asia/Dhaka
+  OriginalDate.prototype.toBDISODateString = function() {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Dhaka',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(this);
   };
 
   window.Date = PatchedDate;
