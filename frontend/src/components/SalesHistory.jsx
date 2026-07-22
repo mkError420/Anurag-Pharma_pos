@@ -1013,8 +1013,8 @@ export default function SalesHistory() {
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-500">
                   <tr>
                     <th className="p-3 font-semibold">Product</th>
-                    <th className="p-3 font-semibold text-center w-24">Price</th>
                     <th className="p-3 font-semibold text-center w-32">Qty</th>
+                    <th className="p-3 font-semibold text-center w-24">Price</th>
                     <th className="p-3 font-semibold text-right w-24">Subtotal</th>
                     <th className="p-3 font-semibold text-center w-12"></th>
                   </tr>
@@ -1023,16 +1023,6 @@ export default function SalesHistory() {
                   {editSaleData.items.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/50">
                       <td className="p-3 font-medium text-slate-700">{item.name}</td>
-                      <td className="p-3 text-center text-slate-500">
-                        <input
-                          type="number"
-                          className="w-24 h-8 text-center border border-slate-200 rounded-md text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          value={item.unit_price}
-                          onChange={(e) => handleEditItemPrice(idx, e.target.value)}
-                          min="0"
-                          step="0.01"
-                        />
-                      </td>
                       <td className="p-3">
                         <div className="flex items-center justify-center">
                           <button onClick={() => handleEditItemQty(idx, item.quantity - 1)} className="w-8 h-8 rounded-l-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center">-</button>
@@ -1054,6 +1044,16 @@ export default function SalesHistory() {
                           />
                           <button onClick={() => handleEditItemQty(idx, item.quantity + 1)} className="w-8 h-8 rounded-r-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center">+</button>
                         </div>
+                      </td>
+                      <td className="p-3 text-center text-slate-500">
+                        <input
+                          type="number"
+                          className="w-24 h-8 text-center border border-slate-200 rounded-md text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          value={item.unit_price}
+                          onChange={(e) => handleEditItemPrice(idx, e.target.value)}
+                          min="0"
+                          step="0.01"
+                        />
                       </td>
                       <td className="p-3 text-right font-bold text-slate-700">
                         <input
