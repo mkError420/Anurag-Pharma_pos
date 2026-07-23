@@ -64,6 +64,7 @@ export default function Suppliers() {
   const [supplierCsvFile, setSupplierCsvFile] = useState(null);
   const [supplierCsvUploading, setSupplierCsvUploading] = useState(false);
   const [selectedSupplierIds, setSelectedSupplierIds] = useState([]);
+  const [selectedPoIds, setSelectedPoIds] = useState([]);
   const [poSearchFocusedIndex, setPoSearchFocusedIndex] = useState(-1);
   const [supplierSearchFocusedIndex, setSupplierSearchFocusedIndex] = useState(-1);
   const [productSearchFocusedIndex, setProductSearchFocusedIndex] = useState(-1);
@@ -397,6 +398,22 @@ export default function Suppliers() {
       fetchSuppliers();
     } catch (err) {
       triggerAlert('error', err.message);
+    }
+  };
+
+  const handleSelectPo = (id) => {
+    setSelectedPoIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllPos = (e, currentPOs) => {
+    if (e.target.checked) {
+      const ids = currentPOs.map(po => po.id);
+      setSelectedPoIds(prev => Array.from(new Set([...prev, ...ids])));
+    } else {
+      const ids = currentPOs.map(po => po.id);
+      setSelectedPoIds(prev => prev.filter(id => !ids.includes(id)));
     }
   };
 
@@ -882,6 +899,57 @@ export default function Suppliers() {
       if (selectedPo && selectedPo.id === poId) {
         openPoDetails(poId);
       }
+      if (selectedSupplierId) {
+        loadProfileData(selectedSupplierId);
+      }
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  // BULK PLACE ORDER FOR MULTIPLE DRAFT POs
+  const handleBulkPlaceOrder = async () => {
+    const filteredPOs = getFilteredPOs(purchaseOrders);
+    const draftPOs = filteredPOs.filter(po => selectedPoIds.includes(po.id) && po.status === 'draft');
+    if (draftPOs.length === 0) {
+      triggerAlert('error', 'Please select at least one draft purchase order to place.');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to receive ${draftPOs.length} order(s)?`)) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const promises = draftPOs.map(po =>
+        fetch(`${API_BASE_URL}/suppliers/purchase-orders/${po.id}/status`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ status: 'received' })
+        })
+      );
+
+      const responses = await Promise.all(promises);
+      const failedUpdates = [];
+
+      for (let i = 0; i < responses.length; i++) {
+        if (!responses[i].ok) {
+          failedUpdates.push(draftPOs[i].id);
+        }
+      }
+
+      if (failedUpdates.length === 0) {
+        triggerAlert('success', `${draftPOs.length} order(s) received successfully!`);
+      } else if (failedUpdates.length === draftPOs.length) {
+        triggerAlert('error', 'Failed to receive all orders.');
+      } else {
+        triggerAlert('warning', `${draftPOs.length - failedUpdates.length} order(s) received successfully. ${failedUpdates.length} failed.`);
+      }
+
+      setSelectedPoIds([]);
+      fetchPurchaseOrders();
       if (selectedSupplierId) {
         loadProfileData(selectedSupplierId);
       }
@@ -2579,12 +2647,26 @@ export default function Suppliers() {
                 </div>
               </div>
               <div className="flex items-center space-x-3 w-full lg:w-auto justify-end">
+                {(() => {
+                  const selectedDraftPOs = filteredPOs.filter(po => selectedPoIds.includes(po.id) && po.status === 'draft');
+                  return selectedPoIds.length > 0 && selectedDraftPOs.length > 0 && (
+                    <button
+                      onClick={handleBulkPlaceOrder}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>Receive ({selectedDraftPOs.length})</span>
+                    </button>
+                  );
+                })()}
                 <button
                   onClick={handleDownloadPOCSV}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.4145.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <span>CSV</span>
                 </button>
@@ -2607,6 +2689,14 @@ export default function Suppliers() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                      <th className="p-4 w-10">
+                        <input
+                          type="checkbox"
+                          checked={paginatedPOs.length > 0 && paginatedPOs.every(po => selectedPoIds.includes(po.id))}
+                          onChange={(e) => handleSelectAllPos(e, paginatedPOs)}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </th>
                       <th className="p-4">PO ID</th>
                       <th className="p-4">Supplier</th>
                       <th className="p-4">Order Date</th>
@@ -2621,7 +2711,7 @@ export default function Suppliers() {
                   <tbody className="divide-y divide-slate-100 text-sm">
                     {loading ? (
                       <tr>
-                        <td colSpan="9" className="p-12 text-center">
+                        <td colSpan="10" className="p-12 text-center">
                           <div className="flex justify-center items-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                           </div>
@@ -2629,13 +2719,21 @@ export default function Suppliers() {
                       </tr>
                     ) : filteredPOs.length === 0 ? (
                       <tr>
-                        <td colSpan="9" className="p-12 text-center text-slate-400">
+                        <td colSpan="10" className="p-12 text-center text-slate-400">
                           No purchase orders matching filters.
                         </td>
                       </tr>
                     ) : (
                       paginatedPOs.map((po, index) => (
                         <tr key={po.id} className={`hover:bg-slate-50/50 transition-colors ${poSearchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''}`}>
+                          <td className="p-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedPoIds.includes(po.id)}
+                              onChange={() => handleSelectPo(po.id)}
+                              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                          </td>
                           <td className="p-4 font-mono font-bold text-slate-650">#PO-{po.id}</td>
                           <td className="p-4 font-semibold text-slate-800">{po.supplier_name}</td>
                           <td className="p-4 text-slate-600">{formatDate(po.order_date).split(',')[0]}</td>
@@ -2700,7 +2798,7 @@ export default function Suppliers() {
                   </tbody>
                   <tfoot>
                     <tr className="bg-slate-50/50 border-t-2 border-slate-200 font-bold">
-                      <td colSpan="4" className="p-4 text-slate-500 uppercase text-xs">Total</td>
+                      <td colSpan="5" className="p-4 text-slate-500 uppercase text-xs">Total</td>
                       <td className="p-4 font-bold text-slate-800">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0))}</td>
                       <td className="p-4 font-bold text-emerald-700">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0))}</td>
                       <td className="p-4 font-bold text-rose-700">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.due_amount || 0), 0))}</td>
