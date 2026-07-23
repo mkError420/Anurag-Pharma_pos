@@ -1014,9 +1014,26 @@ class SupplierController {
             }
 
             if ($status === 'received') {
+                // If items not provided, auto-receive all items with ordered quantities
                 if (empty($items) || !is_array($items)) {
-                    DB::rollBack();
-                    Auth::jsonError('Received items are required to mark PO as received.', 400);
+                    $itemsStmt = DB::query(
+                        'SELECT poi.product_id, poi.quantity_ordered, poi.cost_price, poi.selling_price 
+                         FROM purchase_order_items poi 
+                         WHERE poi.purchase_order_id = ? AND poi.shop_id = ?',
+                        [$poId, $shopId]
+                    );
+                    $poItems = $itemsStmt->fetchAll();
+
+                    $items = [];
+                    foreach ($poItems as $poItem) {
+                        $items[] = [
+                            'product_id' => (int)$poItem['product_id'],
+                            'quantity_received' => (int)$poItem['quantity_ordered'],
+                            'cost_price' => (float)$poItem['cost_price'],
+                            'selling_price' => (float)$poItem['selling_price'],
+                            'expiry_date' => null
+                        ];
+                    }
                 }
 
                 foreach ($items as $item) {
