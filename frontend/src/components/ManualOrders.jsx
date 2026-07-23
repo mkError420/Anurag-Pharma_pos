@@ -1707,16 +1707,18 @@ export default function ManualOrders() {
                 >
                   Save as Draft (Pending)
                 </button>
-                <button
-                  type="button"
-                  onClick={(e) => handleFormSubmit(e, true)}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-colors shadow-md flex items-center justify-center space-x-1.5"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Confirm & Generate Invoice</span>
-                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleFormSubmit(e, true)}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-colors shadow-md flex items-center justify-center space-x-1.5"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Confirm & Generate Invoice</span>
+                  </button>
+                )}
               </div>
             </form>
           </div>
