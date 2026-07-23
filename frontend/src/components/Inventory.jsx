@@ -41,9 +41,17 @@ export default function Inventory() {
   const [selectedLetter, setSelectedLetter] = useState('');
   const [showStockDistribution, setShowStockDistribution] = useState(false);
 
-  // Filter and sort products alphabetically
+  // Filter and sort products alphabetically and by search
   const filteredProducts = products
     .filter(p => {
+      // Filter by search term
+      if (search) {
+        const searchLower = search.toLowerCase();
+        const matchesName = p.name && p.name.toLowerCase().includes(searchLower);
+        const matchesSku = p.sku && p.sku.toLowerCase().includes(searchLower);
+        if (!matchesName && !matchesSku) return false;
+      }
+      // Filter by selected letter
       if (!selectedLetter) return true;
       return p.name && p.name.trim().toUpperCase().startsWith(selectedLetter);
     })

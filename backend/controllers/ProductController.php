@@ -381,6 +381,23 @@ class ProductController {
                 Auth::jsonError('Product not found or access denied.', 404);
             }
 
+            // Check if product is referenced in sale_items
+            $stmt = DB::query('SELECT COUNT(*) as count FROM sale_items WHERE product_id = ? AND shop_id = ?', [$productId, $shopId]);
+            $saleCount = $stmt->fetch()['count'];
+
+            // Check if product is referenced in purchase_order_items
+            $stmt = DB::query('SELECT COUNT(*) as count FROM purchase_order_items WHERE product_id = ? AND shop_id = ?', [$productId, $shopId]);
+            $poCount = $stmt->fetch()['count'];
+
+            // Provide specific error message based on references
+            if ($saleCount > 0 && $poCount > 0) {
+                Auth::jsonError('Cannot delete product. It is referenced in both sales transactions and purchase orders.', 400);
+            } elseif ($saleCount > 0) {
+                Auth::jsonError('Cannot delete product. It is referenced in sales transaction records.', 400);
+            } elseif ($poCount > 0) {
+                Auth::jsonError('Cannot delete product. It is referenced in purchase order records.', 400);
+            }
+
             // Delete product
             DB::query('DELETE FROM products WHERE id = ? AND shop_id = ?', [$productId, $shopId]);
 
@@ -391,7 +408,7 @@ class ProductController {
             error_log('Delete product database error: ' . $e->getMessage());
             // Foreign key constraint violation (ER_ROW_IS_REFERENCED_2 matches SQLSTATE 23000)
             if ($e->getCode() == 23000 || strpos($e->getMessage(), 'a foreign key constraint fails') !== false) {
-                Auth::jsonError('Cannot delete product. It is referenced in sales transaction records.', 400);
+                Auth::jsonError('Cannot delete product. It is referenced in other records.', 400);
             }
             Auth::jsonError('Server error deleting product.', 500);
         } catch (\Exception $e) {

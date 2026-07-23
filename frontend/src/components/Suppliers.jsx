@@ -281,6 +281,8 @@ export default function Suppliers() {
   const [poPage, setPoPage] = useState(1);
   const [logsPage, setLogsPage] = useState(1);
   const itemsPerPage = 10;
+  const poItemsPerPage = 20;
+  const supplierItemsPerPage = 10;
 
   // Load baseline directory data
   const fetchSuppliers = async () => {
@@ -2289,9 +2291,9 @@ export default function Suppliers() {
             (s.email && s.email.toLowerCase().includes(search)) ||
             (s.phone && s.phone.toLowerCase().includes(search));
         });
-        const totalSupplierPages = Math.ceil(filteredSuppliers.length / itemsPerPage);
-        const indexOfFirstSupplier = (supplierPage - 1) * itemsPerPage;
-        const indexOfLastSupplier = supplierPage * itemsPerPage;
+        const totalSupplierPages = Math.ceil(filteredSuppliers.length / supplierItemsPerPage);
+        const indexOfFirstSupplier = (supplierPage - 1) * supplierItemsPerPage;
+        const indexOfLastSupplier = supplierPage * supplierItemsPerPage;
         const paginatedSuppliers = filteredSuppliers.slice(indexOfFirstSupplier, indexOfLastSupplier);
 
         return (
@@ -2407,43 +2409,68 @@ export default function Suppliers() {
             </div>
 
             {/* Pagination Controls */}
-            {totalSupplierPages > 1 && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-                <div className="text-xs font-semibold text-slate-500">
-                  Showing <span className="text-slate-800">{indexOfFirstSupplier + 1}</span> to <span className="text-slate-800">{Math.min(indexOfLastSupplier, filteredSuppliers.length)}</span> of <span className="text-slate-800">{filteredSuppliers.length}</span> entries
-                </div>
-                <div className="flex items-center space-x-1.5">
-                  <button
-                    onClick={() => setSupplierPage(prev => Math.max(prev - 1, 1))}
-                    disabled={supplierPage === 1}
-                    className="px-3 py-2 bg-white hover:bg-slate-50 disabled:hover:bg-white disabled:opacity-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
+            {totalSupplierPages > 1 && (() => {
+              const currentBlock = Math.floor((supplierPage - 1) / 20);
+              let startPage = currentBlock * 20 + 1;
+              let endPage = Math.min(startPage + 19, totalSupplierPages);
+              const visiblePages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
 
-                  {Array.from({ length: totalSupplierPages }, (_, i) => i + 1).map((page) => (
+              return (
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+                  <div className="text-xs font-semibold text-slate-500">
+                    Showing <span className="text-slate-800">{indexOfFirstSupplier + 1}</span> to <span className="text-slate-800">{Math.min(indexOfLastSupplier, filteredSuppliers.length)}</span> of <span className="text-slate-800">{filteredSuppliers.length}</span> entries
+                  </div>
+                  <div className="flex items-center space-x-1.5">
                     <button
-                      key={page}
-                      onClick={() => setSupplierPage(page)}
-                      className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${supplierPage === page
-                        ? 'bg-slate-600 text-white shadow-xs'
-                        : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
-                        }`}
+                      onClick={() => setSupplierPage(prev => Math.max(prev - 1, 1))}
+                      disabled={supplierPage === 1}
+                      className="px-3 py-2 bg-white hover:bg-slate-50 disabled:hover:bg-white disabled:opacity-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:cursor-not-allowed"
                     >
-                      {page}
+                      Previous
                     </button>
-                  ))}
 
-                  <button
-                    onClick={() => setSupplierPage(prev => Math.min(prev + 1, totalSupplierPages))}
-                    disabled={supplierPage === totalSupplierPages}
-                    className="px-3 py-2 bg-white hover:bg-slate-50 disabled:hover:bg-white disabled:opacity-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
+                    {currentBlock > 0 && (
+                      <button
+                        onClick={() => setSupplierPage(startPage - 1)}
+                        className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors"
+                      >
+                        ...
+                      </button>
+                    )}
+
+                    {visiblePages.map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setSupplierPage(page)}
+                        className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${supplierPage === page
+                          ? 'bg-slate-600 text-white shadow-xs'
+                          : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
+                          }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    {endPage < totalSupplierPages && (
+                      <button
+                        onClick={() => setSupplierPage(endPage + 1)}
+                        className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors"
+                      >
+                        ...
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => setSupplierPage(prev => Math.min(prev + 1, totalSupplierPages))}
+                      disabled={supplierPage === totalSupplierPages}
+                      className="px-3 py-2 bg-white hover:bg-slate-50 disabled:hover:bg-white disabled:opacity-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         );
       })()}
@@ -2451,9 +2478,9 @@ export default function Suppliers() {
       {/* --- TAB: PURCHASE ORDERS --- */}
       {activeTab === 'pos' && (() => {
         const filteredPOs = getFilteredPOs(purchaseOrders);
-        const totalPoPages = Math.ceil(filteredPOs.length / itemsPerPage);
-        const indexOfFirstPo = (poPage - 1) * itemsPerPage;
-        const indexOfLastPo = poPage * itemsPerPage;
+        const totalPoPages = Math.ceil(filteredPOs.length / poItemsPerPage);
+        const indexOfFirstPo = (poPage - 1) * poItemsPerPage;
+        const indexOfLastPo = poPage * poItemsPerPage;
         const paginatedPOs = filteredPOs.slice(indexOfFirstPo, indexOfLastPo);
 
         return (
@@ -2685,43 +2712,68 @@ export default function Suppliers() {
             </div>
 
             {/* Pagination Controls */}
-            {totalPoPages > 1 && (
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-                <div className="text-xs font-semibold text-slate-500">
-                  Showing <span className="text-slate-800">{indexOfFirstPo + 1}</span> to <span className="text-slate-800">{Math.min(indexOfLastPo, filteredPOs.length)}</span> of <span className="text-slate-800">{filteredPOs.length}</span> entries
-                </div>
-                <div className="flex items-center space-x-1.5">
-                  <button
-                    onClick={() => setPoPage(prev => Math.max(prev - 1, 1))}
-                    disabled={poPage === 1}
-                    className="px-3 py-2 bg-white hover:bg-slate-50 disabled:hover:bg-white disabled:opacity-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
+            {totalPoPages > 1 && (() => {
+              const currentBlock = Math.floor((poPage - 1) / 20);
+              let startPage = currentBlock * 20 + 1;
+              let endPage = Math.min(startPage + 19, totalPoPages);
+              const visiblePages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
 
-                  {Array.from({ length: totalPoPages }, (_, i) => i + 1).map((page) => (
+              return (
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+                  <div className="text-xs font-semibold text-slate-500">
+                    Showing <span className="text-slate-800">{indexOfFirstPo + 1}</span> to <span className="text-slate-800">{Math.min(indexOfLastPo, filteredPOs.length)}</span> of <span className="text-slate-800">{filteredPOs.length}</span> entries
+                  </div>
+                  <div className="flex items-center space-x-1.5">
                     <button
-                      key={page}
-                      onClick={() => setPoPage(page)}
-                      className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${poPage === page
-                        ? 'bg-slate-600 text-white shadow-xs'
-                        : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
-                        }`}
+                      onClick={() => setPoPage(prev => Math.max(prev - 1, 1))}
+                      disabled={poPage === 1}
+                      className="px-3 py-2 bg-white hover:bg-slate-50 disabled:hover:bg-white disabled:opacity-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:cursor-not-allowed"
                     >
-                      {page}
+                      Previous
                     </button>
-                  ))}
 
-                  <button
-                    onClick={() => setPoPage(prev => Math.min(prev + 1, totalPoPages))}
-                    disabled={poPage === totalPoPages}
-                    className="px-3 py-2 bg-white hover:bg-slate-50 disabled:hover:bg-white disabled:opacity-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
+                    {currentBlock > 0 && (
+                      <button
+                        onClick={() => setPoPage(startPage - 1)}
+                        className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors"
+                      >
+                        ...
+                      </button>
+                    )}
+
+                    {visiblePages.map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setPoPage(page)}
+                        className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${poPage === page
+                          ? 'bg-slate-600 text-white shadow-xs'
+                          : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
+                          }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    {endPage < totalPoPages && (
+                      <button
+                        onClick={() => setPoPage(endPage + 1)}
+                        className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors"
+                      >
+                        ...
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => setPoPage(prev => Math.min(prev + 1, totalPoPages))}
+                      disabled={poPage === totalPoPages}
+                      className="px-3 py-2 bg-white hover:bg-slate-50 disabled:hover:bg-white disabled:opacity-50 text-slate-600 border border-slate-200 rounded-xl text-xs font-semibold transition-colors disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         );
       })()}
