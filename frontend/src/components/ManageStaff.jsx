@@ -11,6 +11,7 @@ const SECTION_OPTIONS = [
   { label: 'Suppliers Directory', path: '/suppliers' },
   { label: 'Customer Directory', path: '/customers' },
   { label: 'Other Costs', path: '/other-cost' },
+  { label: 'All Transactions', path: '/all-transactions' },
   { label: 'Total Revenue', path: '/total-revenue' },
   { label: 'Manage Staff', path: '/staff' },
   { label: 'Settings', path: '/settings' }

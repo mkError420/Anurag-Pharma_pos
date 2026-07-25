@@ -799,6 +799,18 @@ export default function ManualOrders() {
     );
   });
 
+  // Filter salesHistory by search query (also appears in All Sales History)
+  const filteredSalesHistory = salesHistory.filter(sale => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (sale.customer_name && sale.customer_name.toLowerCase().includes(q)) ||
+      (sale.cashier_name && sale.cashier_name.toLowerCase().includes(q)) ||
+      String(sale.id).includes(q) ||
+      (sale.payment_method && sale.payment_method.toLowerCase().includes(q))
+    );
+  });
+
   // Separate Cash vs Credit orders
   const cashOrders = searchedOrders.filter(order => order.payment_method === 'cash');
   const creditOrders = searchedOrders.filter(order => order.payment_method === 'credit');
@@ -1170,7 +1182,14 @@ export default function ManualOrders() {
               </h3>
               <p className="text-xs text-slate-400">Complete sales record with invoice details</p>
             </div>
-            <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded border border-indigo-100">{salesHistory.length} Sales</span>
+            <div className="flex items-center space-x-2">
+              {searchQuery && (
+                <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded border border-amber-200">
+                  {filteredSalesHistory.length} match{filteredSalesHistory.length !== 1 ? 'es' : ''}
+                </span>
+              )}
+              <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded border border-indigo-100">{salesHistory.length} Sales</span>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -1195,12 +1214,14 @@ export default function ManualOrders() {
                       <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-indigo-600 mx-auto"></div>
                     </td>
                   </tr>
-                ) : salesHistory.length === 0 ? (
+                ) : filteredSalesHistory.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="py-8 text-center text-slate-400">No sales history recorded.</td>
+                    <td colSpan="9" className="py-8 text-center text-slate-400">
+                      {searchQuery ? `No sales found matching "${searchQuery}".` : 'No sales history recorded.'}
+                    </td>
                   </tr>
                 ) : (
-                  salesHistory.slice((currentSalesPage - 1) * 15, currentSalesPage * 15).map((sale) => (
+                  filteredSalesHistory.slice((currentSalesPage - 1) * 15, currentSalesPage * 15).map((sale) => (
                     <tr key={sale.id} className="hover:bg-slate-50/40">
                       <td className="py-2.5 pr-2 font-semibold text-indigo-600">#{sale.id}</td>
                       <td className="py-2.5 pr-2 text-[10px] text-slate-400">{new Date(sale.created_at).toLocaleDateString()}</td>
@@ -1240,10 +1261,11 @@ export default function ManualOrders() {
           </div>
 
           {/* Sales History Pagination Controls */}
-          {salesHistory.length > 0 && (
+          {filteredSalesHistory.length > 0 && (
             <div className="pt-3 border-t border-slate-100 flex flex-wrap justify-between items-center gap-2 text-xs">
               <span className="text-slate-500 font-medium text-[11px]">
-                Showing {((currentSalesPage - 1) * 15) + 1} - {Math.min(currentSalesPage * 15, salesHistory.length)} of {salesHistory.length} sales
+                Showing {((currentSalesPage - 1) * 15) + 1} - {Math.min(currentSalesPage * 15, filteredSalesHistory.length)} of {filteredSalesHistory.length} sales
+                {searchQuery && <span className="text-amber-600 font-bold ml-1">(filtered)</span>}
               </span>
 
               <div className="flex items-center space-x-1">
@@ -1262,7 +1284,7 @@ export default function ManualOrders() {
 
                 {/* Page Number Buttons (up to 20 pages max) */}
                 {Array.from(
-                  { length: Math.min(20, Math.ceil(salesHistory.length / 15) || 1) },
+                  { length: Math.min(20, Math.ceil(filteredSalesHistory.length / 15) || 1) },
                   (_, i) => i + 1
                 ).map(pageNum => (
                   <button
@@ -1281,8 +1303,8 @@ export default function ManualOrders() {
                 {/* Next Button */}
                 <button
                   type="button"
-                  onClick={() => setCurrentSalesPage(prev => Math.min(Math.min(20, Math.ceil(salesHistory.length / 15) || 1), prev + 1))}
-                  disabled={currentSalesPage >= Math.min(20, Math.ceil(salesHistory.length / 15) || 1)}
+                  onClick={() => setCurrentSalesPage(prev => Math.min(Math.min(20, Math.ceil(filteredSalesHistory.length / 15) || 1), prev + 1))}
+                  disabled={currentSalesPage >= Math.min(20, Math.ceil(filteredSalesHistory.length / 15) || 1)}
                   className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs transition-colors flex items-center space-x-1"
                 >
                   <span>Next</span>
@@ -1323,7 +1345,8 @@ export default function ManualOrders() {
                   />
                 </div>
               )}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Row 1: Salesman Name + Customer Name */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Salesman Name *</label>
                   <input
@@ -1384,6 +1407,7 @@ export default function ManualOrders() {
                   )}
                 </div>
 
+                {/* Row 2 on mobile: Customer Phone + Payment Method */}
                 <div className="relative">
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Customer Phone</label>
                   <input
@@ -1444,7 +1468,8 @@ export default function ManualOrders() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Row 3: Customer Address + Notes */}
+              <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Customer Address</label>
                   <input
@@ -1488,8 +1513,9 @@ export default function ManualOrders() {
 
                 <div className="space-y-3">
                   {formData.items.map((item, idx) => (
-                    <div key={idx} className="flex flex-col md:flex-row md:items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <div className="flex-1 md:flex-[4] product-search-container relative min-w-[280px] md:min-w-[420px]">
+                    <div key={idx} className="grid grid-cols-12 md:flex md:items-center gap-2 md:gap-3 bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-100">
+                      {/* Product Search */}
+                      <div className="col-span-12 md:flex-[4] product-search-container relative min-w-0 md:min-w-[360px]">
                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Product</label>
                         <div className="relative">
                           <input
@@ -1517,7 +1543,7 @@ export default function ManualOrders() {
                                 }
                               }
                             }}
-                            className="w-64 border border-slate-200 rounded-lg p-2 text-xs bg-white outline-none focus:ring-1 focus:ring-indigo-500 pr-8"
+                            className="w-full border border-slate-200 rounded-lg p-2 text-xs bg-white outline-none focus:ring-1 focus:ring-indigo-500 pr-8"
                           />
                           {item.product_id && (
                             <button
@@ -1557,16 +1583,17 @@ export default function ManualOrders() {
                             </div>
                           )}
                         </div>
-                          {item.product_id && item.cost_price !== '' && item.cost_price !== undefined && (
-                            <div className="mt-1.5 flex items-center gap-1.5">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cost Price:</span>
-                              <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">৳{parseFloat(item.cost_price).toFixed(2)}</span>
-                            </div>
-                          )}
+                        {item.product_id && item.cost_price !== '' && item.cost_price !== undefined && (
+                          <div className="mt-1 flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cost Price:</span>
+                            <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">৳{parseFloat(item.cost_price).toFixed(2)}</span>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="w-full md:w-24">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Quantity</label>
+                      {/* Quantity */}
+                      <div className="col-span-3 md:w-24 min-w-0">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 truncate">Quantity</label>
                         <input
                           type="number"
                           step="any"
@@ -1577,10 +1604,9 @@ export default function ManualOrders() {
                         />
                       </div>
 
-
-
-                      <div className="w-full md:w-28">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Sales Price (৳)</label>
+                      {/* Sales Price (৳) */}
+                      <div className="col-span-4 md:w-28 min-w-0">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 truncate" title="Sales Price (৳)">Sales Price (৳)</label>
                         <input
                           type="number"
                           step="0.01"
@@ -1590,8 +1616,9 @@ export default function ManualOrders() {
                         />
                       </div>
 
-                      <div className="w-full md:w-32">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Subtotal</label>
+                      {/* Subtotal */}
+                      <div className="col-span-4 md:w-32 min-w-0">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 truncate">Subtotal</label>
                         <input
                           type="text"
                           inputMode="decimal"
@@ -1616,15 +1643,19 @@ export default function ManualOrders() {
                         />
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => removeFormItem(idx)}
-                        className="text-rose-500 hover:text-rose-700 p-2 self-end md:self-center"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                      {/* Delete Button */}
+                      <div className="col-span-1 md:w-auto flex justify-center pb-0.5 md:pb-0">
+                        <button
+                          type="button"
+                          onClick={() => removeFormItem(idx)}
+                          className="text-rose-500 hover:text-rose-700 p-1.5 sm:p-2 hover:bg-rose-50 rounded-lg transition-colors"
+                          title="Remove item"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1632,7 +1663,7 @@ export default function ManualOrders() {
 
               {/* Totals Summary */}
               <div className="border-t border-slate-100 pt-4 flex flex-col md:flex-row justify-between gap-4">
-                <div className="w-full md:w-1/3 space-y-4">
+                <div className="w-full md:w-1/3 grid grid-cols-2 md:flex md:flex-col gap-3 md:gap-0 md:space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Discount (%)</label>
                     <input

@@ -1320,16 +1320,19 @@ export default function Customers() {
 
       {/* PURCHASE HISTORY MODAL */}
       {showHistoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl flex flex-col max-h-[90vh]">
+            
+            {/* Header Top Row */}
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-lg font-bold text-slate-800">Purchase History</h3>
-                <div className="flex items-center space-x-2 mt-1">
-                  <p className="text-xs text-slate-500">Customer Profile: <span className="font-semibold text-indigo-600">{historyCustomer?.name}</span></p>
-                </div>
+                <h3 className="text-lg sm:text-xl font-bold text-slate-800">Purchase History</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Customer Profile: <span className="font-semibold text-indigo-600">{historyCustomer?.name}</span>
+                </p>
               </div>
-              <div className="flex items-center space-x-2 flex-wrap">
+
+              <div className="flex items-center space-x-2">
                 {!historyLoading && historySales.length > 0 && (
                   <>
                     <button
@@ -1339,7 +1342,7 @@ export default function Customers() {
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                       </svg>
-                      <span>Print PDF</span>
+                      <span className="hidden sm:inline">Print</span> PDF
                     </button>
                     <button
                       onClick={handleHistoryThermalPrint}
@@ -1348,87 +1351,157 @@ export default function Customers() {
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                       </svg>
-                      <span>Print Thermal</span>
+                      <span className="hidden sm:inline">Print</span> Thermal
                     </button>
                   </>
                 )}
-                <div className="ml-2 flex items-center space-x-2 flex-wrap">
-                  <input
-                    type="search"
-                    placeholder="Search product name..."
-                    value={historyProductSearch}
-                    onChange={(e) => setHistoryProductSearch(e.target.value)}
-                    className="text-xs w-32 sm:w-56 md:w-72 py-1 px-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                  <input
-                    type="date"
-                    value={historyStartDate}
-                    onChange={(e) => setHistoryStartDate(e.target.value)}
-                    className="text-xs w-28 sm:w-36 py-1 px-2 border border-slate-200 rounded-lg focus:outline-none"
-                    title="Start date"
-                  />
-                  <input
-                    type="date"
-                    value={historyEndDate}
-                    onChange={(e) => setHistoryEndDate(e.target.value)}
-                    className="text-xs w-28 sm:w-36 py-1 px-2 border border-slate-200 rounded-lg focus:outline-none"
-                    title="End date"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => { setHistoryProductSearch(''); setHistoryStartDate(''); setHistoryEndDate(''); }}
-                    className="text-xs px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg ml-1"
-                  >
-                    Clear
-                  </button>
-                </div>
                 <button
                   onClick={() => { setShowHistoryModal(false); setHistorySales([]); setShowCollectDueModal(false); setHistoryProductSearch(''); setHistoryStartDate(''); setHistoryEndDate(''); }}
-                  className="text-slate-400 hover:text-slate-600 p-1"
+                  className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-100 rounded-lg transition-colors ml-1"
+                  title="Close Modal"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
             </div>
 
-            {/* Due Balance Summary Card */}
-            {historyCustomer && (
-              <div className={`mt-4 rounded-xl p-4 border flex items-center justify-between ${parseFloat(historyCustomer.due_balance || 0) > 0
-                  ? 'bg-rose-50 border-rose-200'
-                  : 'bg-emerald-50 border-emerald-200'
-                }`}>
-                <div className="flex items-center space-x-3">
-                  <div className={`p-2 rounded-lg ${parseFloat(historyCustomer.due_balance || 0) > 0 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className={`text-[10px] font-bold uppercase tracking-wider ${parseFloat(historyCustomer.due_balance || 0) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>Outstanding Due Balance</p>
-                    <p className={`text-xl font-extrabold ${parseFloat(historyCustomer.due_balance || 0) > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                      ৳{parseFloat(historyCustomer.due_balance || 0).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-                {parseFloat(historyCustomer.due_balance || 0) > 0 && (
+            {/* Filter Controls Row */}
+            <div className="mt-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+              <div className="flex-1 min-w-[160px]">
+                <input
+                  type="search"
+                  placeholder="Search product name..."
+                  value={historyProductSearch}
+                  onChange={(e) => setHistoryProductSearch(e.target.value)}
+                  className="text-xs w-full py-1.5 px-3 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex items-center space-x-2 overflow-x-auto pb-0.5 sm:pb-0">
+                <input
+                  type="date"
+                  value={historyStartDate}
+                  onChange={(e) => setHistoryStartDate(e.target.value)}
+                  className="text-xs py-1.5 px-2 bg-white border border-slate-200 rounded-lg focus:outline-none"
+                  title="Start date"
+                />
+                <span className="text-slate-400 text-xs">-</span>
+                <input
+                  type="date"
+                  value={historyEndDate}
+                  onChange={(e) => setHistoryEndDate(e.target.value)}
+                  className="text-xs py-1.5 px-2 bg-white border border-slate-200 rounded-lg focus:outline-none"
+                  title="End date"
+                />
+                {(historyProductSearch || historyStartDate || historyEndDate) && (
                   <button
-                    onClick={() => {
-                      setDuePayAmount(parseFloat(historyCustomer.due_balance).toFixed(2));
-                      setDuePayMethod('cash');
-                      setShowCollectDueModal(true);
-                    }}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-xs transition-colors shadow-sm flex items-center space-x-1.5"
+                    type="button"
+                    onClick={() => { setHistoryProductSearch(''); setHistoryStartDate(''); setHistoryEndDate(''); }}
+                    className="text-xs px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg transition-colors whitespace-nowrap"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>Collect Due</span>
+                    Clear
                   </button>
                 )}
               </div>
-            )}
+            </div>
+
+            {/* Due Balance & Collection Summary Banner */}
+            {historyCustomer && (() => {
+              const dueCollectPayments = (historySales || []).filter(sale => 
+                (sale.sale_id && String(sale.sale_id).startsWith('pay-')) || 
+                (sale.items && sale.items.length === 0 && parseFloat(sale.total_amount || 0) === 0 && parseFloat(sale.final_amount || 0) > 0)
+              );
+
+              const lastCollectAmount = dueCollectPayments.length > 0
+                ? parseFloat(dueCollectPayments[0].final_amount || dueCollectPayments[0].paid_amount || 0)
+                : parseFloat(historyCustomer?.last_collect_amount || 0);
+
+              const lastCollectDate = dueCollectPayments.length > 0
+                ? dueCollectPayments[0].created_at
+                : (historyCustomer?.last_collect_date || null);
+
+              const totalCollectAmount = dueCollectPayments.length > 0
+                ? dueCollectPayments.reduce((sum, p) => sum + parseFloat(p.final_amount || p.paid_amount || 0), 0)
+                : parseFloat(historyCustomer?.total_collect_amount || 0);
+
+              const currentDue = parseFloat(historyCustomer.due_balance || 0);
+
+              return (
+                <div className={`mt-3 rounded-xl p-3.5 border flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 ${currentDue > 0
+                    ? 'bg-rose-50/70 border-rose-200'
+                    : 'bg-emerald-50/70 border-emerald-200'
+                  }`}>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+                    {/* Outstanding Due */}
+                    <div className="flex items-center space-x-3 bg-white/80 p-3 rounded-xl border border-slate-100 shadow-2xs">
+                      <div className={`p-2.5 rounded-lg shrink-0 ${currentDue > 0 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className={`text-[10px] font-bold uppercase tracking-wider truncate ${currentDue > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>Outstanding Due</p>
+                        <p className={`text-lg font-extrabold ${currentDue > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                          ৳{currentDue.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Last Collect */}
+                    <div className="flex items-center space-x-3 bg-white/80 p-3 rounded-xl border border-slate-100 shadow-2xs">
+                      <div className="p-2.5 rounded-lg bg-indigo-100 text-indigo-600 shrink-0">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 truncate">Last Collect</p>
+                        <p className="text-lg font-extrabold text-indigo-700">
+                          ৳{lastCollectAmount.toFixed(2)}
+                        </p>
+                        {lastCollectDate && (
+                          <p className="text-[10px] text-slate-500 font-medium truncate mt-0.5" title={new Date(lastCollectDate).toLocaleString()}>
+                            {new Date(lastCollectDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Total Collect */}
+                    <div className="flex items-center space-x-3 bg-white/80 p-3 rounded-xl border border-slate-100 shadow-2xs">
+                      <div className="p-2.5 rounded-lg bg-emerald-100 text-emerald-600 shrink-0">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 truncate">Total Collected</p>
+                        <p className="text-lg font-extrabold text-emerald-800">
+                          ৳{totalCollectAmount.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {currentDue > 0 && (
+                    <button
+                      onClick={() => {
+                        setDuePayAmount(currentDue.toFixed(2));
+                        setDuePayMethod('cash');
+                        setShowCollectDueModal(true);
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-5 rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center space-x-1.5 whitespace-nowrap w-full lg:w-auto shrink-0"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Collect Due</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="mt-4 flex-1 overflow-y-auto min-h-0 space-y-4 pr-1">
               {historyLoading ? (
@@ -1961,11 +2034,47 @@ export default function Customers() {
               </button>
             </div>
 
-            {/* Outstanding Amount Display */}
-            <div className="mt-4 bg-rose-50 border border-rose-200 rounded-xl p-4 text-center">
-              <p className="text-xs font-bold text-rose-500 uppercase tracking-wider">Outstanding Due Balance</p>
-              <p className="text-3xl font-extrabold text-rose-700 mt-1">৳{parseFloat(historyCustomer.due_balance || 0).toFixed(2)}</p>
-            </div>
+            {/* Outstanding Amount & Collection Metrics Display */}
+            {(() => {
+              const dueCollectPayments = (historySales || []).filter(sale => 
+                (sale.sale_id && String(sale.sale_id).startsWith('pay-')) || 
+                (sale.items && sale.items.length === 0 && parseFloat(sale.total_amount || 0) === 0 && parseFloat(sale.final_amount || 0) > 0)
+              );
+
+              const lastCollectAmount = dueCollectPayments.length > 0
+                ? parseFloat(dueCollectPayments[0].final_amount || dueCollectPayments[0].paid_amount || 0)
+                : parseFloat(historyCustomer?.last_collect_amount || 0);
+
+              const lastCollectDate = dueCollectPayments.length > 0
+                ? dueCollectPayments[0].created_at
+                : (historyCustomer?.last_collect_date || null);
+
+              const totalCollectAmount = dueCollectPayments.length > 0
+                ? dueCollectPayments.reduce((sum, p) => sum + parseFloat(p.final_amount || p.paid_amount || 0), 0)
+                : parseFloat(historyCustomer?.total_collect_amount || 0);
+
+              return (
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
+                    <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Outstanding Due</p>
+                    <p className="text-base font-extrabold text-rose-700 mt-0.5">৳{parseFloat(historyCustomer.due_balance || 0).toFixed(2)}</p>
+                  </div>
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-center">
+                    <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Last Collect</p>
+                    <p className="text-base font-extrabold text-indigo-700 mt-0.5">৳{lastCollectAmount.toFixed(2)}</p>
+                    {lastCollectDate && (
+                      <p className="text-[9px] text-indigo-600 font-medium mt-0.5 leading-tight">
+                        {new Date(lastCollectDate).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Total Collected</p>
+                    <p className="text-base font-extrabold text-emerald-800 mt-0.5">৳{totalCollectAmount.toFixed(2)}</p>
+                  </div>
+                </div>
+              );
+            })()}
 
             <form onSubmit={handleCollectDue} className="mt-5 space-y-4">
               {/* Payment Amount */}
@@ -2065,6 +2174,18 @@ export default function Customers() {
             <div style={{ borderBottom: '1px dashed #000', marginBottom: '8px', paddingBottom: '4px' }}>
               <p style={{ margin: '0', fontSize: '9px' }}>Phone: {historyCustomer.phone || '-'}</p>
               <p style={{ margin: '0', fontSize: '9px' }}>Due Balance: ৳{parseFloat(historyCustomer.due_balance || 0).toFixed(2)}</p>
+              {(() => {
+                const dueCollects = (historySales || []).filter(s => (s.sale_id && String(s.sale_id).startsWith('pay-')) || (s.items && s.items.length === 0 && parseFloat(s.total_amount || 0) === 0 && parseFloat(s.final_amount || 0) > 0));
+                const lastAmt = dueCollects.length > 0 ? parseFloat(dueCollects[0].final_amount || dueCollects[0].paid_amount || 0) : parseFloat(historyCustomer?.last_collect_amount || 0);
+                const lastDate = dueCollects.length > 0 ? dueCollects[0].created_at : (historyCustomer?.last_collect_date || null);
+                const totAmt = dueCollects.length > 0 ? dueCollects.reduce((sum, p) => sum + parseFloat(p.final_amount || p.paid_amount || 0), 0) : parseFloat(historyCustomer?.total_collect_amount || 0);
+                return (
+                  <>
+                    <p style={{ margin: '0', fontSize: '9px' }}>Last Collect: ৳{lastAmt.toFixed(2)}{lastDate ? ` (${new Date(lastDate).toLocaleDateString()})` : ''}</p>
+                    <p style={{ margin: '0', fontSize: '9px' }}>Total Collect: ৳{totAmt.toFixed(2)}</p>
+                  </>
+                );
+              })()}
             </div>
             {(() => {
               const searchTerm = (historyProductSearch || '').trim().toLowerCase();
@@ -2135,13 +2256,23 @@ export default function Customers() {
               <h3 style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 10px 0' }}>
                 Customer Information
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
-                <div><strong>Name:</strong> {historyCustomer.name}</div>
-                <div><strong>Phone Number:</strong> {historyCustomer.phone || '-'}</div>
-                <div><strong>Email:</strong> {historyCustomer.email || '-'}</div>
-                <div><strong>Address:</strong> {historyCustomer.address || '-'}</div>
-                <div><strong>Outstanding Due Balance:</strong> ৳{parseFloat(historyCustomer.due_balance || 0).toFixed(2)}</div>
-              </div>
+              {(() => {
+                const dueCollects = (historySales || []).filter(s => (s.sale_id && String(s.sale_id).startsWith('pay-')) || (s.items && s.items.length === 0 && parseFloat(s.total_amount || 0) === 0 && parseFloat(s.final_amount || 0) > 0));
+                const lastAmt = dueCollects.length > 0 ? parseFloat(dueCollects[0].final_amount || dueCollects[0].paid_amount || 0) : parseFloat(historyCustomer?.last_collect_amount || 0);
+                const lastDate = dueCollects.length > 0 ? dueCollects[0].created_at : (historyCustomer?.last_collect_date || null);
+                const totAmt = dueCollects.length > 0 ? dueCollects.reduce((sum, p) => sum + parseFloat(p.final_amount || p.paid_amount || 0), 0) : parseFloat(historyCustomer?.total_collect_amount || 0);
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
+                    <div><strong>Name:</strong> {historyCustomer.name}</div>
+                    <div><strong>Phone Number:</strong> {historyCustomer.phone || '-'}</div>
+                    <div><strong>Email:</strong> {historyCustomer.email || '-'}</div>
+                    <div><strong>Address:</strong> {historyCustomer.address || '-'}</div>
+                    <div><strong>Outstanding Due Balance:</strong> ৳{parseFloat(historyCustomer.due_balance || 0).toFixed(2)}</div>
+                    <div><strong>Last Collect Amount:</strong> ৳{lastAmt.toFixed(2)} {lastDate ? `(${new Date(lastDate).toLocaleString()})` : ''}</div>
+                    <div><strong>Total Collect Amount:</strong> ৳{totAmt.toFixed(2)}</div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Purchases List */}

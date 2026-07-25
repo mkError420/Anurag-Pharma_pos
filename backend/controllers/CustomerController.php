@@ -16,7 +16,13 @@ class CustomerController {
 
         try {
             $stmt = DB::query(
-                'SELECT id, name, phone, email, address, due_balance, loyalty_points, created_at FROM customers WHERE shop_id = ? ORDER BY name ASC',
+                'SELECT c.id, c.name, c.phone, c.email, c.address, c.due_balance, c.loyalty_points, c.created_at,
+                        COALESCE((SELECT amount FROM due_payments WHERE customer_id = c.id AND shop_id = c.shop_id ORDER BY id DESC LIMIT 1), 0) AS last_collect_amount,
+                        (SELECT created_at FROM due_payments WHERE customer_id = c.id AND shop_id = c.shop_id ORDER BY id DESC LIMIT 1) AS last_collect_date,
+                        COALESCE((SELECT SUM(amount) FROM due_payments WHERE customer_id = c.id AND shop_id = c.shop_id), 0) AS total_collect_amount
+                 FROM customers c 
+                 WHERE c.shop_id = ? 
+                 ORDER BY c.name ASC',
                 [$shopId]
             );
             $customers = $stmt->fetchAll();
@@ -24,6 +30,9 @@ class CustomerController {
             foreach ($customers as &$c) {
                 $c['id'] = (int)$c['id'];
                 $c['due_balance'] = (float)$c['due_balance'];
+                $c['last_collect_amount'] = (float)($c['last_collect_amount'] ?? 0);
+                $c['last_collect_date'] = $c['last_collect_date'] ?? null;
+                $c['total_collect_amount'] = (float)($c['total_collect_amount'] ?? 0);
                 $c['loyalty_points'] = (int)$c['loyalty_points'];
             }
 
