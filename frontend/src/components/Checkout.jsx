@@ -53,6 +53,8 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
   const [alert, setAlert] = useState(null); // { type: 'success' | 'error', message }
   const [receipt, setReceipt] = useState(null); // Receipts detail storage after checkout
   const [previewMode, setPreviewMode] = useState('thermal'); // 'thermal' | 'regular'
+  const [showCheckoutPreview, setShowCheckoutPreview] = useState(false); // Show preview before checkout
+  const [previewModeType, setPreviewModeType] = useState('checkout'); // 'checkout' or 'due'
 
   // Held Bills States
   const [heldBills, setHeldBills] = useState([]);
@@ -1462,6 +1464,147 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         </div>
       )}
 
+      {/* --- CHECKOUT PREVIEW MODAL --- */}
+      {showCheckoutPreview && activeTab && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="bg-gray-600 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+               {/*  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg> */}
+                <h2 className="text-lg font-bold text-white">Checkout Preview</h2>
+              </div>
+              <button
+                onClick={() => setShowCheckoutPreview(false)}
+                className="text-white/80 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Customer Info */}
+              <div className="bg-slate-50 rounded-xl p-4 mb-4">
+                <h3 className="text-sm font-bold text-slate-700 mb-2">Customer Information</h3>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Name:</span>
+                    <span className="font-semibold text-slate-800">{activeTab.customerName || 'Walk-in Customer'}</span>
+                  </div>
+                  {activeTab.customerPhone && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Phone:</span>
+                      <span className="font-semibold text-slate-800">{activeTab.customerPhone}</span>
+                    </div>
+                  )}
+                  {activeTab.customerAddress && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Address:</span>
+                      <span className="font-semibold text-slate-800">{activeTab.customerAddress}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Cart Items */}
+              <div className="bg-slate-50 rounded-xl p-4 mb-4">
+                <h3 className="text-sm font-bold text-slate-700 mb-2">Cart Items ({activeTab.cart.length})</h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {activeTab.cart.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-200 pb-2 last:border-0">
+                      <div className="flex-1">
+                        <div className="font-semibold text-slate-800">{item.name}</div>
+                        <div className="text-xs text-slate-500">Qty: {item.quantity} × ৳{parseFloat(item.price).toFixed(3)}</div>
+                      </div>
+                      <div className="font-bold text-slate-800">
+                        ৳{(parseFloat(item.price) * item.quantity).toFixed(3)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Payment Summary */}
+              <div className="bg-indigo-50 rounded-xl p-4">
+                <h3 className="text-sm font-bold text-indigo-700 mb-2">Payment Summary</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Subtotal:</span>
+                    <span className="font-semibold text-slate-800">৳{getSubtotal().toFixed(3)}</span>
+                  </div>
+                  {getDiscountAmount() > 0 && (
+                    <div className="flex justify-between text-rose-600">
+                      <span>Discount:</span>
+                      <span className="font-semibold">-৳{getDiscountAmount().toFixed(3)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Tax:</span>
+                    <span className="font-semibold text-slate-800">৳{getTax().toFixed(3)}</span>
+                  </div>
+                  {getPointsDiscount() > 0 && (
+                    <div className="flex justify-between text-rose-600">
+                      <span>Points Discount:</span>
+                      <span className="font-semibold">-৳{getPointsDiscount().toFixed(3)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-lg text-indigo-700 border-t border-indigo-200 pt-2 mt-2">
+                    <span>Total:</span>
+                    <span>৳{getFinalTotal().toFixed(3)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Payment Method:</span>
+                    <span className="font-semibold text-slate-800 uppercase">{activeTab.paymentMethod}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Amount Paid:</span>
+                    <span className="font-semibold text-slate-800">৳{activeTab.paidAmount || getFinalTotal().toFixed(3)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="border-t border-slate-200 px-6 py-4 bg-slate-50 flex space-x-3">
+              <button
+                onClick={() => setShowCheckoutPreview(false)}
+                className="flex-1 bg-white hover:bg-slate-100 text-slate-700 font-bold py-3 px-4 rounded-xl transition-colors border border-slate-300"
+              >
+                Back to Cart
+              </button>
+              <button
+                onClick={() => {
+                  setShowCheckoutPreview(false);
+                  if (previewModeType === 'due') {
+                    handleDueCheckout();
+                  } else {
+                    handleCheckout();
+                  }
+                }}
+                disabled={submitting}
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center space-x-2"
+              >
+                {submitting ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className='bg-gray-600 text-white px-2 py-1 rounded'>{previewModeType === 'due' ? 'Save as Due' : 'Complete Checkout'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- RECEIPT PREVIEW & PRINT MODAL --- */}
       {receipt && activeTab && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
@@ -2800,7 +2943,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
           <div className="grid grid-cols-3 gap-1.5 mt-2">
             <button
               type="button"
-              onClick={handleDueCheckout}
+              onClick={() => { setPreviewModeType('due'); setShowCheckoutPreview(true); }}
               disabled={activeTab?.cart?.length === 0 || submitting}
               className="col-span-1 bg-rose-50 hover:bg-rose-100 disabled:bg-slate-100 disabled:text-slate-400 text-rose-700 border border-rose-200 disabled:border-slate-200 font-bold py-2 px-1.5 rounded-xl transition-colors flex justify-center items-center space-x-1"
               title="Save as Due (paid later)"
@@ -2811,7 +2954,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               <span className="text-xs">Due</span>
             </button>
             <button
-              onClick={() => handleCheckout()}
+              onClick={() => { setPreviewModeType('checkout'); setShowCheckoutPreview(true); }}
               disabled={activeTab?.cart?.length === 0 || submitting}
               className="col-span-2 bg-slate-600 hover:bg-gray-700 disabled:bg-slate-300 text-white font-bold py-2 px-3 rounded-xl shadow-md transition-colors flex justify-center items-center space-x-1.5"
             >
@@ -2819,7 +2962,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
               ) : (
                 <>
-                  <span className="text-xs">Complete Checkout</span>
+                  <span className="text-xs">Preview Checkout</span>
                   <span className="font-extrabold bg-yellow-500/80 px-1.5 py-0.5 rounded text-[10px]">
                     ৳{getFinalTotal().toFixed(3)}
                   </span>

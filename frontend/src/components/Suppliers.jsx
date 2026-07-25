@@ -2598,27 +2598,6 @@ export default function Suppliers() {
             {/* PO Filters bar */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 shadow-xs">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
-                <div className="flex items-center space-x-2.5">
-                  <span className="text-xs font-bold text-slate-400 uppercase whitespace-nowrap">Filter Status:</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {['all', 'draft', 'ordered', 'received', 'cancelled'].map((st) => (
-                      <button
-                        key={st}
-                        onClick={() => {
-                          setPoFilterStatus(st);
-                          setPoPage(1);
-                        }}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-lg uppercase tracking-wider transition-all border ${poFilterStatus === st
-                          ? 'bg-slate-600 border-indigo-600 text-white'
-                          : 'bg-white border-slate-200 text-slate-500 hover:text-slate-700'
-                          }`}
-                      >
-                        {st}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 <div className="relative w-full sm:w-64">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2650,6 +2629,27 @@ export default function Suppliers() {
                       }
                     }}
                   />
+                </div>
+
+                <div className="flex items-center space-x-2.5">
+                  <span className="text-xs font-bold text-slate-400 uppercase whitespace-nowrap">Filter Status:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['all', 'draft', 'ordered', 'received', 'cancelled'].map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => {
+                          setPoFilterStatus(st);
+                          setPoPage(1);
+                        }}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg uppercase tracking-wider transition-all border ${poFilterStatus === st
+                          ? 'bg-slate-600 border-indigo-600 text-white'
+                          : 'bg-white border-slate-200 text-slate-500 hover:text-slate-700'
+                          }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center space-x-3 w-full lg:w-auto justify-end">

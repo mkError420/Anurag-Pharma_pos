@@ -889,7 +889,7 @@ export default function Customers() {
           <h2 className="text-2xl font-bold text-slate-800">Customer Directory</h2>
           <p className="text-sm text-slate-500">Manage buyer directory, records, and contact options</p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={handleDownloadCSV}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
@@ -910,12 +910,13 @@ export default function Customers() {
           </button>
           <button
             onClick={() => { resetForm(); setShowAddModal(true); }}
-            className="bg-slate-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+            className="bg-slate-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 sm:px-5 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
             </svg>
-            <span>Add New Customer</span>
+            <span className="hidden sm:inline">Add New Customer</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>
@@ -1559,7 +1560,7 @@ export default function Customers() {
                     ? 'bg-rose-50/70 border-rose-200'
                     : 'bg-emerald-50/70 border-emerald-200'
                   }`}>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 flex-1">
                     {/* Outstanding Due */}
                     <div className="flex items-center space-x-3 bg-white/80 p-3 rounded-xl border border-slate-100 shadow-2xs">
                       <div className={`p-2.5 rounded-lg shrink-0 ${currentDue > 0 ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
@@ -1596,7 +1597,7 @@ export default function Customers() {
                     </div>
 
                     {/* Total Collect */}
-                    <div className="flex items-center space-x-3 bg-white/80 p-3 rounded-xl border border-slate-100 shadow-2xs">
+                    <div className="flex items-center space-x-3 bg-white/80 p-3 rounded-xl border border-slate-100 shadow-2xs col-span-2 sm:col-span-1">
                       <div className="p-2.5 rounded-lg bg-emerald-100 text-emerald-600 shrink-0">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -2181,7 +2182,7 @@ export default function Customers() {
                 : parseFloat(historyCustomer?.total_collect_amount || 0);
 
               return (
-                <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
                   <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
                     <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Outstanding Due</p>
                     <p className="text-base font-extrabold text-rose-700 mt-0.5">৳{parseFloat(historyCustomer.due_balance || 0).toFixed(2)}</p>
@@ -2195,7 +2196,7 @@ export default function Customers() {
                       </p>
                     )}
                   </div>
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center col-span-2 sm:col-span-1">
                     <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Total Collected</p>
                     <p className="text-base font-extrabold text-emerald-800 mt-0.5">৳{totalCollectAmount.toFixed(2)}</p>
                   </div>
