@@ -1046,12 +1046,12 @@ export default function ManualOrders() {
                   <div key={order.id} className="bg-slate-50/80 border border-slate-200 rounded-xl p-3 space-y-2 text-xs shadow-2xs">
                     {/* Header: Customer & Salesman + Status / Dues */}
                     <div className="flex justify-between items-start gap-2">
-                      <div className="min-w-0 flex-1 space-y-0.5">
-                        <div className="font-bold text-slate-800 text-sm truncate">{order.salesman_name}</div>
-                        <div className="text-xs text-slate-700 font-semibold truncate">Buyer: {order.customer_name}</div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="font-bold text-slate-800 text-sm truncate">Buyer: {order.customer_name}</div>
                         {order.customer_phone && (
                           <div className="text-[11px] text-slate-500 font-mono">Phone: {order.customer_phone}</div>
                         )}
+                        <div className="text-xs text-slate-700 font-semibold truncate">Salesman: {order.salesman_name}</div>
                         <div className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString()}</div>
                       </div>
 
@@ -1120,10 +1120,10 @@ export default function ManualOrders() {
                   <tbody className="divide-y divide-slate-100 text-slate-650">
                     {creditOrders.slice((currentCreditPage - 1) * 10, currentCreditPage * 10).map((order) => (
                       <tr key={order.id} className="hover:bg-slate-50/40">
-                        <td className="py-2.5 pr-2">
-                          <div className="font-semibold text-slate-800">{order.salesman_name}</div>
-                          <div className="text-[10px] text-slate-700 font-semibold">Buyer: {order.customer_name}</div>
+                        <td className="py-3 pr-2">
+                          <div className="font-semibold text-slate-800">Buyer: {order.customer_name}</div>
                           {order.customer_phone && <div className="text-[9px] text-slate-450">Phone: {order.customer_phone}</div>}
+                          <div className="text-[10px] text-slate-700 font-semibold mt-1">Salesman: {order.salesman_name}</div>
                           <div className="text-[9px] text-slate-400 mt-0.5">{new Date(order.created_at).toLocaleDateString()}</div>
                         </td>
                         <td className="py-2.5 text-center">
@@ -1411,19 +1411,6 @@ export default function ManualOrders() {
               )}
               {/* Row 1: Salesman Name + Customer Name */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Salesman Name *</label>
-                  <input
-                    type="text"
-                    name="salesman_name"
-                    value={formData.salesman_name}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="Enter salesman name"
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-
                 <div className="relative">
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Customer Name {formData.payment_method === 'credit' ? '*' : ''}</label>
                   <input
@@ -1517,6 +1504,22 @@ export default function ManualOrders() {
                     </div>
                   )}
                 </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Salesman Name *</label>
+                  <input
+                    type="text"
+                    name="salesman_name"
+                    value={formData.salesman_name}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="Enter salesman name"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+
+
 
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Payment Method Basis *</label>
