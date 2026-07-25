@@ -710,7 +710,7 @@ export default function Wastage() {
           <div className="text-xs font-semibold text-slate-500">
             Showing <span className="text-slate-800">{indexOfFirstItem + 1}</span> to <span className="text-slate-800">{Math.min(indexOfLastItem, filteredWastages.length)}</span> of <span className="text-slate-800">{filteredWastages.length}</span> entries
           </div>
-          <div className="flex items-center space-x-1.5">
+          <div className="flex items-center flex-wrap gap-1.5 justify-center sm:justify-end">
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}

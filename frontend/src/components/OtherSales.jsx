@@ -651,7 +651,7 @@ export default function OtherSales() {
             </div>
             
             {sales.length > 0 && (
-              <div className="p-3 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-xs font-bold text-slate-500 mt-auto">
+              <div className="p-3 border-t border-slate-100 bg-slate-50 flex flex-wrap justify-center items-center gap-3 text-xs font-bold text-slate-500 mt-auto">
                 <button 
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}

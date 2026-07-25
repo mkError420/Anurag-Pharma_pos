@@ -636,7 +636,7 @@ export default function AllTransactions() {
                 <span className="font-semibold text-slate-800">{transactions.length}</span> entries (25 per page)
               </div>
 
-              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
+              <div className="flex items-center flex-wrap gap-1 justify-center sm:justify-end overflow-x-auto no-scrollbar py-1">
                 {/* Previous Button */}
                 <button
                   onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}

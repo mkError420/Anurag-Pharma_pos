@@ -19,6 +19,7 @@ const createNewSaleTab = (index) => ({
   reduceDueAmount: 0,
   redeemPoints: 0, // Loyalty points to redeem
   saleDate: new Date().toBDISODateString(),
+  hidden: false, // Track if tab is hidden after completion
 });
 
 export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBill = null, onClearResumedHeldBill = () => { }, onNavigate = () => { } }) {
@@ -92,7 +93,9 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
   // Ensure activeTabId is valid after tab operations
   useEffect(() => {
     if (saleTabs.length > 0 && !saleTabs.find(t => t.id === activeTabId)) {
-      setActiveTabId(saleTabs[0].id);
+      // Prefer non-hidden tabs when setting active tab
+      const firstNonHiddenTab = saleTabs.find(t => !t.hidden);
+      setActiveTabId(firstNonHiddenTab?.id || saleTabs[0].id);
     }
   }, [saleTabs, activeTabId]);
 
@@ -499,6 +502,17 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       return newTabs;
     });
   };
+
+  const updateTabState = (tabId, field, value) => {
+    setSaleTabs(prevTabs => {
+      const newTabs = [...prevTabs];
+      const tabIndex = newTabs.findIndex(t => t.id === tabId);
+      if (tabIndex > -1) {
+        newTabs[tabIndex] = { ...newTabs[tabIndex], [field]: value };
+      }
+      return newTabs;
+    });
+  };
   // 3. Cart State Modifications
   const addToCart = (product) => {
     if (!activeTab) {
@@ -825,14 +839,25 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         triggerAlert('success', 'Checkout transaction completed successfully!');
       }
 
-      // Reset the completed tab
+      // Mark the completed tab as hidden and reset its state
       setSaleTabs(prev => {
         const newTabs = [...prev];
-        // Keep the same name but reset all other state
+        // Keep the same name but reset all other state and mark as hidden
         newTabs[activeTabIndex] = {
           ...createNewSaleTab(activeTabIndex + 1),
-          name: prev[activeTabIndex].name
+          name: prev[activeTabIndex].name,
+          hidden: true
         };
+        // Switch to the first non-hidden tab
+        const nextActiveTab = newTabs.find((tab, index) => index !== activeTabIndex && !tab.hidden);
+        if (nextActiveTab) {
+          setActiveTabId(nextActiveTab.id);
+        } else if (newTabs.length > 1) {
+          // If all other tabs are hidden, create a new active tab
+          const newTab = createNewSaleTab(newTabs.length + 1);
+          newTabs.push(newTab);
+          setActiveTabId(newTab.id);
+        }
         return newTabs;
       });
       setMobileCartOpen(false);
@@ -959,14 +984,25 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
       triggerAlert('success', 'Bill held successfully!');
 
-      // Reset the current tab
+      // Mark the current tab as hidden and reset its state
       setSaleTabs(prev => {
         const newTabs = [...prev];
-        // Keep the same name but reset all other state
+        // Keep the same name but reset all other state and mark as hidden
         newTabs[activeTabIndex] = {
           ...createNewSaleTab(activeTabIndex + 1),
-          name: prev[activeTabIndex].name
+          name: prev[activeTabIndex].name,
+          hidden: true
         };
+        // Switch to the first non-hidden tab
+        const nextActiveTab = newTabs.find((tab, index) => index !== activeTabIndex && !tab.hidden);
+        if (nextActiveTab) {
+          setActiveTabId(nextActiveTab.id);
+        } else if (newTabs.length > 1) {
+          // If all other tabs are hidden, create a new active tab
+          const newTab = createNewSaleTab(newTabs.length + 1);
+          newTabs.push(newTab);
+          setActiveTabId(newTab.id);
+        }
         return newTabs;
       });
       setHoldNotes('');
@@ -1234,7 +1270,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
       {/* 3. Tabs Bar */}
       <div className="mb-4 border-b border-slate-200 flex items-center space-x-1">
-        {saleTabs.map(tab => (
+        {saleTabs.filter(tab => !tab.hidden).map(tab => (
           <div
             key={tab.id}
             className={`flex items-center space-x-2 py-2 px-4 border-b-2 cursor-pointer transition-all duration-200 ${activeTabId === tab.id

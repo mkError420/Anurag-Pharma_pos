@@ -971,7 +971,7 @@ export default function ManualOrders() {
                   Showing {((currentCashPage - 1) * 10) + 1} - {Math.min(currentCashPage * 10, cashOrders.length)} of {cashOrders.length} orders
                 </span>
 
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center flex-wrap gap-1 justify-center sm:justify-end">
                   {/* Previous Button */}
                   <button
                     type="button"
@@ -1187,7 +1187,7 @@ export default function ManualOrders() {
                 Showing {((currentCreditPage - 1) * 10) + 1} - {Math.min(currentCreditPage * 10, creditOrders.length)} of {creditOrders.length} orders
               </span>
 
-              <div className="flex items-center space-x-1 overflow-x-auto max-w-full pb-1">
+              <div className="flex items-center flex-wrap gap-1 justify-center sm:justify-end overflow-x-auto max-w-full pb-1">
                 {/* Previous Button */}
                 <button
                   type="button"

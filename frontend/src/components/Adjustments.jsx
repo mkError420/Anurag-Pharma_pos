@@ -541,7 +541,7 @@ export default function Adjustments() {
               </p>
             </div>
             <div>
-              <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+              <nav className="isolate inline-flex flex-wrap -space-x-px rounded-md shadow-sm justify-center sm:justify-end" aria-label="Pagination">
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
