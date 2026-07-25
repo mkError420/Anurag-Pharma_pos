@@ -34,6 +34,11 @@ export default function Customers() {
   const [historyEndDate, setHistoryEndDate] = useState('');
   const [activeReturnItem, setActiveReturnItem] = useState(null);
   const [returning, setReturning] = useState(false);
+
+  // Print filter state for Purchase History
+  const [historyPrintFilter, setHistoryPrintFilter] = useState('all'); // 'all', 'due', 'paid'
+  const [showHistoryPrintDropdown, setShowHistoryPrintDropdown] = useState(null); // null | 'pdf' | 'thermal'
+  const historyPrintDropdownRef = useRef(null);
   const [returnForm, setReturnForm] = useState({
     quantity: '1',
     refund_amount: '0.00',
@@ -106,28 +111,39 @@ export default function Customers() {
   const [csvErrors, setCsvErrors] = useState([]);
   const [csvSuccessMessage, setCsvSuccessMessage] = useState('');
 
-  const handleHistoryPrint = () => {
-    const handleAfterPrint = () => {
-      document.body.classList.remove('print-mode-history');
-      window.removeEventListener('afterprint', handleAfterPrint);
-    };
+  const handleHistoryPrint = (filter = 'all') => {
+    setHistoryPrintFilter(filter);
+    setShowHistoryPrintDropdown(null);
 
-    window.addEventListener('afterprint', handleAfterPrint);
-    document.body.classList.add('print-mode-history');
+    // Use requestAnimationFrame to allow React to re-render the print area with the filter applied
+    window.requestAnimationFrame(() => {
+      const handleAfterPrint = () => {
+        document.body.classList.remove('print-mode-history');
+        window.removeEventListener('afterprint', handleAfterPrint);
+      };
 
-    window.requestAnimationFrame(() => window.print());
+      window.addEventListener('afterprint', handleAfterPrint);
+      document.body.classList.add('print-mode-history');
+
+      window.requestAnimationFrame(() => window.print());
+    });
   };
 
-  const handleHistoryThermalPrint = () => {
-    const handleAfterPrint = () => {
-      document.body.classList.remove('print-mode-thermal');
-      window.removeEventListener('afterprint', handleAfterPrint);
-    };
+  const handleHistoryThermalPrint = (filter = 'all') => {
+    setHistoryPrintFilter(filter);
+    setShowHistoryPrintDropdown(null);
 
-    window.addEventListener('afterprint', handleAfterPrint);
-    document.body.classList.add('print-mode-thermal');
+    window.requestAnimationFrame(() => {
+      const handleAfterPrint = () => {
+        document.body.classList.remove('print-mode-thermal');
+        window.removeEventListener('afterprint', handleAfterPrint);
+      };
 
-    window.requestAnimationFrame(() => window.print());
+      window.addEventListener('afterprint', handleAfterPrint);
+      document.body.classList.add('print-mode-thermal');
+
+      window.requestAnimationFrame(() => window.print());
+    });
   };
 
   const fetchCustomers = async () => {
@@ -156,6 +172,19 @@ export default function Customers() {
     function handleClickOutside(event) {
       if (editProductDropdownRef.current && !editProductDropdownRef.current.contains(event.target)) {
         setShowEditProductDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Handle click outside to close history print filter dropdown
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (historyPrintDropdownRef.current && !historyPrintDropdownRef.current.contains(event.target)) {
+        setShowHistoryPrintDropdown(null);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -587,7 +616,18 @@ export default function Customers() {
       // Filter held bills for this customer with outstanding due
       const customerDueBills = heldBills.filter(
         b => b.customer_id === historyCustomer.id && b.status === 'held' && parseFloat(b.due_amount || 0) > 0
-      ).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // oldest first
+      ).sort((a, b) => {
+        // Extract sale ID from notes (format: "Due from Sale #X")
+        const extractSaleId = (notes) => {
+          if (!notes) return Infinity;
+          const match = notes.match(/Due from Sale #(\d+)/);
+          return match ? parseInt(match[1], 10) : Infinity;
+        };
+        const saleIdA = extractSaleId(a.notes);
+        const saleIdB = extractSaleId(b.notes);
+        // Sort by sales ID (first sales ID first)
+        return saleIdA - saleIdB;
+      }); // oldest sale ID first
 
       if (customerDueBills.length === 0) {
         throw new Error('No active held bills with due amounts found for this customer.');
@@ -1332,27 +1372,90 @@ export default function Customers() {
                 </p>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2" ref={historyPrintDropdownRef}>
                 {!historyLoading && historySales.length > 0 && (
                   <>
-                    <button
-                      onClick={handleHistoryPrint}
-                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-semibold py-1.5 px-3 rounded-lg text-xs transition-colors flex items-center space-x-1"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                      </svg>
-                      <span className="hidden sm:inline">Print</span> PDF
-                    </button>
-                    <button
-                      onClick={handleHistoryThermalPrint}
-                      className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold py-1.5 px-3 rounded-lg text-xs transition-colors flex items-center space-x-1"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                      </svg>
-                      <span className="hidden sm:inline">Print</span> Thermal
-                    </button>
+                    {/* Print PDF Button with Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowHistoryPrintDropdown(prev => prev === 'pdf' ? null : 'pdf')}
+                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-semibold py-1.5 px-3 rounded-lg text-xs transition-colors flex items-center space-x-1"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        <span className="hidden sm:inline">Print</span> PDF
+                        <svg className="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {showHistoryPrintDropdown === 'pdf' && (
+                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 w-40 py-1 animate-fade-in">
+                          <button
+                            onClick={() => handleHistoryPrint('all')}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors flex items-center space-x-2"
+                          >
+                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                            <span>All</span>
+                          </button>
+                          <button
+                            onClick={() => handleHistoryPrint('due')}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-rose-50 hover:text-rose-700 transition-colors flex items-center space-x-2"
+                          >
+                            <svg className="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <span>Only Due</span>
+                          </button>
+                          <button
+                            onClick={() => handleHistoryPrint('paid')}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors flex items-center space-x-2"
+                          >
+                            <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <span>Only Paid</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Print Thermal Button with Dropdown */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowHistoryPrintDropdown(prev => prev === 'thermal' ? null : 'thermal')}
+                        className="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold py-1.5 px-3 rounded-lg text-xs transition-colors flex items-center space-x-1"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        <span className="hidden sm:inline">Print</span> Thermal
+                        <svg className="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {showHistoryPrintDropdown === 'thermal' && (
+                        <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 w-40 py-1 animate-fade-in">
+                          <button
+                            onClick={() => handleHistoryThermalPrint('all')}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors flex items-center space-x-2"
+                          >
+                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                            <span>All</span>
+                          </button>
+                          <button
+                            onClick={() => handleHistoryThermalPrint('due')}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-rose-50 hover:text-rose-700 transition-colors flex items-center space-x-2"
+                          >
+                            <svg className="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <span>Only Due</span>
+                          </button>
+                          <button
+                            onClick={() => handleHistoryThermalPrint('paid')}
+                            className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors flex items-center space-x-2"
+                          >
+                            <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <span>Only Paid</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
                 <button
@@ -1408,24 +1511,48 @@ export default function Customers() {
 
             {/* Due Balance & Collection Summary Banner */}
             {historyCustomer && (() => {
-              const dueCollectPayments = (historySales || []).filter(sale => 
-                (sale.sale_id && String(sale.sale_id).startsWith('pay-')) || 
-                (sale.items && sale.items.length === 0 && parseFloat(sale.total_amount || 0) === 0 && parseFloat(sale.final_amount || 0) > 0)
-              );
+              // Construct effective sales list including active editForm modifications for live real-time calculations
+              const effectiveSales = (historySales || []).map(sale => {
+                if (editingSaleId && sale.sale_id === editingSaleId) {
+                  const editPaid = parseFloat(editForm.paid_amount || 0);
+                  const editDue = getEditDueAmount();
+                  return {
+                    ...sale,
+                    paid_amount: editPaid,
+                    due_amount: editDue,
+                    final_amount: getEditFinalTotal(),
+                    total_amount: getEditSubtotal(),
+                    discount: parseFloat(editForm.discount || 0),
+                    tax: parseFloat(editForm.tax || 0)
+                  };
+                }
+                return sale;
+              });
 
-              const lastCollectAmount = dueCollectPayments.length > 0
-                ? parseFloat(dueCollectPayments[0].final_amount || dueCollectPayments[0].paid_amount || 0)
+              // Outstanding Due: Calculate from historyCustomer.due_balance adjusted for active sale editing
+              const origSale = (historySales || []).find(s => s.sale_id === editingSaleId);
+              const origDue = origSale ? parseFloat(origSale.due_amount || 0) : 0;
+              const newDue = editingSaleId ? getEditDueAmount() : 0;
+              const currentDue = editingSaleId && origSale
+                ? Math.max(0, parseFloat(historyCustomer?.due_balance || 0) - origDue + newDue)
+                : parseFloat(historyCustomer?.due_balance || 0);
+
+              // Last Collect: Find most recent transaction with paid_amount > 0
+              const paidTransactions = effectiveSales.filter(s => parseFloat(s.paid_amount || 0) > 0);
+              const lastTransaction = paidTransactions.length > 0 ? paidTransactions[0] : null;
+
+              const lastCollectAmount = lastTransaction
+                ? parseFloat(lastTransaction.paid_amount || 0)
                 : parseFloat(historyCustomer?.last_collect_amount || 0);
 
-              const lastCollectDate = dueCollectPayments.length > 0
-                ? dueCollectPayments[0].created_at
+              const lastCollectDate = lastTransaction
+                ? lastTransaction.created_at
                 : (historyCustomer?.last_collect_date || null);
 
-              const totalCollectAmount = dueCollectPayments.length > 0
-                ? dueCollectPayments.reduce((sum, p) => sum + parseFloat(p.final_amount || p.paid_amount || 0), 0)
+              // Total Collected: Sum of all paid_amount across all transactions
+              const totalCollectAmount = effectiveSales.length > 0
+                ? effectiveSales.reduce((sum, p) => sum + parseFloat(p.paid_amount || 0), 0)
                 : parseFloat(historyCustomer?.total_collect_amount || 0);
-
-              const currentDue = parseFloat(historyCustomer.due_balance || 0);
 
               return (
                 <div className={`mt-3 rounded-xl p-3.5 border flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 ${currentDue > 0
@@ -2173,14 +2300,28 @@ export default function Customers() {
             </div>
             <div style={{ borderBottom: '1px dashed #000', marginBottom: '8px', paddingBottom: '4px' }}>
               <p style={{ margin: '0', fontSize: '9px' }}>Phone: {historyCustomer.phone || '-'}</p>
-              <p style={{ margin: '0', fontSize: '9px' }}>Due Balance: ৳{parseFloat(historyCustomer.due_balance || 0).toFixed(2)}</p>
               {(() => {
-                const dueCollects = (historySales || []).filter(s => (s.sale_id && String(s.sale_id).startsWith('pay-')) || (s.items && s.items.length === 0 && parseFloat(s.total_amount || 0) === 0 && parseFloat(s.final_amount || 0) > 0));
-                const lastAmt = dueCollects.length > 0 ? parseFloat(dueCollects[0].final_amount || dueCollects[0].paid_amount || 0) : parseFloat(historyCustomer?.last_collect_amount || 0);
-                const lastDate = dueCollects.length > 0 ? dueCollects[0].created_at : (historyCustomer?.last_collect_date || null);
-                const totAmt = dueCollects.length > 0 ? dueCollects.reduce((sum, p) => sum + parseFloat(p.final_amount || p.paid_amount || 0), 0) : parseFloat(historyCustomer?.total_collect_amount || 0);
+                const effectiveSales = (historySales || []).map(sale => {
+                  if (editingSaleId && sale.sale_id === editingSaleId) {
+                    return { ...sale, paid_amount: parseFloat(editForm.paid_amount || 0), due_amount: getEditDueAmount() };
+                  }
+                  return sale;
+                });
+                const origSale = (historySales || []).find(s => s.sale_id === editingSaleId);
+                const origDue = origSale ? parseFloat(origSale.due_amount || 0) : 0;
+                const newDue = editingSaleId ? getEditDueAmount() : 0;
+                const printDue = editingSaleId && origSale
+                  ? Math.max(0, parseFloat(historyCustomer?.due_balance || 0) - origDue + newDue)
+                  : parseFloat(historyCustomer?.due_balance || 0);
+
+                const paidTransactions = effectiveSales.filter(s => parseFloat(s.paid_amount || 0) > 0);
+                const lastTransaction = paidTransactions.length > 0 ? paidTransactions[0] : null;
+                const lastAmt = lastTransaction ? parseFloat(lastTransaction.paid_amount || 0) : parseFloat(historyCustomer?.last_collect_amount || 0);
+                const lastDate = lastTransaction ? lastTransaction.created_at : (historyCustomer?.last_collect_date || null);
+                const totAmt = effectiveSales.length > 0 ? effectiveSales.reduce((sum, p) => sum + parseFloat(p.paid_amount || 0), 0) : parseFloat(historyCustomer?.total_collect_amount || 0);
                 return (
                   <>
+                    <p style={{ margin: '0', fontSize: '9px' }}>Due Balance: ৳{printDue.toFixed(2)}</p>
                     <p style={{ margin: '0', fontSize: '9px' }}>Last Collect: ৳{lastAmt.toFixed(2)}{lastDate ? ` (${new Date(lastDate).toLocaleDateString()})` : ''}</p>
                     <p style={{ margin: '0', fontSize: '9px' }}>Total Collect: ৳{totAmt.toFixed(2)}</p>
                   </>
@@ -2199,6 +2340,12 @@ export default function Customers() {
                 if (end && saleDate > end) return false;
                 if (!searchTerm) return true;
                 return sale.items && sale.items.some(i => (i.product_name || '').toLowerCase().includes(searchTerm));
+              }).filter(sale => {
+                if (historyPrintFilter === 'all') return true;
+                const dueAmt = parseFloat(sale.due_amount || 0);
+                if (historyPrintFilter === 'due') return dueAmt > 0;
+                if (historyPrintFilter === 'paid') return dueAmt <= 0;
+                return true;
               });
 
               return filtered.map((sale) => (
@@ -2257,17 +2404,31 @@ export default function Customers() {
                 Customer Information
               </h3>
               {(() => {
-                const dueCollects = (historySales || []).filter(s => (s.sale_id && String(s.sale_id).startsWith('pay-')) || (s.items && s.items.length === 0 && parseFloat(s.total_amount || 0) === 0 && parseFloat(s.final_amount || 0) > 0));
-                const lastAmt = dueCollects.length > 0 ? parseFloat(dueCollects[0].final_amount || dueCollects[0].paid_amount || 0) : parseFloat(historyCustomer?.last_collect_amount || 0);
-                const lastDate = dueCollects.length > 0 ? dueCollects[0].created_at : (historyCustomer?.last_collect_date || null);
-                const totAmt = dueCollects.length > 0 ? dueCollects.reduce((sum, p) => sum + parseFloat(p.final_amount || p.paid_amount || 0), 0) : parseFloat(historyCustomer?.total_collect_amount || 0);
+                const effectiveSales = (historySales || []).map(sale => {
+                  if (editingSaleId && sale.sale_id === editingSaleId) {
+                    return { ...sale, paid_amount: parseFloat(editForm.paid_amount || 0), due_amount: getEditDueAmount() };
+                  }
+                  return sale;
+                });
+                const origSale = (historySales || []).find(s => s.sale_id === editingSaleId);
+                const origDue = origSale ? parseFloat(origSale.due_amount || 0) : 0;
+                const newDue = editingSaleId ? getEditDueAmount() : 0;
+                const printDue = editingSaleId && origSale
+                  ? Math.max(0, parseFloat(historyCustomer?.due_balance || 0) - origDue + newDue)
+                  : parseFloat(historyCustomer?.due_balance || 0);
+
+                const paidTransactions = effectiveSales.filter(s => parseFloat(s.paid_amount || 0) > 0);
+                const lastTransaction = paidTransactions.length > 0 ? paidTransactions[0] : null;
+                const lastAmt = lastTransaction ? parseFloat(lastTransaction.paid_amount || 0) : parseFloat(historyCustomer?.last_collect_amount || 0);
+                const lastDate = lastTransaction ? lastTransaction.created_at : (historyCustomer?.last_collect_date || null);
+                const totAmt = effectiveSales.length > 0 ? effectiveSales.reduce((sum, p) => sum + parseFloat(p.paid_amount || 0), 0) : parseFloat(historyCustomer?.total_collect_amount || 0);
                 return (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
                     <div><strong>Name:</strong> {historyCustomer.name}</div>
                     <div><strong>Phone Number:</strong> {historyCustomer.phone || '-'}</div>
                     <div><strong>Email:</strong> {historyCustomer.email || '-'}</div>
                     <div><strong>Address:</strong> {historyCustomer.address || '-'}</div>
-                    <div><strong>Outstanding Due Balance:</strong> ৳{parseFloat(historyCustomer.due_balance || 0).toFixed(2)}</div>
+                    <div><strong>Outstanding Due Balance:</strong> ৳{printDue.toFixed(2)}</div>
                     <div><strong>Last Collect Amount:</strong> ৳{lastAmt.toFixed(2)} {lastDate ? `(${new Date(lastDate).toLocaleString()})` : ''}</div>
                     <div><strong>Total Collect Amount:</strong> ৳{totAmt.toFixed(2)}</div>
                   </div>
@@ -2288,6 +2449,12 @@ export default function Customers() {
                 if (end && saleDate > end) return false;
                 if (!searchTerm) return true;
                 return sale.items && sale.items.some(i => (i.product_name || '').toLowerCase().includes(searchTerm));
+              }).filter(sale => {
+                if (historyPrintFilter === 'all') return true;
+                const dueAmt = parseFloat(sale.due_amount || 0);
+                if (historyPrintFilter === 'due') return dueAmt > 0;
+                if (historyPrintFilter === 'paid') return dueAmt <= 0;
+                return true;
               });
 
               return (

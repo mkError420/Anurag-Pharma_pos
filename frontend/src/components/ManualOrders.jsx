@@ -849,7 +849,7 @@ export default function ManualOrders() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
             </svg>
-            <span>New Manual Order</span>
+            <span className='whitespace-nowrap'>New Manual Order</span>
           </button>
         </div>
       </div>
@@ -1032,89 +1032,153 @@ export default function ManualOrders() {
               <p className="text-xs text-slate-400">Credit drafts and outstanding customer debt logs</p>
             </div>
             <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded border border-amber-100">{creditOrders.length} Orders</span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 text-slate-450 font-bold uppercase tracking-wider">
-                  <th className="pb-2">Details</th>
-                  <th className="pb-2 text-center">Status / Dues</th>
-                  <th className="pb-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-650">
-                {loading ? (
-                  <tr>
-                    <td colSpan="3" className="py-8 text-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-indigo-600 mx-auto"></div>
-                    </td>
-                  </tr>
-                ) : creditOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan="3" className="py-8 text-center text-slate-400">No credit sales recorded.</td>
-                  </tr>
-                ) : (
-                  creditOrders.slice((currentCreditPage - 1) * 10, currentCreditPage * 10).map((order) => (
-                    <tr key={order.id} className="hover:bg-slate-50/40">
-                      <td className="py-2.5 pr-2">
-                        <div className="font-semibold text-slate-800">{order.salesman_name}</div>
-                        <div className="text-[10px] text-slate-700 font-semibold">Buyer: {order.customer_name}</div>
-                        {order.customer_phone && <div className="text-[9px] text-slate-450">Phone: {order.customer_phone}</div>}
-                        <div className="text-[9px] text-slate-400 mt-0.5">{new Date(order.created_at).toLocaleDateString()}</div>
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <div className="flex flex-col items-center space-y-1">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold capitalize ${order.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
-                            order.status === 'held' ? 'bg-blue-100 text-blue-700' :
-                              'bg-amber-100 text-amber-700'
-                            }`}>
-                            {order.status}
-                          </span>
-                          {order.status === 'confirmed' && (
-                            parseFloat(order.current_sale_due || 0) > 0 ? (
-                              <span className="text-[9px] text-rose-500 font-extrabold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
-                                Due: ৳{parseFloat(order.current_sale_due).toFixed(2)}
-                              </span>
-                            ) : (
-                              <span className="text-[9px] text-emerald-600 font-extrabold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                                Fully Paid
-                              </span>
-                            )
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2.5 text-right space-x-1.5 whitespace-nowrap">
-                        <button onClick={() => openDetails(order)} className="text-slate-500 hover:text-slate-900 border border-slate-200 px-2 py-1 rounded font-medium">View</button>
-                        {order.status === 'pending' ? (
-                          <>
-                            <button onClick={() => openEditOrder(order)} className="text-indigo-660 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Edit</button>
-                            <button onClick={() => handleConfirmOrder(order.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded">Confirm</button>
-                            <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
-                          </>
-                        ) : order.status === 'held' ? (
-                          <>
-                            <button onClick={() => handleUnholdOrder(order.id)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Unhold</button>
-                            <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
-                          </>
-                        ) : (
-                          <>
-                            {parseFloat(order.current_sale_due || 0) > 0 && (
-                              <button onClick={() => openPayDueModal(order)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded shadow-sm">Collect Due</button>
-                            )}
-                            {order.sale_id && (
-                              <button onClick={() => loadInvoiceDetails(order.sale_id)} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1 rounded font-bold">Receipt</button>
-                            )}
-                            <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
-                          </>
+          </div>          {loading ? (
+            <div className="py-8 text-center">
+              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-indigo-600 mx-auto"></div>
+            </div>
+          ) : creditOrders.length === 0 ? (
+            <div className="py-8 text-center text-slate-400 text-xs">No credit sales recorded.</div>
+          ) : (
+            <>
+              {/* MOBILE RESPONSIVE CARD VIEW (Visible on mobile screens < 640px) */}
+              <div className="block sm:hidden space-y-3">
+                {creditOrders.slice((currentCreditPage - 1) * 10, currentCreditPage * 10).map((order) => (
+                  <div key={order.id} className="bg-slate-50/80 border border-slate-200 rounded-xl p-3 space-y-2 text-xs shadow-2xs">
+                    {/* Header: Customer & Salesman + Status / Dues */}
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div className="font-bold text-slate-800 text-sm truncate">{order.salesman_name}</div>
+                        <div className="text-xs text-slate-700 font-semibold truncate">Buyer: {order.customer_name}</div>
+                        {order.customer_phone && (
+                          <div className="text-[11px] text-slate-500 font-mono">Phone: {order.customer_phone}</div>
                         )}
-                      </td>
+                        <div className="text-[10px] text-slate-400">{new Date(order.created_at).toLocaleDateString()}</div>
+                      </div>
+
+                      {/* Status / Dues Badges */}
+                      <div className="flex flex-col items-end space-y-1 shrink-0">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold capitalize ${order.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
+                          order.status === 'held' ? 'bg-blue-100 text-blue-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                          {order.status}
+                        </span>
+                        {order.status === 'confirmed' && (
+                          parseFloat(order.current_sale_due || 0) > 0 ? (
+                            <span className="text-[10px] text-rose-600 font-extrabold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                              Due: ৳{parseFloat(order.current_sale_due).toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-emerald-600 font-extrabold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                              Fully Paid
+                            </span>
+                          )
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions Row */}
+                    <div className="pt-2 border-t border-slate-200/80 flex flex-wrap items-center justify-end gap-1.5">
+                      <button onClick={() => openDetails(order)} className="text-slate-600 hover:text-slate-900 border border-slate-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">View</button>
+                      {order.status === 'pending' ? (
+                        <>
+                          <button onClick={() => openEditOrder(order)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">Edit</button>
+                          <button onClick={() => handleConfirmOrder(order.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-2xs">Confirm</button>
+                          <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">Delete</button>
+                        </>
+                      ) : order.status === 'held' ? (
+                        <>
+                          <button onClick={() => handleUnholdOrder(order.id)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">Unhold</button>
+                          <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">Delete</button>
+                        </>
+                      ) : (
+                        <>
+                          {parseFloat(order.current_sale_due || 0) > 0 && (
+                            <button onClick={() => openPayDueModal(order)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-2xs">Collect Due</button>
+                          )}
+                          {order.sale_id && (
+                            <button onClick={() => loadInvoiceDetails(order.sale_id)} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-lg text-xs font-bold shadow-2xs">Receipt</button>
+                          )}
+                          <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">Delete</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* DESKTOP TABLE VIEW (Visible on tablet & desktop screens >= 640px) */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-450 font-bold uppercase tracking-wider">
+                      <th className="pb-2">Details</th>
+                      <th className="pb-2 text-center">Status / Dues</th>
+                      <th className="pb-2 text-right">Actions</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-650">
+                    {creditOrders.slice((currentCreditPage - 1) * 10, currentCreditPage * 10).map((order) => (
+                      <tr key={order.id} className="hover:bg-slate-50/40">
+                        <td className="py-2.5 pr-2">
+                          <div className="font-semibold text-slate-800">{order.salesman_name}</div>
+                          <div className="text-[10px] text-slate-700 font-semibold">Buyer: {order.customer_name}</div>
+                          {order.customer_phone && <div className="text-[9px] text-slate-450">Phone: {order.customer_phone}</div>}
+                          <div className="text-[9px] text-slate-400 mt-0.5">{new Date(order.created_at).toLocaleDateString()}</div>
+                        </td>
+                        <td className="py-2.5 text-center">
+                          <div className="flex flex-col items-center space-y-1">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold capitalize ${order.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
+                              order.status === 'held' ? 'bg-blue-100 text-blue-700' :
+                                'bg-amber-100 text-amber-700'
+                              }`}>
+                              {order.status}
+                            </span>
+                            {order.status === 'confirmed' && (
+                              parseFloat(order.current_sale_due || 0) > 0 ? (
+                                <span className="text-[9px] text-rose-500 font-extrabold bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
+                                  Due: ৳{parseFloat(order.current_sale_due).toFixed(2)}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-emerald-600 font-extrabold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                  Fully Paid
+                                </span>
+                              )
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-2.5 text-right space-x-1.5 whitespace-nowrap">
+                          <button onClick={() => openDetails(order)} className="text-slate-500 hover:text-slate-900 border border-slate-200 px-2 py-1 rounded font-medium">View</button>
+                          {order.status === 'pending' ? (
+                            <>
+                              <button onClick={() => openEditOrder(order)} className="text-indigo-660 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Edit</button>
+                              <button onClick={() => handleConfirmOrder(order.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded">Confirm</button>
+                              <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
+                            </>
+                          ) : order.status === 'held' ? (
+                            <>
+                              <button onClick={() => handleUnholdOrder(order.id)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Unhold</button>
+                              <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
+                            </>
+                          ) : (
+                            <>
+                              {parseFloat(order.current_sale_due || 0) > 0 && (
+                                <button onClick={() => openPayDueModal(order)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded shadow-sm">Collect Due</button>
+                              )}
+                              {order.sale_id && (
+                                <button onClick={() => loadInvoiceDetails(order.sale_id)} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1 rounded font-bold">Receipt</button>
+                              )}
+                              <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-200 px-2 py-1 rounded font-medium">Delete</button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
 
           {/* Credit Sales Pagination Controls */}
           {creditOrders.length > 0 && (
@@ -1123,7 +1187,7 @@ export default function ManualOrders() {
                 Showing {((currentCreditPage - 1) * 10) + 1} - {Math.min(currentCreditPage * 10, creditOrders.length)} of {creditOrders.length} orders
               </span>
 
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center space-x-1 overflow-x-auto max-w-full pb-1">
                 {/* Previous Button */}
                 <button
                   type="button"
@@ -1673,9 +1737,9 @@ export default function ManualOrders() {
                       min="0"
                       max="100"
                       step="0.1"
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        discountPercent: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)) 
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        discountPercent: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
                       }))}
                       disabled={parseFloat(formData.discountAmount || 0) > 0}
                       placeholder="E.g. 10"
@@ -1690,9 +1754,9 @@ export default function ManualOrders() {
                       value={formData.discountAmount || ''}
                       min="0"
                       step="1"
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        discountAmount: Math.max(0, parseFloat(e.target.value) || 0) 
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        discountAmount: Math.max(0, parseFloat(e.target.value) || 0)
                       }))}
                       disabled={parseFloat(formData.discountPercent || 0) > 0}
                       placeholder="E.g. 50"

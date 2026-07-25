@@ -156,6 +156,30 @@
   body.print-mode-thermal #history-print-area .thermal-only {
     display: block !important;
   }
+
+  /* Print filter options - Only Due */
+  body.print-filter-due #receipt-print-area .print-section-paid {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+  body.print-filter-due #receipt-print-area .print-section-due {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  /* Print filter options - Only Paid */
+  body.print-filter-paid #receipt-print-area .print-section-due {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+  body.print-filter-paid #receipt-print-area .print-section-paid {
+    display: block !important;
+    visibility: visible !important;
+  }
 }
 
 /* --- BARCODE SCANNER LASER STYLES --- */

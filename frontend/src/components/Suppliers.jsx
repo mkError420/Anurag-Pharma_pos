@@ -2575,14 +2575,20 @@ export default function Suppliers() {
               </div>
             </div>
             {/* Date Filter and View Details - shown under Purchase Orders tab */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-xs">
-              <div className="flex items-center space-x-2">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-bold text-slate-400 uppercase whitespace-nowrap">Date Range:</span>
-                <input type="date" value={poStartDate} onChange={(e) => { setPoStartDate(e.target.value); setPoPage(1); }} className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
-                <span className="text-slate-400 text-sm">to</span>
-                <input type="date" value={poEndDate} onChange={(e) => { setPoEndDate(e.target.value); setPoPage(1); }} className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
+                <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+                  <input type="date" value={poStartDate} onChange={(e) => { setPoStartDate(e.target.value); setPoPage(1); }} className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 flex-1 sm:flex-initial min-w-[125px]" />
+                  <span className="text-slate-400 text-xs sm:text-sm font-medium">to</span>
+                  <input type="date" value={poEndDate} onChange={(e) => { setPoEndDate(e.target.value); setPoPage(1); }} className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 flex-1 sm:flex-initial min-w-[125px]" />
+                </div>
               </div>
-              <button onClick={fetchFilteredPOItems} disabled={!poStartDate || !poEndDate || filteredPOLoading} className={`${!poStartDate || !poEndDate ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'} font-bold py-1.5 px-3 rounded-lg text-sm transition-colors border flex items-center space-x-1 whitespace-nowrap shadow-sm`}>
+              <button 
+                onClick={fetchFilteredPOItems} 
+                disabled={!poStartDate || !poEndDate || filteredPOLoading} 
+                className={`${!poStartDate || !poEndDate ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'} font-bold py-2 px-4 rounded-xl text-xs sm:text-sm transition-colors border flex items-center justify-center space-x-1.5 whitespace-nowrap shadow-xs w-full sm:w-auto`}
+              >
                 {filteredPOLoading ? (<div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-emerald-600 mr-1"></div>) : (<svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5,12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542 7z" /></svg>)}
                 <span>View details</span>
