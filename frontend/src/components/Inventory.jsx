@@ -1531,18 +1531,32 @@ export default function Inventory() {
                 </div>
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between min-w-[150px]">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 line-clamp-1 text-ellipsis overflow-hidden">Current Stock</span>
-                  <div className="flex items-baseline flex-wrap">
-                    <span className="text-2xl font-black text-slate-800">{historyData.current_stock}</span>
-                    <span className="text-[10px] text-slate-500 ml-1.5">{historyProductUnit} left</span>
+                  <div>
+                    <div className="flex items-baseline flex-wrap">
+                      <span className="text-2xl font-black text-slate-800">{historyData.current_stock}</span>
+                      <span className="text-[10px] text-slate-500 ml-1.5">{historyProductUnit} left</span>
+                    </div>
+                    <div className="flex items-baseline flex-wrap mt-0.5">
+                      <span className="text-sm font-bold text-amber-500">
+                        BDT: {selectedHistoryProduct ? (historyData.current_stock * selectedHistoryProduct.cost_price).toFixed(2) : '0.00'}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between min-w-[150px]">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 line-clamp-1 text-ellipsis overflow-hidden">Total Sold</span>
-                  <div className="flex items-baseline flex-wrap">
-                    <span className="text-2xl font-black text-emerald-600">
-                      {historyData.daily.reduce((sum, d) => sum + d.qty_sold, 0)}
-                    </span>
-                    <span className="text-[10px] text-slate-500 ml-1.5">{historyProductUnit} sold</span>
+                  <div>
+                    <div className="flex items-baseline flex-wrap">
+                      <span className="text-2xl font-black text-emerald-600">
+                        {historyData.daily.reduce((sum, d) => sum + d.qty_sold, 0)}
+                      </span>
+                      <span className="text-[10px] text-slate-500 ml-1.5">{historyProductUnit} sold</span>
+                    </div>
+                    <div className="flex items-baseline flex-wrap mt-0.5">
+                      <span className="text-sm font-bold text-amber-500">
+                        BDT: {(historyData.detailed ? historyData.detailed.filter(d => d.type === 'sale').reduce((sum, d) => sum + (Number(d.subtotal) || 0), 0) : 0).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between min-w-[150px]">
