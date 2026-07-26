@@ -32,6 +32,8 @@ export default function Wastage() {
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [currentWastage, setCurrentWastage] = useState(null);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -186,6 +188,51 @@ export default function Wastage() {
       resetForm();
       fetchWastages();
       fetchProducts(); // Refresh product list to update stock preview
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  const openEditModal = (wastage) => {
+    setCurrentWastage(wastage);
+    const product = products.find(p => p.id === wastage.product_id);
+    setFormData({
+      product_id: wastage.product_id,
+      quantity: wastage.quantity,
+      reason: wastage.reason,
+      notes: wastage.notes || '',
+      adjusted_at: new Date(wastage.adjusted_at).toBDISODateString()
+    });
+    if (product) {
+      setProductSearchTerm(`${product.name} (SKU: ${product.sku})`);
+    }
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.product_id || !formData.quantity || !formData.reason || !formData.adjusted_at) {
+      triggerAlert('error', 'Please fill in all required fields.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/wastages/${currentWastage.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Failed to update stock adjustment.');
+
+      triggerAlert('success', 'Wastage stock adjustment updated successfully!');
+      setShowEditModal(false);
+      fetchWastages();
     } catch (err) {
       triggerAlert('error', err.message);
     }
@@ -689,6 +736,12 @@ export default function Wastage() {
                     {!isSuperAdmin && (
                       <td className="p-4 text-center pr-6">
                         <button
+                          onClick={() => openEditModal(w)}
+                          className="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-100 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg transition-colors mr-2"
+                        >
+                          Edit
+                        </button>
+                        <button
                           onClick={() => handleDelete(w.id)}
                           className="text-rose-600 hover:text-rose-900 font-semibold text-xs border border-rose-100 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition-colors"
                         >
@@ -899,6 +952,144 @@ export default function Wastage() {
                 >
                   Confirm Adjustment
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- EDIT STOCK ADJUSTMENT MODAL --- */}
+      {showEditModal && currentWastage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Edit Damage / Wastage</h3>
+              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Select Product *</label>
+                <div className="relative" ref={dropdownRef}>
+                  <input
+                    type="text"
+                    value={productSearchTerm}
+                    onFocus={() => { setShowProductDropdown(true); setProductSearchFocusedIndex(-1); }}
+                    onChange={(e) => {
+                      setProductSearchTerm(e.target.value);
+                      setShowProductDropdown(true);
+                      setProductSearchFocusedIndex(-1);
+                      if (formData.product_id) {
+                        setFormData(prev => ({ ...prev, product_id: '' }));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (showProductDropdown) {
+                        const suggestions = getFilteredProducts();
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          setProductSearchFocusedIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : prev));
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setProductSearchFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (productSearchFocusedIndex >= 0 && suggestions[productSearchFocusedIndex]) {
+                            const p = suggestions[productSearchFocusedIndex];
+                            setFormData(prev => ({ ...prev, product_id: p.id }));
+                            setProductSearchTerm(`${p.name} (SKU: ${p.sku})`);
+                            setShowProductDropdown(false);
+                            setProductSearchFocusedIndex(-1);
+                          }
+                        }
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="Type to search product..."
+                    required
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-rose-500 outline-none bg-white text-slate-700 font-medium"
+                  />
+                  {showProductDropdown && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                      {getFilteredProducts().length === 0 ? (
+                        <div className="p-3 text-sm text-slate-400 text-center">No products found</div>
+                      ) : (
+                        getFilteredProducts().map((p, idx) => (
+                          <div
+                            key={p.id}
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, product_id: p.id }));
+                              setProductSearchTerm(`${p.name} (SKU: ${p.sku})`);
+                              setShowProductDropdown(false);
+                            }}
+                            className={`p-2.5 hover:bg-rose-50 cursor-pointer text-xs flex justify-between items-center transition-colors border-b border-slate-100 last:border-0 ${productSearchFocusedIndex === idx ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-slate-800">{p.name}</span>
+                              <span className="text-slate-450 text-[10px]">SKU: {p.sku}</span>
+                            </div>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${p.stock_quantity <= 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'}`}>
+                              Stock: {p.stock_quantity}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Quantity *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    name="quantity"
+                    value={formData.quantity}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="e.g. 5"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-rose-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Adjustment Date *</label>
+                  <input
+                    type="date"
+                    name="adjusted_at"
+                    value={formData.adjusted_at}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-rose-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Adjustment Reason *</label>
+                <select name="reason" value={formData.reason} onChange={handleInputChange} required className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-rose-500 outline-none bg-white text-slate-700">
+                  <option value="Damaged">Damaged</option>
+                  <option value="Expired">Expired</option>
+                  <option value="Stolen">Stolen</option>
+                  <option value="Spillage">Spillage</option>
+                  <option value="Manual Adjustment">Manual Adjustment</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Optional Notes</label>
+                <textarea name="notes" value={formData.notes} onChange={handleInputChange} rows="3" placeholder="Reasoning details, reference log numbers..." className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-rose-500 outline-none bg-white" />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex space-x-3 justify-end">
+                <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors">Cancel</button>
+                <button type="submit" className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold transition-colors shadow">Save Changes</button>
               </div>
             </form>
           </div>

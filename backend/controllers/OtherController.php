@@ -270,6 +270,66 @@ class OtherController {
         }
     }
 
+    public static function updateWastage($id, $requestData) {
+        Auth::authenticate();
+        Auth::enforceTenant();
+        Auth::authorize(['shop_admin']);
+
+        $wastageId = (int)$id;
+        $shopId = Auth::$shopId;
+
+        $productId = $requestData['product_id'] ?? null;
+        $quantity = (int)($requestData['quantity'] ?? 0);
+        $reason = $requestData['reason'] ?? '';
+        $notes = $requestData['notes'] ?? null;
+        $adjustedAt = $requestData['adjusted_at'] ?? null;
+
+        if (empty($productId) || $quantity <= 0 || empty($reason) || empty($adjustedAt)) {
+            Auth::jsonError('Please provide product ID, positive quantity, reason, and date.', 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Get the original wastage record
+            $stmt = DB::query('SELECT * FROM wastages WHERE id = ? AND shop_id = ? FOR UPDATE', [$wastageId, $shopId]);
+            $originalWastage = $stmt->fetch();
+
+            if (!$originalWastage) {
+                DB::rollBack();
+                Auth::jsonError('Wastage record not found.', 404);
+            }
+
+            // Revert the original stock change
+            DB::query('UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ? AND shop_id = ?', [(int)$originalWastage['quantity'], (int)$originalWastage['product_id'], $shopId]);
+
+            // Apply the new stock change
+            $stmt = DB::query('SELECT cost_price FROM products WHERE id = ? AND shop_id = ? FOR UPDATE', [$productId, $shopId]);
+            $product = $stmt->fetch();
+            if (!$product) {
+                DB::rollBack();
+                Auth::jsonError('Product not found.', 404);
+            }
+            $costLoss = $quantity * (float)$product['cost_price'];
+
+            DB::query('UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND shop_id = ?', [$quantity, $productId, $shopId]);
+
+            // Update the wastage record
+            DB::query(
+                'UPDATE wastages SET product_id = ?, quantity = ?, cost_loss = ?, reason = ?, notes = ?, adjusted_at = ? WHERE id = ? AND shop_id = ?',
+                [$productId, $quantity, $costLoss, $reason, $notes, $adjustedAt, $wastageId, $shopId]
+            );
+
+            DB::commit();
+            header('Content-Type: application/json');
+            echo json_encode(['message' => 'Wastage record updated successfully.']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            error_log('Update wastage error: ' . $e->getMessage());
+            Auth::jsonError('Server error updating wastage record.', 500);
+        }
+    }
+
     public static function deleteWastage($id) {
         Auth::authenticate();
         Auth::enforceTenant();

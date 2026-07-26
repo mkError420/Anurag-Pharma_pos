@@ -519,27 +519,6 @@ export default function AllTransactions() {
               </button>
             )}
           </div>
-
-          {/* Date Filter Buttons — inline beside search */}
-          <div className="flex flex-wrap items-center gap-2">
-            {[
-              { id: 'all', label: 'All Time' },
-              { id: 'today', label: 'Today' },
-              { id: 'week', label: 'This Week' },
-              { id: 'month', label: 'This Month' },
-            ].map(df => (
-              <button
-                key={df.id}
-                onClick={() => setDateFilter(df.id)}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${dateFilter === df.id
-                  ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-              >
-                {df.label}
-              </button>
-            ))}
-
             {/* Custom Date — inline date pickers shown when active */}
             <div className="flex items-center gap-2">
               <input
@@ -569,6 +548,28 @@ export default function AllTransactions() {
                 </button>
               )}
             </div>
+
+          {/* Date Filter Buttons — inline beside search */}
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { id: 'all', label: 'All Time' },
+              { id: 'today', label: 'Today' },
+              { id: 'week', label: 'This Week' },
+              { id: 'month', label: 'This Month' },
+            ].map(df => (
+              <button
+                key={df.id}
+                onClick={() => setDateFilter(df.id)}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${dateFilter === df.id
+                  ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+              >
+                {df.label}
+              </button>
+            ))}
+
+          
           </div>
         </div>
       </div>
@@ -660,10 +661,11 @@ export default function AllTransactions() {
                           className="p-1.5 rounded-lg text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 transition-colors"
                           title="View Details"
                         >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          {/* <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
+                          </svg> */}
+                          <p>Show More</p>
                         </button>
                       </td>
                     </tr>
