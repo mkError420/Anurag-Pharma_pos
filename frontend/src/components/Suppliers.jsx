@@ -1765,10 +1765,10 @@ export default function Suppliers() {
                           onClick={() => setProfilePoFilter(f)}
                           className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${profilePoFilter === f
                             ? f === 'paid'
-                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm'
                               : f === 'due'
-                                ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                                : 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                                ? 'bg-rose-100 text-rose-800 border-rose-300 shadow-sm'
+                                : 'bg-slate-100 text-slate-800 border-slate-300 shadow-sm'
                             : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
                             }`}
                         >
@@ -1778,7 +1778,7 @@ export default function Suppliers() {
                     </div>
                     <button
                       onClick={() => openAddPo(supplier.id)}
-                      className="bg-slate-600 hover:bg-indigo-700 text-white font-semibold py-1.5 px-4 rounded-lg text-xs shadow-sm transition-colors"
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-1.5 px-4 rounded-lg text-xs shadow-sm transition-colors"
                     >
                       + Add Purchase Order
                     </button>
@@ -2298,7 +2298,7 @@ export default function Suppliers() {
           )}
           <button
             onClick={() => { resetForm(); setShowAddModal(true); }}
-            className="bg-slate-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2"
+            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -2308,7 +2308,7 @@ export default function Suppliers() {
           {isAdmin && activeTab === 'directory' && selectedSupplierIds.length > 0 && (
             <button
               onClick={handleBulkDeleteSuppliers}
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2"
+              className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -2513,7 +2513,7 @@ export default function Suppliers() {
                         key={page}
                         onClick={() => setSupplierPage(page)}
                         className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${supplierPage === page
-                          ? 'bg-slate-600 text-white shadow-xs'
+                          ? 'bg-slate-100 text-slate-800 shadow-xs'
                           : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
                           }`}
                       >
@@ -2671,7 +2671,7 @@ export default function Suppliers() {
                 })()}
                 <button
                   onClick={handleDownloadPOCSV}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+                  className="bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.4145.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -2680,7 +2680,7 @@ export default function Suppliers() {
                 </button>
                 <button
                   onClick={handleDownloadPOPDF}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+                  className="bg-sky-500 hover:bg-sky-600 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -2852,7 +2852,7 @@ export default function Suppliers() {
                         key={page}
                         onClick={() => setPoPage(page)}
                         className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${poPage === page
-                          ? 'bg-slate-600 text-white shadow-xs'
+                          ? 'bg-slate-100 text-slate-800 shadow-xs'
                           : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
                           }`}
                       >
@@ -2903,7 +2903,7 @@ export default function Suppliers() {
             <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-end gap-3 shadow-xs">
               <button
                 onClick={handleDownloadCostLogsCSV}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+                className="bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -2912,7 +2912,7 @@ export default function Suppliers() {
               </button>
               <button
                 onClick={handleDownloadCostLogsPDF}
-                className="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+                className="bg-sky-500 hover:bg-sky-600 text-white font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -3033,7 +3033,7 @@ export default function Suppliers() {
                       key={page}
                       onClick={() => setLogsPage(page)}
                       className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${logsPage === page
-                        ? 'bg-slate-600 text-white shadow-xs'
+                        ? 'bg-slate-100 text-slate-800 shadow-xs'
                         : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
                         }`}
                     >
@@ -3631,7 +3631,7 @@ export default function Suppliers() {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-slate-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors shadow"
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-semibold transition-colors shadow"
               >
                 {isEdit ? 'Save Changes' : 'Create Supplier'}
               </button>
@@ -4009,7 +4009,7 @@ export default function Suppliers() {
                 <button
                   type="button"
                   onClick={cancelEditCartItem}
-                  className="flex-1 bg-slate-500 hover:bg-slate-600 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2"
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -4149,7 +4149,7 @@ export default function Suppliers() {
                     type="button"
                     onClick={(e) => handlePoSubmit(e, 'received')}
                     disabled={!isAdmin}
-                    className="w-full sm:w-auto px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto px-5 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-sm font-semibold transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Update Received Order
                   </button>
@@ -4506,7 +4506,7 @@ export default function Suppliers() {
             {selectedPo.status === 'ordered' && (
               <button
                 onClick={() => openReceiveModal(selectedPo)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors shadow"
+                className="px-4 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold transition-colors shadow"
               >
                 Confirm Receive Stocks
               </button>
@@ -4514,7 +4514,7 @@ export default function Suppliers() {
             {selectedPo.status === 'draft' && (
               <button
                 onClick={() => updatePoStatus(selectedPo.id, 'ordered')}
-                className="px-4 py-2 bg-slate-600 hover:bg-yellow-700 text-white rounded-xl text-xs font-semibold transition-colors shadow"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors shadow"
               >
                 Place Order
               </button>
@@ -4652,7 +4652,7 @@ export default function Suppliers() {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors shadow"
+                className="px-5 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold transition-colors shadow"
               >
                 Confirm Receipt & Adjust Inventory
               </button>
@@ -4792,7 +4792,7 @@ export default function Suppliers() {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors shadow"
+                className="px-5 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold transition-colors shadow"
               >
                 Confirm Replacement
               </button>
@@ -4873,7 +4873,7 @@ export default function Suppliers() {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition-colors shadow"
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors shadow"
               >
                 Save Updates
               </button>

@@ -187,7 +187,7 @@ export default function Sidebar({
                 className="w-9 h-9 rounded-lg object-contain bg-slate-900 border border-slate-700 shrink-0"
               />
             ) : (
-              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-600 font-bold text-white shrink-0">
+              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 font-bold text-slate-800 shrink-0">
                 POS
               </div>
             )}
@@ -234,13 +234,13 @@ export default function Sidebar({
                     }}
                     className={`w-full flex items-center px-3 py-2.5 rounded-lg font-medium transition-all group text-left ${isActive
                       ? (role === 'super_admin'
-                        ? 'bg-slate-600 text-white shadow-lg shadow-indigo-600/30'
-                        : 'bg-slate-600 text-white shadow-lg shadow-slate-600/30')
-                      : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'
+                        ? 'bg-slate-100 text-slate-800 shadow-lg shadow-indigo-600/30'
+                        : 'bg-slate-100 text-slate-800 shadow-lg shadow-slate-600/30')
+                      : 'text-slate-400 hover:bg-slate-100 hover:text-slate-800'
                       }`}
                     title={isCollapsed ? item.label : ''}
                   >
-                    <div className={`shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`}>
+                    <div className={`shrink-0 ${isActive ? 'text-slate-800' : 'text-slate-400 group-hover:text-slate-800'}`}>
                       {item.icon}
                     </div>
                     {!isCollapsed && <span className="ml-3 truncate text-sm">{item.label}</span>}

@@ -369,9 +369,9 @@ export default function Wastage() {
           </button>
           <button
             onClick={exportWastagesToCSV}
-            className="bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-4 border border-slate-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
+            className="bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold py-2.5 px-4 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
           >
-            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             <span>Export CSV</span>
@@ -379,7 +379,7 @@ export default function Wastage() {
           {!isSuperAdmin && (
             <button
               onClick={() => { resetForm(); setShowAddModal(true); }}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2 w-full sm:w-auto justify-center"
+              className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2 w-full sm:w-auto justify-center"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -777,7 +777,7 @@ export default function Wastage() {
                 key={page}
                 onClick={() => setCurrentPage(page)}
                 className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${currentPage === page
-                  ? 'bg-rose-600 text-white shadow-xs'
+                  ? 'bg-rose-100 text-rose-800 shadow-xs'
                   : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
                   }`}
               >
@@ -948,7 +948,7 @@ export default function Wastage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold transition-colors shadow"
+                  className="px-5 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-sm font-semibold transition-colors shadow"
                 >
                   Confirm Adjustment
                 </button>
@@ -1089,7 +1089,7 @@ export default function Wastage() {
 
               <div className="pt-4 border-t border-slate-100 flex space-x-3 justify-end">
                 <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors">Cancel</button>
-                <button type="submit" className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-semibold transition-colors shadow">Save Changes</button>
+                <button type="submit" className="px-5 py-2 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-sm font-semibold transition-colors shadow">Save Changes</button>
               </div>
             </form>
           </div>

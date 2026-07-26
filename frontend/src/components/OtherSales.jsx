@@ -553,7 +553,7 @@ export default function OtherSales() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-8 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-black tracking-wide transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                  className="px-8 py-2.5 bg-slate-500 hover:bg-slate-600 text-white rounded-xl text-sm font-black tracking-wide transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
                   {submitting ? 'Processing...' : 'Complete Sale'}
                   {!submitting && (
@@ -577,7 +577,7 @@ export default function OtherSales() {
                   <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg">
                     {sales.length}
                   </span>
-                  <button onClick={exportPDF} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1 px-2.5 rounded-lg transition-colors flex items-center shadow-sm">
+                  <button onClick={exportPDF} className="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-bold py-1 px-2.5 rounded-lg transition-colors flex items-center shadow-sm">
                     PDF Export
                   </button>
                 </div>

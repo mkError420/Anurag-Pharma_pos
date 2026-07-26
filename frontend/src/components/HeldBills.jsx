@@ -737,7 +737,7 @@ export default function HeldBills({ onResume = () => { }, onHeldBillsChange = ()
                             {dueAmount > 0 && bill.status === 'held' && (
                               <button
                                 onClick={() => openPayDueModal(bill)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm inline-flex items-center space-x-1"
+                                className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm inline-flex items-center space-x-1"
                                 title="Collect Due Payment"
                               >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

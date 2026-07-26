@@ -1623,7 +1623,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   }
                 }}
                 disabled={submitting}
-                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center space-x-2"
+                className="flex-1 bg-slate-500 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center space-x-2"
               >
                 {submitting ? (
                   <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>

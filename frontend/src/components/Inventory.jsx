@@ -567,7 +567,7 @@ export default function Inventory() {
                 <button
                   onClick={() => { setSelectedLetter(''); setCurrentPage(1); }}
                   className={`px-2 py-1 rounded-lg text-xs font-bold transition-all ${selectedLetter === ''
-                    ? 'bg-indigo-600 text-white shadow-xs'
+                    ? 'bg-indigo-100 text-indigo-800 shadow-xs'
                     : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-800'
                     }`}
                 >
@@ -582,7 +582,7 @@ export default function Inventory() {
                       key={letter}
                       onClick={() => { setSelectedLetter(letter); setCurrentPage(1); }}
                       className={`min-w-[28px] px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${isSelected
-                        ? 'bg-indigo-600 text-white shadow-xs'
+                        ? 'bg-indigo-100 text-indigo-800 shadow-xs'
                         : count > 0
                           ? 'bg-indigo-50/50 text-indigo-700 hover:bg-indigo-50 border border-indigo-100/50'
                           : 'bg-slate-50/50 text-slate-400 opacity-60 cursor-pointer'
@@ -605,7 +605,7 @@ export default function Inventory() {
               {!isSuperAdmin && selectedProducts.length > 0 && (
                 <button
                   onClick={handleBulkDelete}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
+                  className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-semibold py-2.5 px-5 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

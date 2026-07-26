@@ -835,11 +835,11 @@ export default function ManualOrders() {
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setIsCashSalesVisible(!isCashSalesVisible)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+            className="bg-yellow-400 hover:bg-yellow-500 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {/* <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
+            </svg> */}
             <span>Cash Sales</span>
           </button>
           <button
@@ -940,7 +940,7 @@ export default function ManualOrders() {
                             <>
                               <button onClick={() => openEditOrder(order)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Edit</button>
                               <button onClick={() => handleHoldOrder(order.id)} className="text-amber-600 hover:text-amber-900 border border-amber-100 px-2 py-1 rounded font-medium">Hold</button>
-                              <button onClick={() => handleConfirmOrder(order.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded">Confirm</button>
+                              <button onClick={() => handleConfirmOrder(order.id)} className="bg-slate-500 hover:bg-slate-600 text-white font-bold px-2 py-1 rounded">Confirm</button>
                               <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
                             </>
                           ) : order.status === 'held' ? (
@@ -1083,7 +1083,7 @@ export default function ManualOrders() {
                       {order.status === 'pending' ? (
                         <>
                           <button onClick={() => openEditOrder(order)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">Edit</button>
-                          <button onClick={() => handleConfirmOrder(order.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-2xs">Confirm</button>
+                          <button onClick={() => handleConfirmOrder(order.id)} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold px-2.5 py-1 rounded-lg text-xs shadow-2xs">Confirm</button>
                           <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">Delete</button>
                         </>
                       ) : order.status === 'held' ? (
@@ -1094,7 +1094,7 @@ export default function ManualOrders() {
                       ) : (
                         <>
                           {parseFloat(order.current_sale_due || 0) > 0 && (
-                            <button onClick={() => openPayDueModal(order)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-2xs">Collect Due</button>
+                            <button onClick={() => openPayDueModal(order)} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold px-2.5 py-1 rounded-lg text-xs shadow-2xs">Collect Due</button>
                           )}
                           {order.sale_id && (
                             <button onClick={() => loadInvoiceDetails(order.sale_id)} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-lg text-xs font-bold shadow-2xs">Receipt</button>
@@ -1152,7 +1152,7 @@ export default function ManualOrders() {
                           {order.status === 'pending' ? (
                             <>
                               <button onClick={() => openEditOrder(order)} className="text-indigo-660 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Edit</button>
-                              <button onClick={() => handleConfirmOrder(order.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded">Confirm</button>
+                              <button onClick={() => handleConfirmOrder(order.id)} className="bg-slate-500 hover:bg-slate-600 text-white font-bold px-2 py-1 rounded">Confirm</button>
                               <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
                             </>
                           ) : order.status === 'held' ? (
@@ -1163,7 +1163,7 @@ export default function ManualOrders() {
                           ) : (
                             <>
                               {parseFloat(order.current_sale_due || 0) > 0 && (
-                                <button onClick={() => openPayDueModal(order)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded shadow-sm">Collect Due</button>
+                                <button onClick={() => openPayDueModal(order)} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold px-2 py-1 rounded shadow-sm">Collect Due</button>
                               )}
                               {order.sale_id && (
                                 <button onClick={() => loadInvoiceDetails(order.sale_id)} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1 rounded font-bold">Receipt</button>
@@ -2261,7 +2261,7 @@ export default function ManualOrders() {
               <div className="flex justify-center space-x-3 bg-slate-50 p-2 rounded-xl border border-slate-100">
                 <button
                   onClick={() => handlePrintReceipt('thermal')}
-                  className="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-4 rounded-xl text-xs shadow-sm flex items-center space-x-1.5"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2 px-4 rounded-xl text-xs shadow-sm flex items-center space-x-1.5"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -2270,7 +2270,7 @@ export default function ManualOrders() {
                 </button>
                 <button
                   onClick={() => handlePrintReceipt('regular')}
-                  className="bg-slate-600 hover:bg-slate-700 text-white font-semibold py-2 px-4 rounded-xl text-xs shadow-sm flex items-center space-x-1.5"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2 px-4 rounded-xl text-xs shadow-sm flex items-center space-x-1.5"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

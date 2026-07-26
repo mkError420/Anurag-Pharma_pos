@@ -41,7 +41,7 @@ const inputCls = "w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-
 function Toast({ alert, onDismiss }) {
   if (!alert) return null;
   return (
-    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-white text-sm font-semibold ${alert.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'
+    <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-semibold ${alert.type === 'success' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
       }`}>
       {alert.type === 'success' ? (
         <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -754,7 +754,7 @@ export default function ManageShops() {
             <div className="px-6 pb-6 flex gap-3">
               <button onClick={() => setShowDeleteModal(false)} className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors">Cancel</button>
               <button onClick={handleDelete} disabled={deleteConfirm !== selectedShop.name || submitting}
-                className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                className="flex-1 px-4 py-2.5 bg-rose-100 hover:bg-rose-200 disabled:opacity-40 disabled:cursor-not-allowed text-rose-800 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
                 {submitting && <span className="animate-spin w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full" />}
                 Delete Forever
               </button>

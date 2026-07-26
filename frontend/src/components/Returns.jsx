@@ -482,7 +482,7 @@ export default function Returns() {
             {!isSuperAdmin && (
             <button
                 onClick={() => { resetForm(); setShowAddModal(true); }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2 w-full sm:w-auto justify-center"
+                className="bg-yellow-400 hover:bg-yellow-500 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2 w-full sm:w-auto justify-center"
             >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -1025,7 +1025,7 @@ export default function Returns() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors shadow"
+                  className="px-5 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded-xl text-sm font-semibold transition-colors shadow"
                 >
                   Process Return
                 </button>

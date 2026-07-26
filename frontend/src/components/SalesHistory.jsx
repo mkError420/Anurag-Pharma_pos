@@ -1810,7 +1810,7 @@ export default function SalesHistory() {
                 key={page}
                 onClick={() => setCurrentPage(page)}
                 className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${currentPage === page
-                  ? 'bg-slate-600 text-white shadow-xs'
+                  ? 'bg-slate-100 text-slate-800 shadow-xs'
                   : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
                   }`}
               >
@@ -2730,7 +2730,7 @@ export default function SalesHistory() {
                     <div className="mt-5 flex justify-end space-x-3">
                       <button
                         onClick={downloadProfitPDF}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm transition-colors flex items-center space-x-2"
+                        className="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 px-6 rounded-xl text-sm transition-colors flex items-center space-x-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

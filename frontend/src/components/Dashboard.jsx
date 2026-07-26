@@ -366,14 +366,14 @@ export default function Dashboard({ onNavigate = () => { } }) {
               <a
                 href="#"
                 onClick={(e) => { e.preventDefault(); onNavigate('/shops'); }}
-                className="w-full flex items-center justify-center space-x-2 bg-slate-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm shadow transition-colors text-center"
+                className="w-full flex items-center justify-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 px-4 rounded-xl text-sm shadow transition-colors text-center"
               >
                 <span>Manage Tenant Shops</span>
               </a>
               <a
                 href="#"
                 onClick={(e) => { e.preventDefault(); onNavigate('/users'); }}
-                className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 px-4 rounded-xl text-sm shadow transition-colors text-center"
+                className="w-full flex items-center justify-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 px-4 rounded-xl text-sm shadow transition-colors text-center"
               >
                 <span>Manage System Users</span>
               </a>
@@ -780,7 +780,7 @@ export default function Dashboard({ onNavigate = () => { } }) {
               <a
                 href="#"
                 onClick={(e) => { e.preventDefault(); onNavigate('/checkout'); }}
-                className="w-full flex items-center justify-center space-x-2 bg-slate-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm shadow transition-colors"
+                className="w-full flex items-center justify-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 px-4 rounded-xl text-sm shadow transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
