@@ -163,7 +163,7 @@ export default function OtherSales() {
     return formData.items.reduce((total, item) => {
       const qty = parseFloat(item.quantity) || 0;
       const price = parseFloat(item.unit_price) || 0;
-      return total + (item.category === 'Mobile Banking Services' ? price : (qty * price));
+      return total + (item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? price : (qty * price));
     }, 0);
   };
 
@@ -268,6 +268,7 @@ export default function OtherSales() {
   const CATEGORIES = [
     'Wastage / Scrap',
     'Mobile Banking Services',
+    'Banking Transaction',
     'Miscellaneous'
   ];
 
@@ -312,7 +313,7 @@ export default function OtherSales() {
           {/* Quick Category Shortcuts */}
           <div>
             <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">Quick Entry Shortcuts</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <button
                 type="button"
                 onClick={() => handleQuickCategoryClick('Wastage / Scrap', 'Scrap/Wastage: ')}
@@ -339,6 +340,20 @@ export default function OtherSales() {
                 </div>
                 <span className="font-bold text-slate-800">Mobile Banking</span>
                 <span className="text-xs text-slate-500 mt-1">bKash, Nagad, Recharge</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleQuickCategoryClick('Banking Transaction', 'Transaction: ')}
+                className="flex flex-col items-start p-4 bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200 rounded-2xl hover:shadow-md hover:border-purple-300 transition-all text-left"
+              >
+                <div className="bg-purple-100 text-purple-600 p-2 rounded-lg mb-3">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                </div>
+                <span className="font-bold text-slate-800">Banking Transaction</span>
+                <span className="text-xs text-slate-500 mt-1">Bank Deposits, Withdrawals, Transfers</span>
               </button>
 
               <button
@@ -454,7 +469,7 @@ export default function OtherSales() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                            {item.category === 'Mobile Banking Services' ? 'Transaction Amount' : 'Quantity / Weight'}
+                            {item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? 'Transaction Amount' : 'Quantity / Weight'}
                           </label>
                           <div className="relative">
                             <input
@@ -467,13 +482,13 @@ export default function OtherSales() {
                               className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none pr-8"
                             />
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
-                              {item.category === 'Mobile Banking Services' ? '৳' : 'qty/kg'}
+                              {item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? '৳' : 'qty/kg'}
                             </span>
                           </div>
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                            {item.category === 'Mobile Banking Services' ? 'Commission / Fee (Profit)' : 'Unit Price / Amount (৳)'}
+                            {item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? 'Commission / Fee (Profit)' : 'Unit Price / Amount (৳)'}
                           </label>
                           <input
                             type="number"
@@ -482,7 +497,7 @@ export default function OtherSales() {
                             value={item.unit_price}
                             onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
                             required
-                            placeholder={item.category === 'Mobile Banking Services' ? 'Fee (Profit)' : 'Price'}
+                            placeholder={item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? 'Fee (Profit)' : 'Price'}
                             className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none"
                           />
                         </div>
@@ -490,7 +505,7 @@ export default function OtherSales() {
                           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-3">Item Subtotal (Profit):</span>
                           <span className="font-black text-emerald-600 text-lg">
                             {formatCurrency(
-                              item.category === 'Mobile Banking Services' 
+                              item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction'
                                 ? (parseFloat(item.unit_price) || 0) 
                                 : ((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0))
                             )}
@@ -530,7 +545,7 @@ export default function OtherSales() {
                 <div className="flex flex-col justify-end items-end space-y-3 bg-gradient-to-br from-emerald-50 to-emerald-100/30 p-5 rounded-2xl border border-emerald-100">
                   <div className="flex justify-between w-full text-emerald-800/70 text-sm">
                     <span className="font-semibold uppercase tracking-wider">
-                      {formData.items.every(i => i.category === 'Mobile Banking Services') ? 'Total Transactions:' : 'Total Items/Rows:'}
+                      {formData.items.every(i => i.category === 'Mobile Banking Services' || i.category === 'Banking Transaction') ? 'Total Transactions:' : 'Total Items/Rows:'}
                     </span>
                     <span className="font-bold">{formData.items.length}</span>
                   </div>
@@ -555,7 +570,7 @@ export default function OtherSales() {
                   disabled={submitting}
                   className="px-8 py-2.5 bg-slate-500 hover:bg-slate-600 text-white rounded-xl text-sm font-black tracking-wide transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
-                  {submitting ? 'Processing...' : 'Complete Sale'}
+                  {submitting ? 'Processing...' : 'Complete Transaction'}
                   {!submitting && (
                     <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
