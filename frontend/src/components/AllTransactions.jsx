@@ -3,7 +3,7 @@ import API_BASE_URL from '../config';
 
 export default function AllTransactions() {
   const userObj = JSON.parse(localStorage.getItem('user') || '{}');
-  
+
   const [transactions, setTransactions] = useState([]);
   const [summary, setSummary] = useState({
     total_sales: 0,
@@ -16,7 +16,7 @@ export default function AllTransactions() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // Filters
   const [activeTab, setActiveTab] = useState('all'); // all, purchase, sales, due, wastage, other_cost, other_sales
   const [search, setSearch] = useState('');
@@ -30,6 +30,9 @@ export default function AllTransactions() {
 
   // Selected Transaction for Modal
   const [selectedTx, setSelectedTx] = useState(null);
+  // Detailed data fetched for modal
+  const [detailData, setDetailData] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -132,6 +135,44 @@ export default function AllTransactions() {
     return '৳' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  // Fetch detailed data when a transaction is selected
+  const openTransactionDetail = async (tx) => {
+    setSelectedTx(tx);
+    setDetailData(null);
+    const token = localStorage.getItem('token');
+
+    try {
+      setDetailLoading(true);
+      if (tx.type === 'sales' || tx.type === 'due') {
+        // Fetch sale details with line items
+        const res = await fetch(`${API_BASE_URL}/sales/${tx.raw_id}?i=1`, {
+          headers: { Authorization: `Bearer ${token}`, 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDetailData({ kind: 'sale', ...data });
+        }
+      } else if (tx.type === 'purchase') {
+        // Fetch purchase order details with line items
+        const res = await fetch(`${API_BASE_URL}/suppliers/purchase-orders/${tx.raw_id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDetailData({ kind: 'purchase', ...data });
+        }
+      } else {
+        // For wastage, other_cost, other_sales — all info already in tx object
+        setDetailData({ kind: tx.type });
+      }
+    } catch (e) {
+      console.error('Failed to fetch detail', e);
+      setDetailData({ kind: tx.type }); // fall back to basic display
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   // Helper for Badge Styles by Type
   const getTypeBadge = (type) => {
     switch (type) {
@@ -186,11 +227,11 @@ export default function AllTransactions() {
     ]);
 
     const csvString = [headers.join(','), ...rows.map(e => e.join(','))].join('\r\n');
-    
+
     // UTF-8 BOM prefix for Excel symbol support
     const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    
+
     const link = document.createElement('a');
     const shopSlug = (userObj.shop_name || 'Shop').replace(/[^a-zA-Z0-9]/g, '_');
     const dateStr = new Date().toISOString().split('T')[0];
@@ -324,11 +365,11 @@ export default function AllTransactions() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+            {/*    <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
               </svg>
-            </div>
+            </div> */}
             <div>
               <h1 className="text-2xl font-bold text-slate-800 tracking-tight">All Transactions</h1>
               <p className="text-sm text-slate-500">Comprehensive transaction history including sales, purchases, dues, wastage, and other cashflows.</p>
@@ -443,21 +484,20 @@ export default function AllTransactions() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${
-                activeTab === tab.id
-                  ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${activeTab === tab.id
+                ? 'bg-slate-900 text-white shadow-md shadow-slate-900/10'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
             >
               {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Controls Bar: Search & Date Filters */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Controls Bar: Search & Date Filters — inline */}
+        <div className="flex flex-col md:flex-row items-center gap-3">
           {/* Search Box */}
-          <div className="relative w-full md:w-96">
+          <div className="relative w-full md:w-80 flex-shrink-0">
             <svg className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -480,53 +520,57 @@ export default function AllTransactions() {
             )}
           </div>
 
-          {/* Date Filter Buttons */}
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          {/* Date Filter Buttons — inline beside search */}
+          <div className="flex flex-wrap items-center gap-2">
             {[
               { id: 'all', label: 'All Time' },
               { id: 'today', label: 'Today' },
               { id: 'week', label: 'This Week' },
               { id: 'month', label: 'This Month' },
-              { id: 'custom', label: 'Custom Date' }
             ].map(df => (
               <button
                 key={df.id}
                 onClick={() => setDateFilter(df.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                  dateFilter === df.id
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${dateFilter === df.id
+                  ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
               >
                 {df.label}
               </button>
             ))}
-          </div>
-        </div>
 
-        {/* Custom Date Pickers */}
-        {dateFilter === 'custom' && (
-          <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+            {/* Custom Date — inline date pickers shown when active */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 font-medium">From:</span>
               <input
                 type="date"
                 value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-indigo-500"
+                onChange={(e) => { setCustomStartDate(e.target.value); setDateFilter('custom'); }}
+                className={`px-3 py-2 border rounded-xl text-xs text-slate-700 focus:outline-none focus:border-indigo-500 transition-all ${dateFilter === 'custom' && customStartDate ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 bg-white'}`}
+                placeholder="From"
               />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 font-medium">To:</span>
+              <span className="text-slate-400 text-xs font-medium">→</span>
               <input
                 type="date"
                 value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-indigo-500"
+                onChange={(e) => { setCustomEndDate(e.target.value); setDateFilter('custom'); }}
+                className={`px-3 py-2 border rounded-xl text-xs text-slate-700 focus:outline-none focus:border-indigo-500 transition-all ${dateFilter === 'custom' && customEndDate ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 bg-white'}`}
+                placeholder="To"
               />
+              {dateFilter === 'custom' && (customStartDate || customEndDate) && (
+                <button
+                  onClick={() => { setCustomStartDate(''); setCustomEndDate(''); setDateFilter('all'); }}
+                  className="text-slate-400 hover:text-rose-500 transition-colors"
+                  title="Clear custom date"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Main Transactions Table */}
@@ -612,8 +656,8 @@ export default function AllTransactions() {
                       </td>
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         <button
-                          onClick={() => setSelectedTx(t)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                          onClick={() => openTransactionDetail(t)}
+                          className="p-1.5 rounded-lg text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 transition-colors"
                           title="View Details"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -654,11 +698,10 @@ export default function AllTransactions() {
                   <button
                     key={page}
                     onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                      currentPage === page
-                        ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    }`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${currentPage === page
+                      ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
                   >
                     {page}
                   </button>
@@ -683,19 +726,42 @@ export default function AllTransactions() {
 
       {/* Detail Modal */}
       {selectedTx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-slate-800">{selectedTx.ref_id}</h3>
-                  {getTypeBadge(selectedTx.type)}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) { setSelectedTx(null); setDetailData(null); } }}>
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+
+            {/* Modal Header */}
+            <div className={`px-6 py-4 flex items-center justify-between border-b border-slate-100 ${selectedTx.type === 'sales' ? 'bg-emerald-50' :
+              selectedTx.type === 'purchase' ? 'bg-indigo-50' :
+                selectedTx.type === 'due' ? 'bg-amber-50' :
+                  selectedTx.type === 'wastage' ? 'bg-rose-50' :
+                    selectedTx.type === 'other_cost' ? 'bg-purple-50' :
+                      selectedTx.type === 'other_sales' ? 'bg-cyan-50' : 'bg-slate-50'
+              }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedTx.type === 'sales' ? 'bg-emerald-100 text-emerald-600' :
+                  selectedTx.type === 'purchase' ? 'bg-indigo-100 text-indigo-600' :
+                    selectedTx.type === 'due' ? 'bg-amber-100 text-amber-600' :
+                      selectedTx.type === 'wastage' ? 'bg-rose-100 text-rose-600' :
+                        selectedTx.type === 'other_cost' ? 'bg-purple-100 text-purple-600' :
+                          selectedTx.type === 'other_sales' ? 'bg-cyan-100 text-cyan-600' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                  {selectedTx.type === 'sales' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>}
+                  {selectedTx.type === 'purchase' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>}
+                  {selectedTx.type === 'due' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                  {selectedTx.type === 'wastage' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
+                  {(selectedTx.type === 'other_cost' || selectedTx.type === 'other_sales') && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>}
                 </div>
-                <p className="text-xs text-slate-500">{selectedTx.date}</p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-slate-800">{selectedTx.ref_id}</h3>
+                    {getTypeBadge(selectedTx.type)}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">{selectedTx.date}</p>
+                </div>
               </div>
               <button
-                onClick={() => setSelectedTx(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                onClick={() => { setSelectedTx(null); setDetailData(null); }}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-white/60 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -703,49 +769,234 @@ export default function AllTransactions() {
               </button>
             </div>
 
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between py-1 border-b border-slate-50">
-                <span className="text-slate-500">Party / Title</span>
-                <span className="font-semibold text-slate-800">{selectedTx.party_name}</span>
-              </div>
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
-              <div className="flex justify-between py-1 border-b border-slate-50">
-                <span className="text-slate-500">Category</span>
-                <span className="font-medium text-slate-700">{selectedTx.category}</span>
-              </div>
-
-              <div className="flex justify-between py-1 border-b border-slate-50">
-                <span className="text-slate-500">Payment Basis</span>
-                <span className="font-medium text-slate-700 capitalize">{selectedTx.payment_method}</span>
-              </div>
-
-              <div className="py-2 border-b border-slate-50">
-                <span className="text-slate-500 block mb-1">Description / Notes</span>
-                <p className="bg-slate-50 p-2.5 rounded-xl text-xs text-slate-700 leading-relaxed">{selectedTx.description}</p>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl space-y-2 mt-4">
-                <div className="flex justify-between text-slate-600">
-                  <span>Total Amount</span>
-                  <span className="font-bold text-slate-900">{formatMoney(selectedTx.amount)}</span>
+              {/* Loading spinner */}
+              {detailLoading && (
+                <div className="flex flex-col items-center justify-center py-10 gap-3">
+                  <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-sm text-slate-500">Loading transaction details...</p>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Paid Amount</span>
-                  <span className="font-medium text-emerald-600">{formatMoney(selectedTx.paid_amount)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600 pt-2 border-t border-slate-200">
-                  <span>Due Balance</span>
-                  <span className={`font-bold ${selectedTx.due_amount > 0 ? 'text-amber-600' : 'text-slate-600'}`}>
-                    {formatMoney(selectedTx.due_amount)}
-                  </span>
-                </div>
-              </div>
+              )}
+
+              {!detailLoading && (
+                <>
+                  {/* Basic Info Grid */}
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="bg-slate-50 rounded-xl p-3.5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Party / Title</p>
+                      <p className="font-semibold text-slate-800">{selectedTx.party_name || '—'}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3.5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Category</p>
+                      <p className="font-semibold text-slate-800">{selectedTx.category || '—'}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3.5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Payment Method</p>
+                      <p className="font-semibold text-slate-800 capitalize">{selectedTx.payment_method || '—'}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3.5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Status</p>
+                      <p className={`font-semibold capitalize ${selectedTx.status === 'completed' || selectedTx.status === 'income' ? 'text-emerald-600' :
+                        selectedTx.status === 'due' ? 'text-amber-600' :
+                          selectedTx.status === 'loss' || selectedTx.status === 'expense' ? 'text-rose-600' : 'text-slate-700'
+                        }`}>{selectedTx.status || '—'}</p>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  {selectedTx.description && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Description / Notes</p>
+                      <p className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-sm text-slate-700 leading-relaxed">{selectedTx.description}</p>
+                    </div>
+                  )}
+
+                  {/* Sale-specific extra info */}
+                  {detailData?.kind === 'sale' && (
+                    <>
+                      {/* Customer Info */}
+                      {(detailData.customer_name || detailData.customer_phone) && (
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-500 mb-2">Customer Info</p>
+                          <div className="flex flex-wrap gap-4 text-sm">
+                            {detailData.customer_name && <span className="font-semibold text-slate-800">👤 {detailData.customer_name}</span>}
+                            {detailData.customer_phone && <span className="text-slate-600">📞 {detailData.customer_phone}</span>}
+                            {detailData.customer_address && <span className="text-slate-600">📍 {detailData.customer_address}</span>}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sale Line Items */}
+                      {detailData.items && detailData.items.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Items Purchased</p>
+                          <div className="border border-slate-200 rounded-xl overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-slate-500">#</th>
+                                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-slate-500">Product</th>
+                                  <th className="py-2.5 px-3 text-center text-xs font-semibold text-slate-500">Qty</th>
+                                  <th className="py-2.5 px-3 text-right text-xs font-semibold text-slate-500">Unit Price</th>
+                                  <th className="py-2.5 px-3 text-right text-xs font-semibold text-slate-500">Subtotal</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {detailData.items.map((item, idx) => (
+                                  <tr key={idx} className="hover:bg-slate-50/60">
+                                    <td className="py-2.5 px-3 text-slate-400 text-xs">{idx + 1}</td>
+                                    <td className="py-2.5 px-3 font-medium text-slate-800">{item.product_name || item.name}</td>
+                                    <td className="py-2.5 px-3 text-center text-slate-600">{parseFloat(item.quantity)}</td>
+                                    <td className="py-2.5 px-3 text-right text-slate-600">{formatMoney(item.unit_price || item.price)}</td>
+                                    <td className="py-2.5 px-3 text-right font-semibold text-slate-800">{formatMoney((item.unit_price || item.price) * item.quantity)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sale Financial Breakdown */}
+                      <div className="bg-gradient-to-br from-emerald-50 to-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-sm">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Financial Breakdown</p>
+                        {parseFloat(detailData.subtotal || 0) > 0 && (
+                          <div className="flex justify-between text-slate-600">
+                            <span>Subtotal</span>
+                            <span className="font-medium">{formatMoney(detailData.subtotal)}</span>
+                          </div>
+                        )}
+                        {parseFloat(detailData.discount || 0) > 0 && (
+                          <div className="flex justify-between text-rose-500">
+                            <span>Discount</span>
+                            <span className="font-medium">- {formatMoney(detailData.discount)}</span>
+                          </div>
+                        )}
+                        {parseFloat(detailData.tax || 0) > 0 && (
+                          <div className="flex justify-between text-amber-600">
+                            <span>Tax</span>
+                            <span className="font-medium">+ {formatMoney(detailData.tax)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-slate-800 font-bold text-base pt-2 border-t border-slate-200">
+                          <span>Total</span>
+                          <span>{formatMoney(detailData.final_amount || selectedTx.amount)}</span>
+                        </div>
+                        <div className="flex justify-between text-emerald-600">
+                          <span>Paid</span>
+                          <span className="font-semibold">{formatMoney(detailData.paid_amount ?? selectedTx.paid_amount)}</span>
+                        </div>
+                        {parseFloat(detailData.due_amount ?? selectedTx.due_amount) > 0 && (
+                          <div className="flex justify-between text-amber-600 font-bold pt-1 border-t border-dashed border-slate-200">
+                            <span>Due Balance</span>
+                            <span>{formatMoney(detailData.due_amount ?? selectedTx.due_amount)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {detailData.staff_name && (
+                        <p className="text-xs text-slate-500 text-right">Processed by: <span className="font-semibold text-slate-700">{detailData.staff_name}</span></p>
+                      )}
+                    </>
+                  )}
+
+                  {/* Purchase-specific extra info */}
+                  {detailData?.kind === 'purchase' && (
+                    <>
+                      {/* PO Line Items */}
+                      {detailData.items && detailData.items.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Items Ordered</p>
+                          <div className="border border-slate-200 rounded-xl overflow-hidden">
+                            <table className="w-full text-sm">
+                              <thead className="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-slate-500">#</th>
+                                  <th className="py-2.5 px-3 text-left text-xs font-semibold text-slate-500">Product</th>
+                                  <th className="py-2.5 px-3 text-center text-xs font-semibold text-slate-500">Qty</th>
+                                  <th className="py-2.5 px-3 text-right text-xs font-semibold text-slate-500">Unit Cost</th>
+                                  <th className="py-2.5 px-3 text-right text-xs font-semibold text-slate-500">Subtotal</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {detailData.items.map((item, idx) => (
+                                  <tr key={idx} className="hover:bg-slate-50/60">
+                                    <td className="py-2.5 px-3 text-slate-400 text-xs">{idx + 1}</td>
+                                    <td className="py-2.5 px-3">
+                                      <span className="font-medium text-slate-800">{item.product_name || item.name}</span>
+                                      {item.product_sku && <span className="text-xs text-slate-400 ml-1">({item.product_sku})</span>}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-center text-slate-600">{parseFloat(item.quantity)}</td>
+                                    <td className="py-2.5 px-3 text-right text-slate-600">{formatMoney(item.unit_cost || item.cost_price)}</td>
+                                    <td className="py-2.5 px-3 text-right font-semibold text-slate-800">{formatMoney((item.unit_cost || item.cost_price) * item.quantity)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* PO Financial Summary */}
+                      <div className="bg-gradient-to-br from-indigo-50 to-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-sm">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Financial Summary</p>
+                        <div className="flex justify-between text-slate-800 font-bold text-base">
+                          <span>Total Amount</span>
+                          <span>{formatMoney(detailData.total_amount || selectedTx.amount)}</span>
+                        </div>
+                        <div className="flex justify-between text-emerald-600">
+                          <span>Paid</span>
+                          <span className="font-semibold">{formatMoney(detailData.paid_amount ?? selectedTx.paid_amount)}</span>
+                        </div>
+                        {parseFloat(detailData.due_amount ?? selectedTx.due_amount) > 0 && (
+                          <div className="flex justify-between text-amber-600 font-bold pt-1 border-t border-dashed border-slate-200">
+                            <span>Due Balance</span>
+                            <span>{formatMoney(detailData.due_amount ?? selectedTx.due_amount)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {(detailData.status || detailData.payment_basis) && (
+                        <div className="flex gap-4 text-xs text-slate-500">
+                          {detailData.status && <span>Status: <span className="font-semibold text-slate-700 capitalize">{detailData.status}</span></span>}
+                          {detailData.payment_basis && <span>Payment Basis: <span className="font-semibold text-slate-700 capitalize">{detailData.payment_basis}</span></span>}
+                          {detailData.order_date && <span>Order Date: <span className="font-semibold text-slate-700">{detailData.order_date}</span></span>}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Fallback Financial Summary (for wastage, other_cost, other_sales and all non-detail types) */}
+                  {(!detailData || (detailData.kind !== 'sale' && detailData.kind !== 'purchase')) && !detailLoading && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-sm">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Financial Summary</p>
+                      <div className="flex justify-between text-slate-800 font-bold text-base">
+                        <span>Total Amount</span>
+                        <span>{formatMoney(selectedTx.amount)}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-600">
+                        <span>Paid Amount</span>
+                        <span className="font-semibold">{formatMoney(selectedTx.paid_amount)}</span>
+                      </div>
+                      {parseFloat(selectedTx.due_amount) > 0 && (
+                        <div className="flex justify-between text-amber-600 font-bold pt-1 border-t border-dashed border-slate-200">
+                          <span>Due Balance</span>
+                          <span>{formatMoney(selectedTx.due_amount)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
               <button
-                onClick={() => setSelectedTx(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition-colors"
+                onClick={() => { setSelectedTx(null); setDetailData(null); }}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-xl transition-colors"
               >
                 Close
               </button>
