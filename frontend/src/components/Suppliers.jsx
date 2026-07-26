@@ -2586,9 +2586,9 @@ export default function Suppliers() {
                   <input type="date" value={poEndDate} onChange={(e) => { setPoEndDate(e.target.value); setPoPage(1); }} className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 flex-1 sm:flex-initial min-w-[125px]" />
                 </div>
               </div>
-              <button 
-                onClick={fetchFilteredPOItems} 
-                disabled={!poStartDate || !poEndDate || filteredPOLoading} 
+              <button
+                onClick={fetchFilteredPOItems}
+                disabled={!poStartDate || !poEndDate || filteredPOLoading}
                 className={`${!poStartDate || !poEndDate ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'} font-bold py-2 px-4 rounded-xl text-xs sm:text-sm transition-colors border flex items-center justify-center space-x-1.5 whitespace-nowrap shadow-xs w-full sm:w-auto`}
               >
                 {filteredPOLoading ? (<div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-emerald-600 mr-1"></div>) : (<svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3181,16 +3181,16 @@ export default function Suppliers() {
       {showCostLogViewModal && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-10 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden mb-10">
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-5 flex items-center justify-between">
+            <div className="bg-gray-400 px-6 py-5 flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="bg-white/20 p-2 rounded-xl">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-white font-extrabold text-lg tracking-tight">Cost Price Log Details</h2>
-                  <p className="text-indigo-100 text-xs mt-0.5">Log ID: #{selectedCostLog?.id}</p>
+                  <h2 className="text-black font-extrabold text-lg tracking-tight">Cost Price Log Details</h2>
+                  <p className="text-black text-xs mt-0.5">Log ID: #{selectedCostLog?.id}</p>
                 </div>
               </div>
               <button
