@@ -355,6 +355,8 @@ $routes = [
         '/^other-costs\/(\d+)$/' => function($args, $data) { OtherController::updateOtherCost($args[0], $data); },
         // Other Sales
         '/^other-sales\/(\d+)$/' => function($args, $data) { OtherSalesController::updateOtherSale($args[0], $data); },
+        // Wastages
+        '/^wastages\/(\d+)$/' => function($args, $data) { OtherController::updateWastage($args[0], $data); },
         // Shops
         '/^shops\/my-shop$/' => function($args, $data) { OtherController::updateMyShop($data); },
         '/^shops\/(\d+)\/status$/' => function($args, $data) { OtherController::updateShopStatus($args[0], $data); },
