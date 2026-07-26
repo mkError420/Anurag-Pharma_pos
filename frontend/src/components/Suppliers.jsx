@@ -45,7 +45,7 @@ export default function Suppliers() {
   // Product Edit states (inside supplied products profile tab)
   const [showEditProductModal, setShowEditProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
-  const [productEditForm, setProductEditForm] = useState({ name: '', sku: '', cost_price: '', price: '', stock_quantity: '', category: '' });
+  const [productEditForm, setProductEditForm] = useState({ name: '', sku: '', cost_price: '', price: '', stock_quantity: '', category: '', unit: 'piece' });
   const [updatingProduct, setUpdatingProduct] = useState(false);
   const [replaceFormData, setReplaceFormData] = useState({ quantity: '', new_expiry_date: '', notes: '' });
 
@@ -1260,7 +1260,8 @@ export default function Suppliers() {
           cost_price: parseFloat(productEditForm.cost_price),
           price: parseFloat(productEditForm.price),
           stock_quantity: parseFloat(productEditForm.stock_quantity),
-          category: productEditForm.category
+          category: productEditForm.category,
+          unit: productEditForm.unit || 'piece'
         })
       });
 
@@ -2060,7 +2061,8 @@ export default function Suppliers() {
                                                     cost_price: fullProd.cost_price,
                                                     price: fullProd.price,
                                                     stock_quantity: fullProd.stock_quantity,
-                                                    category: fullProd.category || ''
+                                                    category: fullProd.category || '',
+                                                    unit: fullProd.unit || 'piece'
                                                   });
                                                   setShowEditProductModal(true);
                                                 }
@@ -3485,21 +3487,44 @@ export default function Suppliers() {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Category</label>
-              <input
-                list="suppliers-edit-categories-list"
-                type="text"
-                value={productEditForm.category || ''}
-                onChange={(e) => setProductEditForm(prev => ({ ...prev, category: e.target.value }))}
-                placeholder="Product category"
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold"
-              />
-              <datalist id="suppliers-edit-categories-list">
-                {Array.from(new Set(productsList.map(p => p.category).filter(Boolean))).map(cat => (
-                  <option key={cat} value={cat} />
-                ))}
-              </datalist>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Unit *</label>
+                <input
+                  list="suppliers-edit-unit-list"
+                  type="text"
+                  value={productEditForm.unit || 'piece'}
+                  onChange={(e) => setProductEditForm(prev => ({ ...prev, unit: e.target.value }))}
+                  placeholder="e.g. piece, kg, box"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-medium"
+                />
+                <datalist id="suppliers-edit-unit-list">
+                  <option value="piece" />
+                  <option value="kg" />
+                  <option value="gm" />
+                  <option value="liter" />
+                  <option value="packet" />
+                  <option value="box" />
+                  <option value="dozen" />
+                  <option value="meter" />
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Category</label>
+                <input
+                  list="suppliers-edit-categories-list"
+                  type="text"
+                  value={productEditForm.category || ''}
+                  onChange={(e) => setProductEditForm(prev => ({ ...prev, category: e.target.value }))}
+                  placeholder="Product category"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold"
+                />
+                <datalist id="suppliers-edit-categories-list">
+                  {Array.from(new Set(productsList.map(p => p.category).filter(Boolean))).map(cat => (
+                    <option key={cat} value={cat} />
+                  ))}
+                </datalist>
+              </div>
             </div>
 
             <div className="pt-4 border-t border-slate-100 flex space-x-3 justify-end">

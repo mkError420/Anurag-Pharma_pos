@@ -1137,17 +1137,25 @@ export default function Inventory() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Unit *</label>
-                      <select
+                      <input
+                        list="unit-options-add"
+                        type="text"
                         name="unit"
                         value={formData.unit}
                         onChange={handleInputChange}
+                        placeholder="e.g. piece, kg, box"
                         className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none bg-white font-medium"
-                      >
-                        <option value="piece">Piece</option>
-                        <option value="kg">kg</option>
-                        <option value="gm">gm</option>
-                        <option value="liter">Liter</option>
-                      </select>
+                      />
+                      <datalist id="unit-options-add">
+                        <option value="piece" />
+                        <option value="kg" />
+                        <option value="gm" />
+                        <option value="liter" />
+                        <option value="packet" />
+                        <option value="box" />
+                        <option value="dozen" />
+                        <option value="meter" />
+                      </datalist>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Low Stock ({formData.unit || 'piece'})</label>
@@ -1306,17 +1314,25 @@ export default function Inventory() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Unit *</label>
-                      <select
+                      <input
+                        list="unit-options-edit"
+                        type="text"
                         name="unit"
                         value={formData.unit}
                         onChange={handleInputChange}
+                        placeholder="e.g. piece, kg, box"
                         className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none bg-white font-medium"
-                      >
-                        <option value="piece">Piece</option>
-                        <option value="kg">kg</option>
-                        <option value="gm">gm</option>
-                        <option value="liter">Liter</option>
-                      </select>
+                      />
+                      <datalist id="unit-options-edit">
+                        <option value="piece" />
+                        <option value="kg" />
+                        <option value="gm" />
+                        <option value="liter" />
+                        <option value="packet" />
+                        <option value="box" />
+                        <option value="dozen" />
+                        <option value="meter" />
+                      </datalist>
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Low Stock ({formData.unit || 'piece'})</label>

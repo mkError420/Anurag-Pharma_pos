@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import API_BASE_URL from '../config';
@@ -112,38 +112,45 @@ export default function Customers() {
   const [csvSuccessMessage, setCsvSuccessMessage] = useState('');
 
   const handleHistoryPrint = (filter = 'all') => {
-    setHistoryPrintFilter(filter);
-    setShowHistoryPrintDropdown(null);
-
-    // Use requestAnimationFrame to allow React to re-render the print area with the filter applied
-    window.requestAnimationFrame(() => {
-      const handleAfterPrint = () => {
-        document.body.classList.remove('print-mode-history');
-        window.removeEventListener('afterprint', handleAfterPrint);
-      };
-
-      window.addEventListener('afterprint', handleAfterPrint);
-      document.body.classList.add('print-mode-history');
-
-      window.requestAnimationFrame(() => window.print());
+    flushSync(() => {
+      setHistoryPrintFilter(filter);
+      setShowHistoryPrintDropdown(null);
     });
+
+    document.body.classList.remove('print-mode-thermal');
+    document.body.classList.add('print-mode-history');
+
+    const handleAfterPrint = () => {
+      document.body.classList.remove('print-mode-history');
+      window.removeEventListener('afterprint', handleAfterPrint);
+      window.removeEventListener('focus', handleAfterPrint);
+    };
+
+    window.addEventListener('afterprint', handleAfterPrint);
+    window.addEventListener('focus', handleAfterPrint, { once: true });
+
+    window.print();
   };
 
   const handleHistoryThermalPrint = (filter = 'all') => {
-    setHistoryPrintFilter(filter);
-    setShowHistoryPrintDropdown(null);
-
-    window.requestAnimationFrame(() => {
-      const handleAfterPrint = () => {
-        document.body.classList.remove('print-mode-thermal');
-        window.removeEventListener('afterprint', handleAfterPrint);
-      };
-
-      window.addEventListener('afterprint', handleAfterPrint);
-      document.body.classList.add('print-mode-thermal');
-
-      window.requestAnimationFrame(() => window.print());
+    flushSync(() => {
+      setHistoryPrintFilter(filter);
+      setShowHistoryPrintDropdown(null);
     });
+
+    document.body.classList.remove('print-mode-history');
+    document.body.classList.add('print-mode-thermal');
+
+    const handleAfterPrint = () => {
+      document.body.classList.remove('print-mode-thermal');
+      window.removeEventListener('afterprint', handleAfterPrint);
+      window.removeEventListener('focus', handleAfterPrint);
+    };
+
+    window.addEventListener('afterprint', handleAfterPrint);
+    window.addEventListener('focus', handleAfterPrint, { once: true });
+
+    window.print();
   };
 
   const fetchCustomers = async () => {
@@ -188,8 +195,10 @@ export default function Customers() {
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
     };
   }, []);
 
