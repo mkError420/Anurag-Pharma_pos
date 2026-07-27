@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import Sidebar from './Sidebar';
-import ThemeToggle from './ThemeToggle';
 
 export default function DashboardLayout({
   children,
@@ -10,7 +9,8 @@ export default function DashboardLayout({
   currentPath = '/dashboard',
   onNavigate,
   onLogout = () => console.log('Logged out'),
-  heldBillsCount = 0
+  heldBillsCount = 0,
+  logoColor = '#C4A484'
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -32,7 +32,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden font-sans text-slate-900 dark:text-slate-100">
+    <div className="flex h-screen bg-[#dfd7c1] dark:bg-slate-900 overflow-hidden font-sans text-slate-900 dark:text-slate-100">
       
       {/* 1. Left Sidebar Navigation */}
       <Sidebar
@@ -66,7 +66,10 @@ export default function DashboardLayout({
               </svg>
             </button>
             <div className="hidden sm:block">
-              <h1 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              <h1 
+                className="text-sm font-semibold uppercase tracking-wider"
+                style={{ color: logoColor }}
+              >
                 {user.shop_name}
               </h1>
             </div>
@@ -75,9 +78,6 @@ export default function DashboardLayout({
           {/* Right Header: Actions, Alerts, and Profile */}
           <div className="flex items-center space-x-4">
             
-            {/* Theme Toggle Button */}
-            <ThemeToggle />
-
             {/* Stock Alerts Bell Notification */}
             {user.role !== 'super_admin' && (() => {
               const totalAlerts = lowStockItems.length + expiryItems.length;
@@ -240,7 +240,7 @@ export default function DashboardLayout({
         </header>
 
         {/* 3. Main Dashboard Workspace Content Area */}
-        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900 focus:outline-none p-6">
+        <main className="flex-1 overflow-y-auto bg-[#dfd7c1] dark:bg-slate-900 focus:outline-none p-6">
           <div className="max-w-7xl mx-auto">
             {React.cloneElement(children, { onNavigate })}
           </div>

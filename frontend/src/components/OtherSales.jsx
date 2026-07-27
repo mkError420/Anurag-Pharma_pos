@@ -286,7 +286,7 @@ export default function OtherSales() {
       {/* Title Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Other Sales</h2>
+          <h2 className="text-2xl font-bold text-slate-800">Inflow & Transactions</h2>
           <p className="text-sm text-slate-500">Record sales of miscellaneous goods, scrap, or services</p>
         </div>
         {isSuperAdmin && (

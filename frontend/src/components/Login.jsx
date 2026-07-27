@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import API_BASE_URL from '../config';
-import ThemeToggle from './ThemeToggle';
 
 export default function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -54,11 +53,6 @@ export default function Login({ onLoginSuccess }) {
 
       {/* Login Card */}
       <div className="relative z-10 w-full max-w-md mx-4">
-
-        {/* Theme Toggle */}
-        <div className="absolute top-0 right-0">
-          <ThemeToggle />
-        </div>
 
         {/* Brand */}
         <div className="text-center mb-8">
