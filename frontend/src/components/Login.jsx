@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import API_BASE_URL from '../config';
+import ThemeToggle from './ThemeToggle';
 
 export default function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
@@ -44,15 +45,20 @@ export default function Login({ onLoginSuccess }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 dark:bg-slate-900 relative overflow-hidden">
 
       {/* Animated background blobs */}
-      <div className="absolute top-[-10%] left-[-5%] w-96 h-96 bg-slate-600/20 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-[-10%] right-[-5%] w-96 h-96 bg-violet-600/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-900/10 rounded-full blur-3xl" />
+      <div className="absolute top-[-10%] left-[-5%] w-96 h-96 bg-slate-600/20 dark:bg-slate-700/20 rounded-full blur-3xl animate-pulse" />
+      <div className="absolute bottom-[-10%] right-[-5%] w-96 h-96 bg-violet-600/20 dark:bg-violet-700/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-900/10 dark:bg-indigo-800/10 rounded-full blur-3xl" />
 
       {/* Login Card */}
       <div className="relative z-10 w-full max-w-md mx-4">
+
+        {/* Theme Toggle */}
+        <div className="absolute top-0 right-0">
+          <ThemeToggle />
+        </div>
 
         {/* Brand */}
         <div className="text-center mb-8">
@@ -61,33 +67,33 @@ export default function Login({ onLoginSuccess }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">NextPOS++</h1>
-          <p className="text-slate-400 mt-1 text-sm">Sign in to your account to continue</p>
+          <h1 className="text-3xl font-bold text-white dark:text-slate-100 tracking-tight">NextPOS++</h1>
+          <p className="text-slate-400 dark:text-slate-500 mt-1 text-sm">Sign in to your account to continue</p>
         </div>
 
         {/* Card */}
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-700/60 rounded-2xl p-8 shadow-2xl">
+        <div className="bg-slate-900/80 dark:bg-slate-800/80 backdrop-blur-xl border border-slate-700/60 dark:border-slate-700 rounded-2xl p-8 shadow-2xl">
 
           <form onSubmit={handleSubmit} className="space-y-5">
 
             {/* Error Message */}
             {error && (
               <div className="flex items-start gap-3 bg-rose-500/10 border border-rose-500/30 rounded-xl p-4">
-                <svg className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-rose-400 dark:text-rose-300 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-rose-300 text-sm">{error}</p>
+                <p className="text-rose-300 dark:text-rose-200 text-sm">{error}</p>
               </div>
             )}
 
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-slate-300 dark:text-slate-400 mb-2">
                 Email address
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
                   </svg>
                 </div>
@@ -99,19 +105,19 @@ export default function Login({ onLoginSuccess }) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@example.com"
-                  className="w-full bg-slate-800/60 border border-slate-600/60 text-white placeholder-slate-500 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-slate-800/60 dark:bg-slate-700/60 border border-slate-600/60 dark:border-slate-600 text-white dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 />
               </div>
             </div>
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-slate-300 dark:text-slate-400 mb-2">
                 Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                 </div>
@@ -123,12 +129,12 @@ export default function Login({ onLoginSuccess }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-800/60 border border-slate-600/60 text-white placeholder-slate-500 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full bg-slate-800/60 dark:bg-slate-700/60 border border-slate-600/60 dark:border-slate-600 text-white dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-300 dark:hover:text-slate-200 transition-colors"
                 >
                   {showPassword ? (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -210,9 +216,9 @@ export default function Login({ onLoginSuccess }) {
           </div> */}
         </div>
 
-        <p className="text-center text-slate-600 text-xs mt-6">
+        <p className="text-center text-slate-600 dark:text-slate-500 text-xs mt-6">
           Multi-Tenant Point of Sale System &copy; {new Date().getFullYear()}
-          developed by <a href="https://its-mk.netlify.app/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-400 transition-colors">MK</a>
+          developed by <a href="https://its-mk.netlify.app/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-400 dark:hover:text-indigo-300 transition-colors">MK</a>
         </p>
       </div>
     </div>

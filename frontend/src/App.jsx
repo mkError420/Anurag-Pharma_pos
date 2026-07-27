@@ -19,6 +19,7 @@ import Wastage from './components/Wastage';
 import Returns from './components/Returns';
 import ManualOrders from './components/ManualOrders';
 import AllTransactions from './components/AllTransactions';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 import API_BASE_URL from './config';
 
@@ -291,43 +292,47 @@ export default function App() {
   // Not logged in — show Login page (with optional suspension message)
   if (!user) {
     return (
-      <>
-        {suspendedMessage && (
-          <div className="fixed top-0 inset-x-0 z-50 flex items-center justify-center p-4 bg-slate-950">
-            <div className="w-full max-w-md bg-rose-900/40 border border-rose-500/40 rounded-2xl p-6 text-center shadow-2xl backdrop-blur-sm">
-              <div className="w-14 h-14 rounded-2xl bg-rose-500/20 flex items-center justify-center mx-auto mb-4">
-                <svg className="w-7 h-7 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                </svg>
+      <ThemeProvider>
+        <>
+          {suspendedMessage && (
+            <div className="fixed top-0 inset-x-0 z-50 flex items-center justify-center p-4 bg-slate-950">
+              <div className="w-full max-w-md bg-rose-900/40 border border-rose-500/40 rounded-2xl p-6 text-center shadow-2xl backdrop-blur-sm">
+                <div className="w-14 h-14 rounded-2xl bg-rose-500/20 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-7 h-7 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-rose-300 mb-1">Shop Suspended</h3>
+                <p className="text-sm text-rose-200/80 mb-4">{suspendedMessage}</p>
+                <button
+                  onClick={() => setSuspendedMessage('')}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                >
+                  Go to Login
+                </button>
               </div>
-              <h3 className="text-lg font-bold text-rose-300 mb-1">Shop Suspended</h3>
-              <p className="text-sm text-rose-200/80 mb-4">{suspendedMessage}</p>
-              <button
-                onClick={() => setSuspendedMessage('')}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-xl transition-colors"
-              >
-                Go to Login
-              </button>
             </div>
-          </div>
-        )}
-        <Login onLoginSuccess={handleLoginSuccess} />
-      </>
+          )}
+          <Login onLoginSuccess={handleLoginSuccess} />
+        </>
+      </ThemeProvider>
     );
   }
 
   // Logged in — show dashboard
   return (
-    <DashboardLayout
-      user={user}
-      lowStockItems={lowStockAlerts}
-      expiryItems={expiryAlerts}
-      heldBillsCount={heldBillsCount}
-      currentPath={currentPath}
-      onNavigate={(path) => setCurrentPath(path)}
-      onLogout={handleLogout}
-    >
-      {renderPageContent()}
-    </DashboardLayout>
+    <ThemeProvider>
+      <DashboardLayout
+        user={user}
+        lowStockItems={lowStockAlerts}
+        expiryItems={expiryAlerts}
+        heldBillsCount={heldBillsCount}
+        currentPath={currentPath}
+        onNavigate={(path) => setCurrentPath(path)}
+        onLogout={handleLogout}
+      >
+        {renderPageContent()}
+      </DashboardLayout>
+    </ThemeProvider>
   );
 }

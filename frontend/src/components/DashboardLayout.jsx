@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Sidebar from './Sidebar';
+import ThemeToggle from './ThemeToggle';
 
 export default function DashboardLayout({
   children,
@@ -31,7 +32,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-900">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden font-sans text-slate-900 dark:text-slate-100">
       
       {/* 1. Left Sidebar Navigation */}
       <Sidebar
@@ -51,13 +52,13 @@ export default function DashboardLayout({
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         
         {/* Top Header Bar */}
-        <header className="flex items-center justify-between h-16 px-4 bg-white border-b border-slate-200 shrink-0">
+        <header className="flex items-center justify-between h-16 px-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
           
           {/* Left Header: Mobile Toggle & Context Info */}
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 focus:outline-none lg:hidden"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none lg:hidden"
               title="Open Menu"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -65,7 +66,7 @@ export default function DashboardLayout({
               </svg>
             </button>
             <div className="hidden sm:block">
-              <h1 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+              <h1 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 {user.shop_name}
               </h1>
             </div>
@@ -74,6 +75,9 @@ export default function DashboardLayout({
           {/* Right Header: Actions, Alerts, and Profile */}
           <div className="flex items-center space-x-4">
             
+            {/* Theme Toggle Button */}
+            <ThemeToggle />
+
             {/* Stock Alerts Bell Notification */}
             {user.role !== 'super_admin' && (() => {
               const totalAlerts = lowStockItems.length + expiryItems.length;
@@ -84,7 +88,7 @@ export default function DashboardLayout({
                       setShowNotifications(!showNotifications);
                       setShowProfileDropdown(false);
                     }}
-                    className={`relative p-2 text-slate-500 rounded-full hover:bg-slate-100 focus:outline-none ${
+                    className={`relative p-2 text-slate-500 dark:text-slate-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none ${
                       totalAlerts > 0 ? 'text-amber-500 hover:text-amber-600' : ''
                     }`}
                     title="Stock & Expiry Notifications"
@@ -104,32 +108,32 @@ export default function DashboardLayout({
 
                   {/* Notifications Dropdown Drawer */}
                   {showNotifications && (
-                    <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                      <div className="px-4 py-3 font-semibold text-slate-700 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                    <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+                      <div className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                         <span>Inventory Alerts</span>
-                        <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                        <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full">
                           {totalAlerts} Warnings
                         </span>
                       </div>
-                      <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
+                      <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
                         {totalAlerts === 0 ? (
-                          <div className="p-4 text-center text-slate-400 text-sm">
+                          <div className="p-4 text-center text-slate-400 dark:text-slate-500 text-sm">
                             All products are stocked & fresh!
                           </div>
                         ) : (
                           <>
                             {/* Low Stock Items */}
                             {lowStockItems.map((item) => (
-                              <div key={`low-${item.id}`} className="p-4 hover:bg-slate-50 transition-colors">
+                              <div key={`low-${item.id}`} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                                 <div className="flex justify-between items-start">
-                                  <h4 className="text-sm font-medium text-slate-800 truncate pr-2">
+                                  <h4 className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate pr-2">
                                     {item.name}
                                   </h4>
                                   <span className="text-[10px] text-rose-500 font-bold bg-rose-50 px-1.5 py-0.5 rounded shrink-0 uppercase border border-rose-100">
                                     Low Stock
                                   </span>
                                 </div>
-                                <p className="text-xs text-slate-500 mt-1">
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                   Qty: {item.stock_quantity} (Below threshold {item.low_stock_threshold}).
                                 </p>
                               </div>
@@ -145,7 +149,7 @@ export default function DashboardLayout({
                               const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
                               return (
-                                <div key={`exp-${item.id}`} className="p-4 hover:bg-slate-50 transition-colors">
+                                <div key={`exp-${item.id}`} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                                   <div className="flex justify-between items-start">
                                     <h4 className="text-sm font-medium text-slate-800 truncate pr-2">
                                       {item.name}
@@ -158,7 +162,7 @@ export default function DashboardLayout({
                                       {isExpired ? 'Expired' : 'Expiring'}
                                     </span>
                                   </div>
-                                  <p className="text-xs text-slate-550 mt-1">
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                     {isExpired 
                                       ? `Expired on ${expiry.toLocaleDateString()}` 
                                       : `Expiring in ${diffDays} days (${expiry.toLocaleDateString()})`
@@ -170,13 +174,13 @@ export default function DashboardLayout({
                           </>
                         )}
                       </div>
-                      <div className="p-2 bg-slate-50 border-t border-slate-200 text-center">
+                      <div className="p-2 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700 text-center">
                         <button
                           onClick={() => {
                             if (onNavigate) onNavigate('/products');
                             setShowNotifications(false);
                           }}
-                          className="w-full text-xs font-semibold text-indigo-600 hover:text-indigo-800 py-1"
+                          className="w-full text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 py-1"
                         >
                           View Low Stock & Expiring Inventory
                         </button>
@@ -194,13 +198,13 @@ export default function DashboardLayout({
                   setShowProfileDropdown(!showProfileDropdown);
                   setShowNotifications(false);
                 }}
-                className="flex items-center space-x-3 focus:outline-none hover:opacity-90 transition-opacity"
+                className="flex items-center space-x-3 focus:outline-none hover:opacity-90 transition-opacity dark:hover:opacity-80"
               >
-                <div className="flex items-center justify-center w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-bold border border-indigo-200">
+                <div className="flex items-center justify-center w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-700">
                   {user.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="hidden md:block text-left">
-                  <p className="text-sm font-semibold text-slate-800">{user.name}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{user.name}</p>
                   <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${getRoleBadge(user.role)}`}>
                     {user.role.replace('_', ' ')}
                   </span>
@@ -208,23 +212,23 @@ export default function DashboardLayout({
               </button>
 
               {showProfileDropdown && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1 overflow-hidden">
-                  <div className="px-4 py-2 border-b border-slate-100 md:hidden">
-                    <p className="text-sm font-semibold text-slate-800">{user.name}</p>
-                    <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 py-1 overflow-hidden">
+                  <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700 md:hidden">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{user.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
                   </div>
                   <button
                     onClick={() => {
                       if (onNavigate) onNavigate('/settings');
                       setShowProfileDropdown(false);
                     }}
-                    className="flex w-full items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 text-left"
+                    className="flex w-full items-center px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 text-left"
                   >
                     Shop Settings
                   </button>
                   <button
                     onClick={onLogout}
-                    className="flex w-full items-center px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 border-t border-slate-100 text-left font-medium"
+                    className="flex w-full items-center px-4 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 border-t border-slate-100 dark:border-slate-700 text-left font-medium"
                   >
                     Sign Out
                   </button>
@@ -236,7 +240,7 @@ export default function DashboardLayout({
         </header>
 
         {/* 3. Main Dashboard Workspace Content Area */}
-        <main className="flex-1 overflow-y-auto bg-slate-50 focus:outline-none p-6">
+        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900 focus:outline-none p-6">
           <div className="max-w-7xl mx-auto">
             {React.cloneElement(children, { onNavigate })}
           </div>
