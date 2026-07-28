@@ -258,8 +258,12 @@ export default function ManageStaff() {
       const token = localStorage.getItem('token');
       const startDate = report.month + '-01';
       const endDate = report.month + '-31';
+      let url = `${API_BASE_URL}/attendance?start_date=${startDate}&end_date=${endDate}&user_id=${report.staff_id}`;
+      if (userRole === 'super_admin' && selectedShop) {
+        url += `&shop_id=${selectedShop}`;
+      }
       
-      const response = await fetch(`${API_BASE_URL}/attendance?start_date=${startDate}&end_date=${endDate}&user_id=${report.staff_id}`, {
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to retrieve staff attendance details.');
@@ -279,8 +283,12 @@ export default function ManageStaff() {
       const token = localStorage.getItem('token');
       const startDate = report.month + '-01';
       const endDate = report.month + '-31';
+      let url = `${API_BASE_URL}/attendance?start_date=${startDate}&end_date=${endDate}&user_id=${report.staff_id}`;
+      if (userRole === 'super_admin' && selectedShop) {
+        url += `&shop_id=${selectedShop}`;
+      }
       
-      const response = await fetch(`${API_BASE_URL}/attendance?start_date=${startDate}&end_date=${endDate}&user_id=${report.staff_id}`, {
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to retrieve staff attendance details.');

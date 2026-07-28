@@ -19,9 +19,9 @@ export default function DashboardLayout({
   
   // Theme colors
   const themeColors = [
-    { name: 'beige', bg: '#fff9f3', logo: '#F6EFE9' },
-    { name: 'green', bg: '#c4e0c4d3', logo: '#6B8E6B' },
-    { name: 'blue', bg: '#d4e0e8', logo: '#6B8E9E' }
+    { name: 'beige', bg: '#f8f1ea', logo: '#dd7922' },
+    { name: 'green', bg: '#c4e0c4d3', logo: '#0f5c0f' },
+    { name: 'blue', bg: '#d4e0e8', logo: '#00405e' }
   ];
   
   const [currentTheme, setCurrentTheme] = useState(themeColors[0]);
