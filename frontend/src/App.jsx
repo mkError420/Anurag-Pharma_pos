@@ -232,6 +232,7 @@ export default function App() {
         case '/other-sales': return <OtherSales />;
         case '/all-transactions': return <AllTransactions />;
         case '/total-revenue': return <TotalRevenue />;
+        case '/attendance': return <ManageStaff />;
         case '/settings': return <Settings />;
         default: return <Dashboard />;
       }

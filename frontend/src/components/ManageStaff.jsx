@@ -138,9 +138,11 @@ export default function ManageStaff() {
       fetchShops();
       // Set active tab to attendance for super admin accessing from attendance route
       setActiveTab('attendance');
+    } else {
+      // Only fetch staff immediately for non-super-admins
+      // Super admin staff fetch is handled by the selectedShop useEffect
+      fetchStaff();
     }
-    
-    fetchStaff();
   }, []);
 
   useEffect(() => {
@@ -169,9 +171,11 @@ export default function ManageStaff() {
 
   useEffect(() => {
     if (activeTab === 'attendance') {
+      // For super admin, wait until a shop is selected before fetching
+      if (userRole === 'super_admin' && !selectedShop) return;
       fetchAttendance();
     }
-  }, [activeTab, attendanceStartDate, attendanceEndDate, selectedStaffFilter, attendanceArchiveTab, selectedShop]);
+  }, [activeTab, attendanceStartDate, attendanceEndDate, selectedStaffFilter, attendanceArchiveTab, selectedShop, userRole]);
 
   const fetchMonthlyReport = async () => {
     setMonthlyReportLoading(true);
@@ -196,9 +200,10 @@ export default function ManageStaff() {
 
   useEffect(() => {
     if (activeTab === 'report') {
+      if (userRole === 'super_admin' && !selectedShop) return;
       fetchMonthlyReport();
     }
-  }, [activeTab, reportMonth, selectedShop]);
+  }, [activeTab, reportMonth, selectedShop, userRole]);
 
   const fetchShopStandardHours = async () => {
     try {
@@ -581,7 +586,11 @@ export default function ManageStaff() {
   const handleDeleteAttendance = async (attendanceId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/attendance/${attendanceId}`, {
+      let url = `${API_BASE_URL}/attendance/${attendanceId}`;
+      if (userRole === 'super_admin' && selectedShop) {
+        url += `?shop_id=${selectedShop}`;
+      }
+      const response = await fetch(url, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
