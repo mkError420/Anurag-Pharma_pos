@@ -24,6 +24,9 @@ export default function ManageStaff() {
   const [error, setError] = useState(null);
   const [alert, setAlert] = useState(null);
   const [activeTab, setActiveTab] = useState('staff'); // 'staff', 'attendance', or 'report'
+  const [userRole, setUserRole] = useState(null);
+  const [shopsList, setShopsList] = useState([]);
+  const [selectedShop, setSelectedShop] = useState(null);
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -83,7 +86,11 @@ export default function ManageStaff() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/users/staff`, {
+      let url = `${API_BASE_URL}/users/staff`;
+      if (userRole === 'super_admin' && selectedShop) {
+        url += `?shop_id=${selectedShop}`;
+      }
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to retrieve staff catalog.');
@@ -105,6 +112,9 @@ export default function ManageStaff() {
       if (selectedStaffFilter) {
         url += `&user_id=${selectedStaffFilter}`;
       }
+      if (userRole === 'super_admin' && selectedShop) {
+        url += `&shop_id=${selectedShop}`;
+      }
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -119,20 +129,59 @@ export default function ManageStaff() {
   };
 
   useEffect(() => {
+    // Set user role from localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    setUserRole(user.role || 'shop_admin');
+    
+    // Fetch shops list for super admin
+    if (user.role === 'super_admin') {
+      fetchShops();
+      // Set active tab to attendance for super admin accessing from attendance route
+      setActiveTab('attendance');
+    }
+    
     fetchStaff();
   }, []);
+
+  useEffect(() => {
+    if (userRole === 'super_admin' && selectedShop) {
+      fetchStaff();
+    }
+  }, [selectedShop]);
+
+  const fetchShops = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/shops`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setShopsList(data);
+        if (data.length > 0) {
+          setSelectedShop(data[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching shops:', err);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'attendance') {
       fetchAttendance();
     }
-  }, [activeTab, attendanceStartDate, attendanceEndDate, selectedStaffFilter, attendanceArchiveTab]);
+  }, [activeTab, attendanceStartDate, attendanceEndDate, selectedStaffFilter, attendanceArchiveTab, selectedShop]);
 
   const fetchMonthlyReport = async () => {
     setMonthlyReportLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/attendance/monthly-report?month=${reportMonth}`, {
+      let url = `${API_BASE_URL}/attendance/monthly-report?month=${reportMonth}`;
+      if (userRole === 'super_admin' && selectedShop) {
+        url += `&shop_id=${selectedShop}`;
+      }
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to retrieve monthly report.');
@@ -149,7 +198,7 @@ export default function ManageStaff() {
     if (activeTab === 'report') {
       fetchMonthlyReport();
     }
-  }, [activeTab, reportMonth]);
+  }, [activeTab, reportMonth, selectedShop]);
 
   const fetchShopStandardHours = async () => {
     try {
@@ -745,12 +794,25 @@ export default function ManageStaff() {
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center space-x-3">
                 <h3 className="text-lg font-bold text-slate-800">Staff Attendance Records</h3>
-                <button
-                  onClick={() => setShowStandardHoursModal(true)}
-                  className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-semibold transition-colors"
-                >
-                  Set Standard Hours ({standardWorkingHours}h)
-                </button>
+                {userRole === 'super_admin' && shopsList.length > 0 && (
+                  <select
+                    value={selectedShop || ''}
+                    onChange={(e) => setSelectedShop(parseInt(e.target.value))}
+                    className="border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    {shopsList.map((shop) => (
+                      <option key={shop.id} value={shop.id}>{shop.name}</option>
+                    ))}
+                  </select>
+                )}
+                {userRole === 'shop_admin' && (
+                  <button
+                    onClick={() => setShowStandardHoursModal(true)}
+                    className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-semibold transition-colors"
+                  >
+                    Set Standard Hours ({standardWorkingHours}h)
+                  </button>
+                )}
               </div>
               <div className="flex items-center space-x-3">
                 <select
@@ -887,7 +949,20 @@ export default function ManageStaff() {
         <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-slate-800">Monthly Staff Attendance Report</h3>
+              <div className="flex items-center space-x-3">
+                <h3 className="text-lg font-bold text-slate-800">Monthly Staff Attendance Report</h3>
+                {userRole === 'super_admin' && shopsList.length > 0 && (
+                  <select
+                    value={selectedShop || ''}
+                    onChange={(e) => setSelectedShop(parseInt(e.target.value))}
+                    className="border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    {shopsList.map((shop) => (
+                      <option key={shop.id} value={shop.id}>{shop.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
               <input
                 type="month"
                 value={reportMonth}

@@ -184,9 +184,14 @@ class AttendanceController {
 
     public static function listAttendance() {
         Auth::authenticate();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'super_admin']);
         
         $shopId = Auth::$user['shop_id'];
+        
+        // Super admin can filter by shop_id from query param
+        if (Auth::$user['role'] === 'super_admin' && isset($_GET['shop_id'])) {
+            $shopId = (int)$_GET['shop_id'];
+        }
         
         if ($shopId === null) {
             Auth::jsonError('Shop admins must have a shop_id.', 403);
@@ -346,9 +351,14 @@ class AttendanceController {
 
     public static function deleteAttendance($attendanceId) {
         Auth::authenticate();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'super_admin']);
         
         $shopId = Auth::$user['shop_id'];
+        
+        // Super admin can filter by shop_id from query param
+        if (Auth::$user['role'] === 'super_admin' && isset($_GET['shop_id'])) {
+            $shopId = (int)$_GET['shop_id'];
+        }
         
         if ($shopId === null) {
             Auth::jsonError('Shop admins must have a shop_id.', 403);
@@ -395,9 +405,14 @@ class AttendanceController {
 
     public static function archiveOldAttendance() {
         Auth::authenticate();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'super_admin']);
         
         $shopId = Auth::$user['shop_id'];
+        
+        // Super admin can filter by shop_id from query param
+        if (Auth::$user['role'] === 'super_admin' && isset($_GET['shop_id'])) {
+            $shopId = (int)$_GET['shop_id'];
+        }
         
         if ($shopId === null) {
             Auth::jsonError('Shop admins must have a shop_id.', 403);
@@ -439,9 +454,14 @@ class AttendanceController {
 
     public static function getMonthlyStaffReport() {
         Auth::authenticate();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'super_admin']);
         
         $shopId = Auth::$user['shop_id'];
+        
+        // Super admin can filter by shop_id from query param
+        if (Auth::$user['role'] === 'super_admin' && isset($_GET['shop_id'])) {
+            $shopId = (int)$_GET['shop_id'];
+        }
         
         if ($shopId === null) {
             Auth::jsonError('Shop admins must have a shop_id.', 403);

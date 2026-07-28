@@ -278,7 +278,7 @@ export default function App() {
       case '/wastage': return <Wastage />;
       case '/returns': return <Returns />;
       case '/staff': return <ManageStaff />;
-      case '/attendance': return <Attendance user={user} />;
+      case '/attendance': return user?.role === 'super_admin' ? <ManageStaff /> : <Attendance user={user} />;
       case '/settings': return <Settings />;
       default: return <Checkout resumedHeldBill={resumedHeldBill} onClearResumedHeldBill={() => setResumedHeldBill(null)} onHeldBillsChange={(count) => setHeldBillsCount(count)} onNavigate={setCurrentPath} />;
     }

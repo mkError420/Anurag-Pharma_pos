@@ -38,7 +38,7 @@ class SupplierController {
     public static function createSupplier($requestData) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'shop_staff']);
 
         $shopId = Auth::$shopId;
         $name = $requestData['name'] ?? '';
@@ -1521,7 +1521,7 @@ class SupplierController {
     public static function updateSupplier($id, $requestData) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'shop_staff']);
 
         $supplierId = (int)$id;
         $shopId = Auth::$shopId;
@@ -1557,7 +1557,7 @@ class SupplierController {
     public static function deleteSupplier($id) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'shop_staff']);
 
         $supplierId = (int)$id;
         $shopId = Auth::$shopId;
@@ -1588,7 +1588,7 @@ class SupplierController {
     public static function bulkDeleteSuppliers($requestData) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'shop_staff']);
 
         $shopId = Auth::$shopId;
         $ids = $requestData['ids'] ?? [];

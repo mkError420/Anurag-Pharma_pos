@@ -1334,9 +1334,18 @@ class OtherController {
     public static function listStaff() {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'super_admin']);
 
         $shopId = Auth::$shopId;
+
+        // Super admin can filter by shop_id from query param
+        if (Auth::$user['role'] === 'super_admin' && isset($_GET['shop_id'])) {
+            $shopId = (int)$_GET['shop_id'];
+        }
+
+        if ($shopId === null) {
+            Auth::jsonError('Shop admins must have a shop_id.', 403);
+        }
 
         try {
             $stmt = DB::query('SELECT id, name, email, role, status, allowed_sections, logo, created_at FROM users WHERE shop_id = ? ORDER BY name ASC', [$shopId]);

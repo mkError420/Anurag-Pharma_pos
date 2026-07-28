@@ -48,6 +48,12 @@ export default function Sidebar({
             ]
           },
           {
+            section: 'Attendance',
+            items: [
+              { label: 'Attendance Records', path: '/attendance', icon: <AttendanceIcon /> },
+            ]
+          },
+          {
             section: 'Settings',
             items: [
               { label: 'Settings', path: '/settings', icon: <SettingsIcon /> },
@@ -99,6 +105,7 @@ export default function Sidebar({
             section: 'Management',
             items: [
               { label: 'Manage Staff', path: '/staff', icon: <UsersIcon /> },
+              { label: 'Attendance', path: '/attendance', icon: <AttendanceIcon /> },
               { label: 'Settings', path: '/settings', icon: <SettingsIcon /> }
             ]
           }
