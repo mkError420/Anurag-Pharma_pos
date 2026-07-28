@@ -292,6 +292,7 @@ $routes = [
         '/^attendance\/my$/' => function() { AttendanceController::getMyAttendance(); },
         '/^attendance\/today$/' => function() { AttendanceController::getTodayAttendance(); },
         '/^attendance\/archive$/' => function() { AttendanceController::archiveOldAttendance(); },
+        '/^attendance\/monthly-report$/' => function() { AttendanceController::getMonthlyStaffReport(); },
     ],
     'POST' => [
         // Auth
@@ -367,6 +368,7 @@ $routes = [
         '/^wastages\/(\d+)$/' => function($args, $data) { OtherController::updateWastage($args[0], $data); },
         // Shops
         '/^shops\/my-shop$/' => function($args, $data) { OtherController::updateMyShop($data); },
+        '/^shops\/my-shop\/standard-hours$/' => function($args, $data) { OtherController::updateMyShopStandardHours($data); },
         '/^shops\/(\d+)\/status$/' => function($args, $data) { OtherController::updateShopStatus($args[0], $data); },
         '/^shops\/(\d+)$/' => function($args, $data) { OtherController::updateShop($args[0], $data); },
         '/^shops\/(\d+)\/users\/(\d+)\/reset-password$/' => function($args, $data) { OtherController::resetShopUserPassword($args[0], $args[1], $data); },

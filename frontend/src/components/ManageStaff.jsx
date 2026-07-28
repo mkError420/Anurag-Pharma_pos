@@ -23,7 +23,7 @@ export default function ManageStaff() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [alert, setAlert] = useState(null);
-  const [activeTab, setActiveTab] = useState('staff'); // 'staff' or 'attendance'
+  const [activeTab, setActiveTab] = useState('staff'); // 'staff', 'attendance', or 'report'
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -49,6 +49,17 @@ export default function ManageStaff() {
     check_out_time: '',
     notes: ''
   });
+  const [standardWorkingHours, setStandardWorkingHours] = useState(8);
+  const [showStandardHoursModal, setShowStandardHoursModal] = useState(false);
+
+  // Monthly report state
+  const [monthlyReport, setMonthlyReport] = useState([]);
+  const [monthlyReportLoading, setMonthlyReportLoading] = useState(false);
+  const [reportMonth, setReportMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM format
+  const [showStaffReportModal, setShowStaffReportModal] = useState(false);
+  const [selectedStaffReport, setSelectedStaffReport] = useState(null);
+  const [staffAttendanceDetails, setStaffAttendanceDetails] = useState([]);
+  const [staffDetailsLoading, setStaffDetailsLoading] = useState(false);
 
   useEffect(() => {
     if (!showAddModal) setShowAddPassword(false);
@@ -116,6 +127,219 @@ export default function ManageStaff() {
       fetchAttendance();
     }
   }, [activeTab, attendanceStartDate, attendanceEndDate, selectedStaffFilter, attendanceArchiveTab]);
+
+  const fetchMonthlyReport = async () => {
+    setMonthlyReportLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/attendance/monthly-report?month=${reportMonth}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to retrieve monthly report.');
+      const data = await response.json();
+      setMonthlyReport(data);
+    } catch (err) {
+      triggerAlert('error', err.message);
+    } finally {
+      setMonthlyReportLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'report') {
+      fetchMonthlyReport();
+    }
+  }, [activeTab, reportMonth]);
+
+  const fetchShopStandardHours = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/shops/my-shop`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setStandardWorkingHours(data.standard_working_hours || 8);
+      }
+    } catch (err) {
+      console.error('Error fetching standard hours:', err);
+    }
+  };
+
+  const updateStandardWorkingHours = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/shops/my-shop/standard-hours`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ standard_working_hours: standardWorkingHours })
+      });
+
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Failed to update standard hours.');
+
+      triggerAlert('success', 'Standard working hours updated successfully!');
+      setShowStandardHoursModal(false);
+      fetchAttendance();
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'attendance') {
+      fetchShopStandardHours();
+    }
+  }, [activeTab]);
+
+  const handleViewStaffReport = async (report) => {
+    setSelectedStaffReport(report);
+    setStaffDetailsLoading(true);
+    setShowStaffReportModal(true);
+    
+    try {
+      const token = localStorage.getItem('token');
+      const startDate = report.month + '-01';
+      const endDate = report.month + '-31';
+      
+      const response = await fetch(`${API_BASE_URL}/attendance?start_date=${startDate}&end_date=${endDate}&user_id=${report.staff_id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to retrieve staff attendance details.');
+      const data = await response.json();
+      setStaffAttendanceDetails(data);
+    } catch (err) {
+      triggerAlert('error', err.message);
+    } finally {
+      setStaffDetailsLoading(false);
+    }
+  };
+
+  const handlePrintStaffReport = async (report) => {
+    setStaffDetailsLoading(true);
+    
+    try {
+      const token = localStorage.getItem('token');
+      const startDate = report.month + '-01';
+      const endDate = report.month + '-31';
+      
+      const response = await fetch(`${API_BASE_URL}/attendance?start_date=${startDate}&end_date=${endDate}&user_id=${report.staff_id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to retrieve staff attendance details.');
+      const data = await response.json();
+      
+      // Generate print HTML
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Staff Attendance Report - ${report.staff_name}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { color: #333; }
+            .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin: 20px 0; }
+            .summary-card { border: 1px solid #ddd; padding: 15px; text-align: center; border-radius: 8px; }
+            .summary-card .value { font-size: 24px; font-weight: bold; }
+            .summary-card .label { font-size: 12px; text-transform: uppercase; color: #666; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background: #f5f5f5; font-weight: bold; }
+            .present { background: #e8f5e9; color: #2e7d32; }
+            .absent { background: #ffebee; color: #c62828; }
+            .late { background: #fff3e0; color: #ef6c00; }
+            .half-day { background: #e3f2fd; color: #1565c0; }
+            @media print { body { -webkit-print-color-adjust: exact; } }
+          </style>
+        </head>
+        <body>
+          <h1>Staff Attendance Report</h1>
+          <p><strong>Staff:</strong> ${report.staff_name} | <strong>Month:</strong> ${report.month}</p>
+          
+          <div class="summary">
+            <div class="summary-card" style="background: #e8f5e9; border-color: #c8e6c9;">
+              <div class="value" style="color: #2e7d32;">${report.present_days}</div>
+              <div class="label">Present</div>
+            </div>
+            <div class="summary-card" style="background: #ffebee; border-color: #ffcdd2;">
+              <div class="value" style="color: #c62828;">${report.absent_days}</div>
+              <div class="label">Absent</div>
+            </div>
+            <div class="summary-card" style="background: #fff3e0; border-color: #ffe0b2;">
+              <div class="value" style="color: #ef6c00;">${report.late_days}</div>
+              <div class="label">Late</div>
+            </div>
+            <div class="summary-card" style="background: #e3f2fd; border-color: #bbdefb;">
+              <div class="value" style="color: #1565c0;">${report.total_working_hours}</div>
+              <div class="label">Total Hours</div>
+            </div>
+          </div>
+          
+          <h2>Daily Attendance Details</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Check In</th>
+                <th>Check Out</th>
+                <th>Total Hours</th>
+                <th>Overtime</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.map(record => {
+                const checkIn = record.check_in_time || '-';
+                const checkOut = record.check_out_time || '-';
+                let totalHours = '-';
+                if (checkIn !== '-' && checkOut !== '-') {
+                  const [inH, inM] = checkIn.split(':').map(Number);
+                  const [outH, outM] = checkOut.split(':').map(Number);
+                  const diff = (outH * 60 + outM) - (inH * 60 + inM);
+                  const h = Math.floor(diff / 60);
+                  const m = diff % 60;
+                  totalHours = h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+                }
+                const overtime = record.overtime_hours > 0 ? `${record.overtime_hours.toFixed(2)}h` : '-';
+                const statusClass = record.status === 'present' ? 'present' : record.status === 'absent' ? 'absent' : record.status === 'late' ? 'late' : 'half-day';
+                return `
+                  <tr>
+                    <td>${record.date}</td>
+                    <td class="${statusClass}">${record.status.replace('_', ' ')}</td>
+                    <td>${checkIn}</td>
+                    <td>${checkOut}</td>
+                    <td>${totalHours}</td>
+                    <td>${overtime}</td>
+                    <td>${record.notes || '-'}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+          
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() {
+                window.close();
+              };
+            };
+          </script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+    } catch (err) {
+      triggerAlert('error', err.message);
+    } finally {
+      setStaffDetailsLoading(false);
+    }
+  };
 
   const triggerAlert = (type, message) => {
     setAlert({ type, message });
@@ -339,7 +563,31 @@ export default function ManageStaff() {
   const setCurrentSupplier = (val) => {}; // placeholder
 
   return (
-    <div className="space-y-6">
+    <>
+      <style>{`
+        @media print {
+          body > * {
+            display: none !important;
+          }
+          #staff-report-print-content {
+            display: block !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            padding: 20px !important;
+            background: white !important;
+          }
+          #staff-report-print-content > * {
+            display: block !important;
+          }
+          #staff-report-print-content button:not([onclick*="print"]) {
+            display: none !important;
+          }
+        }
+      `}</style>
+      <div className="space-y-6">
       
       {alert && (
         <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg flex items-center transition-all ${
@@ -388,6 +636,16 @@ export default function ManageStaff() {
           }`}
         >
           Attendance Records
+        </button>
+        <button
+          onClick={() => setActiveTab('report')}
+          className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-colors ${
+            activeTab === 'report'
+              ? 'bg-white text-slate-800 shadow-sm'
+              : 'text-slate-600 hover:text-slate-800'
+          }`}
+        >
+          Monthly Report
         </button>
       </div>
 
@@ -481,11 +739,19 @@ export default function ManageStaff() {
             </table>
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'attendance' ? (
         <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-slate-800">Staff Attendance Records</h3>
+              <div className="flex items-center space-x-3">
+                <h3 className="text-lg font-bold text-slate-800">Staff Attendance Records</h3>
+                <button
+                  onClick={() => setShowStandardHoursModal(true)}
+                  className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-semibold transition-colors"
+                >
+                  Set Standard Hours ({standardWorkingHours}h)
+                </button>
+              </div>
               <div className="flex items-center space-x-3">
                 <select
                   value={selectedStaffFilter}
@@ -545,6 +811,7 @@ export default function ManageStaff() {
                   <th className="p-4">Check In</th>
                   <th className="p-4">Check Out</th>
                   <th className="p-4">Total Hours</th>
+                  <th className="p-4">Overtime</th>
                   <th className="p-4">Notes</th>
                   <th className="p-4 text-center">Actions</th>
                 </tr>
@@ -552,7 +819,7 @@ export default function ManageStaff() {
               <tbody className="divide-y divide-slate-100 text-sm">
                 {attendanceLoading ? (
                   <tr>
-                    <td colSpan="8" className="p-12 text-center">
+                    <td colSpan="9" className="p-12 text-center">
                       <div className="flex justify-center items-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                       </div>
@@ -560,7 +827,7 @@ export default function ManageStaff() {
                   </tr>
                 ) : attendanceList.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="p-12 text-center text-slate-400">
+                    <td colSpan="9" className="p-12 text-center text-slate-400">
                       No attendance records found for the selected period.
                     </td>
                   </tr>
@@ -585,6 +852,15 @@ export default function ManageStaff() {
                       <td className="p-4 text-slate-600">{record.check_in_time || '-'}</td>
                       <td className="p-4 text-slate-600">{record.check_out_time || '-'}</td>
                       <td className="p-4 text-slate-600 font-semibold">{calculateWorkingHours(record.check_in_time, record.check_out_time)}</td>
+                      <td className="p-4">
+                        {record.overtime_hours > 0 ? (
+                          <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100">
+                            {record.overtime_hours.toFixed(2)}h
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
                       <td className="p-4 text-slate-600 max-w-xs truncate">{record.notes || '-'}</td>
                       <td className="p-4 text-center space-x-2">
                         <button
@@ -607,7 +883,102 @@ export default function ManageStaff() {
             </table>
           </div>
         </div>
-      )}
+      ) : activeTab === 'report' ? (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-slate-100">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-slate-800">Monthly Staff Attendance Report</h3>
+              <input
+                type="month"
+                value={reportMonth}
+                onChange={(e) => setReportMonth(e.target.value)}
+                className="border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                  <th className="p-4">Staff Name</th>
+                  <th className="p-4">Role</th>
+                  <th className="p-4">Total Days</th>
+                  <th className="p-4">Present</th>
+                  <th className="p-4">Absent</th>
+                  <th className="p-4">Late</th>
+                  <th className="p-4">Half Day</th>
+                  <th className="p-4">Total Hours</th>
+                  <th className="p-4">Attendance %</th>
+                  <th className="p-4 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {monthlyReportLoading ? (
+                  <tr>
+                    <td colSpan="10" className="p-12 text-center">
+                      <div className="flex justify-center items-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                      </div>
+                    </td>
+                  </tr>
+                ) : monthlyReport.length === 0 ? (
+                  <tr>
+                    <td colSpan="10" className="p-12 text-center text-slate-400">
+                      No attendance data found for the selected month.
+                    </td>
+                  </tr>
+                ) : (
+                  monthlyReport.map((report) => (
+                    <tr key={report.staff_id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="p-4 font-semibold text-slate-800">{report.staff_name}</td>
+                      <td className="p-4">
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          report.staff_role === 'shop_admin'
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                            : 'bg-indigo-50 text-indigo-600 border border-indigo-100'
+                        }`}>
+                          {report.staff_role === 'shop_admin' ? 'Admin' : 'Staff'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-slate-600">{report.total_days}</td>
+                      <td className="p-4 text-slate-600">{report.present_days}</td>
+                      <td className="p-4 text-slate-600">{report.absent_days}</td>
+                      <td className="p-4 text-slate-600">{report.late_days}</td>
+                      <td className="p-4 text-slate-600">{report.half_day_days}</td>
+                      <td className="p-4 text-slate-600 font-semibold">{report.total_working_hours}</td>
+                      <td className="p-4">
+                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold ${
+                          report.attendance_percentage >= 90
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                            : report.attendance_percentage >= 70
+                            ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                            : 'bg-rose-50 text-rose-600 border border-rose-100'
+                        }`}>
+                          {report.attendance_percentage}%
+                        </span>
+                      </td>
+                      <td className="p-4 text-center space-x-2">
+                        <button
+                          onClick={() => handleViewStaffReport(report)}
+                          className="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-100 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition-colors"
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={() => handlePrintStaffReport(report)}
+                          className="text-slate-600 hover:text-slate-900 font-semibold text-xs border border-slate-200 hover:bg-slate-50 px-2.5 py-1 rounded-lg transition-colors"
+                        >
+                          Print
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
 
       {/* ADD MODAL */}
       {showAddModal && (
@@ -1019,6 +1390,173 @@ export default function ManageStaff() {
         </div>
       )}
 
-    </div>
+      {/* STANDARD WORKING HOURS MODAL */}
+      {showStandardHoursModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Set Standard Working Hours</h3>
+              <button onClick={() => setShowStandardHoursModal(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Standard Working Hours (per day)</label>
+                <input
+                  type="number"
+                  value={standardWorkingHours}
+                  onChange={(e) => setStandardWorkingHours(parseFloat(e.target.value) || 0)}
+                  min="0"
+                  max="24"
+                  step="0.5"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <p className="text-xs text-slate-400 mt-1">Hours worked beyond this will be counted as overtime (default: 8 hours)</p>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex space-x-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowStandardHoursModal(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={updateStandardWorkingHours}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors shadow"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STAFF REPORT DETAIL MODAL */}
+      {showStaffReportModal && selectedStaffReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div id="staff-report-print-content" className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Staff Attendance Report</h3>
+                <p className="text-sm text-slate-500">{selectedStaffReport.staff_name} - {selectedStaffReport.month}</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => window.print()}
+                  className="text-slate-600 hover:text-slate-900 font-semibold text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  <span>Print</span>
+                </button>
+                <button onClick={() => setShowStaffReportModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            {/* Summary Cards */}
+            <div className="grid grid-cols-4 gap-4 mt-4">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-emerald-600">{selectedStaffReport.present_days}</div>
+                <div className="text-xs text-emerald-700 font-semibold uppercase tracking-wider">Present</div>
+              </div>
+              <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-rose-600">{selectedStaffReport.absent_days}</div>
+                <div className="text-xs text-rose-700 font-semibold uppercase tracking-wider">Absent</div>
+              </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-amber-600">{selectedStaffReport.late_days}</div>
+                <div className="text-xs text-amber-700 font-semibold uppercase tracking-wider">Late</div>
+              </div>
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">{selectedStaffReport.total_working_hours}</div>
+                <div className="text-xs text-blue-700 font-semibold uppercase tracking-wider">Total Hours</div>
+              </div>
+            </div>
+
+            {/* Attendance Details Table */}
+            <div className="mt-6 overflow-y-auto flex-1">
+              <h4 className="text-sm font-bold text-slate-800 mb-3">Daily Attendance Details</h4>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3">Check In</th>
+                    <th className="p-3">Check Out</th>
+                    <th className="p-3">Total Hours</th>
+                    <th className="p-3">Overtime</th>
+                    <th className="p-3">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {staffDetailsLoading ? (
+                    <tr>
+                      <td colSpan="7" className="p-12 text-center">
+                        <div className="flex justify-center items-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-indigo-600"></div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : staffAttendanceDetails.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" className="p-12 text-center text-slate-400">
+                        No attendance details found.
+                      </td>
+                    </tr>
+                  ) : (
+                    staffAttendanceDetails.map((record) => (
+                      <tr key={record.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-3 font-semibold text-slate-800">{record.date}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                            record.status === 'present'
+                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                              : record.status === 'absent'
+                              ? 'bg-rose-50 text-rose-600 border border-rose-100'
+                              : record.status === 'late'
+                              ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                              : 'bg-blue-50 text-blue-600 border border-blue-100'
+                          }`}>
+                            {record.status.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-600">{record.check_in_time || '-'}</td>
+                        <td className="p-3 text-slate-600">{record.check_out_time || '-'}</td>
+                        <td className="p-3 text-slate-600 font-semibold">{calculateWorkingHours(record.check_in_time, record.check_out_time)}</td>
+                        <td className="p-3">
+                          {record.overtime_hours > 0 ? (
+                            <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100">
+                              {record.overtime_hours.toFixed(2)}h
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-slate-600 max-w-xs truncate">{record.notes || '-'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      </div>
+    </>
   );
 }

@@ -202,13 +202,26 @@ class AttendanceController {
             if ($archived === '0' && $startDate === date('Y-m-01')) {
                 $previousMonth = date('Y-m', strtotime('-1 month'));
                 DB::query(
-                    'UPDATE attendance 
-                     SET is_archived = 1 
+                    'UPDATE attendance
+                     SET is_archived = 1
                      WHERE shop_id = ? AND DATE_FORMAT(date, "%Y-%m") = ? AND is_archived = 0',
                     [$shopId, $previousMonth]
                 );
             }
-            
+
+            // Get shop's standard working hours (default to 8.0 if column doesn't exist yet)
+            $standardHours = 8.0;
+            try {
+                $stmt = DB::query('SELECT standard_working_hours FROM shops WHERE id = ?', [$shopId]);
+                $shop = $stmt->fetch();
+                if ($shop && isset($shop['standard_working_hours'])) {
+                    $standardHours = (float)$shop['standard_working_hours'];
+                }
+            } catch (\Exception $e) {
+                // Column doesn't exist yet, use default
+                $standardHours = 8.0;
+            }
+
             $query = '
                 SELECT a.*, u.name as user_name, u.email as user_email, u.role as user_role
                 FROM attendance a
@@ -216,17 +229,34 @@ class AttendanceController {
                 WHERE a.shop_id = ? AND a.date BETWEEN ? AND ? AND a.is_archived = ?
             ';
             $params = [$shopId, $startDate, $endDate, $archived];
-            
+
             if ($userIdFilter !== null) {
                 $query .= ' AND a.user_id = ?';
                 $params[] = $userIdFilter;
             }
-            
+
             $query .= ' ORDER BY a.date DESC, a.check_in_time DESC';
-            
+
             $stmt = DB::query($query, $params);
             $attendanceList = $stmt->fetchAll();
-            
+
+            // Calculate overtime for each attendance record
+            foreach ($attendanceList as &$attendance) {
+                $attendance['overtime_hours'] = 0;
+                if ($attendance['check_in_time'] && $attendance['check_out_time']) {
+                    $checkIn = explode(':', $attendance['check_in_time']);
+                    $checkOut = explode(':', $attendance['check_out_time']);
+                    if (count($checkIn) === 2 && count($checkOut) === 2) {
+                        $inMinutes = intval($checkIn[0]) * 60 + intval($checkIn[1]);
+                        $outMinutes = intval($checkOut[0]) * 60 + intval($checkOut[1]);
+                        $workedMinutes = max(0, $outMinutes - $inMinutes);
+                        $workedHours = $workedMinutes / 60;
+                        $overtime = max(0, $workedHours - $standardHours);
+                        $attendance['overtime_hours'] = round($overtime, 2);
+                    }
+                }
+            }
+
             header('Content-Type: application/json');
             echo json_encode($attendanceList);
             
@@ -404,6 +434,97 @@ class AttendanceController {
             DB::rollBack();
             error_log('Archive attendance error: ' . $e->getMessage());
             Auth::jsonError('Server error archiving attendance records.', 500);
+        }
+    }
+
+    public static function getMonthlyStaffReport() {
+        Auth::authenticate();
+        Auth::authorize(['shop_admin']);
+        
+        $shopId = Auth::$user['shop_id'];
+        
+        if ($shopId === null) {
+            Auth::jsonError('Shop admins must have a shop_id.', 403);
+        }
+        
+        $month = $_GET['month'] ?? date('Y-m'); // Format: YYYY-MM, default to current month
+        
+        if (empty($month) || !preg_match('/^\d{4}-\d{2}$/', $month)) {
+            Auth::jsonError('Valid month parameter required (format: YYYY-MM).', 400);
+        }
+        
+        try {
+            // Get all staff members for this shop
+            $stmt = DB::query(
+                'SELECT id, name, email, role FROM users WHERE shop_id = ? AND role IN (?, ?) ORDER BY name',
+                [$shopId, 'shop_admin', 'shop_staff']
+            );
+            $staffList = $stmt->fetchAll();
+            
+            // Get attendance summary for each staff member for the specified month
+            $report = [];
+            foreach ($staffList as $staff) {
+                $stmt = DB::query(
+                    'SELECT 
+                        COUNT(*) as total_days,
+                        SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as present_days,
+                        SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as absent_days,
+                        SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as late_days,
+                        SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as half_day_days,
+                        GROUP_CONCAT(CONCAT(date, \'|\', check_in_time, \'|\', check_out_time, \'|\', notes) ORDER BY date SEPARATOR \'||\') as attendance_details
+                     FROM attendance 
+                     WHERE shop_id = ? AND user_id = ? AND DATE_FORMAT(date, "%Y-%m") = ?',
+                    ['present', 'absent', 'late', 'half_day', $shopId, $staff['id'], $month]
+                );
+                $attendanceData = $stmt->fetch();
+                
+                // Calculate total working hours
+                $totalMinutes = 0;
+                if ($attendanceData['attendance_details']) {
+                    $details = explode('||', $attendanceData['attendance_details']);
+                    foreach ($details as $detail) {
+                        $parts = explode('|', $detail);
+                        if (count($parts) >= 3 && $parts[1] && $parts[2]) {
+                            $checkIn = explode(':', $parts[1]);
+                            $checkOut = explode(':', $parts[2]);
+                            if (count($checkIn) === 2 && count($checkOut) === 2) {
+                                $inMinutes = intval($checkIn[0]) * 60 + intval($checkIn[1]);
+                                $outMinutes = intval($checkOut[0]) * 60 + intval($checkOut[1]);
+                                $totalMinutes += max(0, $outMinutes - $inMinutes);
+                            }
+                        }
+                    }
+                }
+                
+                $totalHours = floor($totalMinutes / 60);
+                $totalMinutesRemainder = $totalMinutes % 60;
+                
+                $report[] = [
+                    'staff_id' => $staff['id'],
+                    'staff_name' => $staff['name'],
+                    'staff_email' => $staff['email'],
+                    'staff_role' => $staff['role'],
+                    'month' => $month,
+                    'total_days' => (int)$attendanceData['total_days'],
+                    'present_days' => (int)$attendanceData['present_days'],
+                    'absent_days' => (int)$attendanceData['absent_days'],
+                    'late_days' => (int)$attendanceData['late_days'],
+                    'half_day_days' => (int)$attendanceData['half_day_days'],
+                    'total_working_hours' => $totalHours > 0 || $totalMinutesRemainder > 0 
+                        ? sprintf('%d h %d m', $totalHours, $totalMinutesRemainder) 
+                        : '0 h',
+                    'attendance_percentage' => $attendanceData['total_days'] > 0 
+                        ? round(($attendanceData['present_days'] / $attendanceData['total_days']) * 100, 2) 
+                        : 0
+                ];
+            }
+            
+            header('Content-Type: application/json');
+            echo json_encode($report);
+            
+        } catch (\Exception $e) {
+            error_log('Get monthly staff report error: ' . $e->getMessage());
+            Auth::jsonError('Server error fetching monthly staff report.', 500);
         }
     }
 }

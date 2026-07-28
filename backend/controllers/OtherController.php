@@ -15,7 +15,7 @@ class OtherController {
     public static function listOtherCosts() {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['super_admin', 'shop_admin']);
+        Auth::authorize(['super_admin', 'shop_admin', 'shop_staff']);
 
         $shopId = Auth::$shopId;
         $hasShop = $shopId !== null;
@@ -60,7 +60,7 @@ class OtherController {
     public static function createOtherCost($requestData) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'shop_staff']);
 
         $shopId = Auth::$shopId;
         $title = $requestData['title'] ?? '';
@@ -95,7 +95,7 @@ class OtherController {
     public static function updateOtherCost($id, $requestData) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'shop_staff']);
 
         $costId = (int)$id;
         $shopId = Auth::$shopId;
@@ -132,7 +132,7 @@ class OtherController {
     public static function deleteOtherCost($id) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'shop_staff']);
 
         $costId = (int)$id;
         $shopId = Auth::$shopId;
@@ -983,10 +983,15 @@ class OtherController {
         $phone = $requestData['phone'] ?? null;
         $address = $requestData['address'] ?? null;
         $taxRate = isset($requestData['tax_rate']) ? (float)$requestData['tax_rate'] : 10.00;
+        $standardWorkingHours = isset($requestData['standard_working_hours']) ? (float)$requestData['standard_working_hours'] : 8.00;
         $status = $requestData['status'] ?? 'active';
 
         if (empty($name) || empty($email)) {
             Auth::jsonError('Shop name and email are required.', 400);
+        }
+
+        if ($standardWorkingHours < 0 || $standardWorkingHours > 24) {
+            Auth::jsonError('Standard working hours must be between 0 and 24.', 400);
         }
 
         try {
@@ -1001,8 +1006,8 @@ class OtherController {
             }
 
             DB::query(
-                'UPDATE shops SET name = ?, email = ?, phone = ?, address = ?, tax_rate = ?, status = ? WHERE id = ?',
-                [$name, $email, $phone, $address, $taxRate, $status, $shopId]
+                'UPDATE shops SET name = ?, email = ?, phone = ?, address = ?, tax_rate = ?, standard_working_hours = ?, status = ? WHERE id = ?',
+                [$name, $email, $phone, $address, $taxRate, $standardWorkingHours, $status, $shopId]
             );
 
             header('Content-Type: application/json');
@@ -1011,6 +1016,36 @@ class OtherController {
         } catch (\Exception $e) {
             error_log('Update shop details error: ' . $e->getMessage());
             Auth::jsonError('Server error updating shop details.', 500);
+        }
+    }
+
+    public static function updateMyShopStandardHours($requestData) {
+        Auth::authenticate();
+        Auth::authorize(['shop_admin']);
+
+        $shopId = Auth::$user['shop_id'];
+        if ($shopId === null) {
+            Auth::jsonError('Shop admins must have a shop_id.', 403);
+        }
+
+        $standardWorkingHours = isset($requestData['standard_working_hours']) ? (float)$requestData['standard_working_hours'] : 8.00;
+
+        if ($standardWorkingHours < 0 || $standardWorkingHours > 24) {
+            Auth::jsonError('Standard working hours must be between 0 and 24.', 400);
+        }
+
+        try {
+            DB::query(
+                'UPDATE shops SET standard_working_hours = ? WHERE id = ?',
+                [$standardWorkingHours, $shopId]
+            );
+
+            header('Content-Type: application/json');
+            echo json_encode(['message' => 'Standard working hours updated successfully.']);
+
+        } catch (\Exception $e) {
+            error_log('Update standard working hours error: ' . $e->getMessage());
+            Auth::jsonError('Server error updating standard working hours.', 500);
         }
     }
 
