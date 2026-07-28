@@ -16,6 +16,15 @@ export default function DashboardLayout({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  
+  // Theme colors
+  const themeColors = [
+    { name: 'beige', bg: '#fff9f3', logo: '#F6EFE9' },
+    { name: 'green', bg: '#c4e0c4d3', logo: '#6B8E6B' },
+    { name: 'blue', bg: '#d4e0e8', logo: '#6B8E9E' }
+  ];
+  
+  const [currentTheme, setCurrentTheme] = useState(themeColors[0]);
 
   // Dynamic Badge Color mapping based on user role
   const getRoleBadge = (role) => {
@@ -32,7 +41,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen bg-[#dfd7c1] dark:bg-slate-900 overflow-hidden font-sans text-slate-900 dark:text-slate-100">
+    <div className="flex h-screen overflow-hidden font-sans text-slate-900 dark:text-slate-100" style={{ backgroundColor: currentTheme.bg }}>
       
       {/* 1. Left Sidebar Navigation */}
       <Sidebar
@@ -68,7 +77,7 @@ export default function DashboardLayout({
             <div className="hidden sm:block">
               <h1 
                 className="text-sm font-semibold uppercase tracking-wider"
-                style={{ color: logoColor }}
+                style={{ color: currentTheme.logo }}
               >
                 {user.shop_name}
               </h1>
@@ -77,6 +86,23 @@ export default function DashboardLayout({
 
           {/* Right Header: Actions, Alerts, and Profile */}
           <div className="flex items-center space-x-4">
+            
+            {/* Theme Color Buttons */}
+            <div className="flex items-center space-x-2">
+              {themeColors.map((theme) => (
+                <button
+                  key={theme.name}
+                  onClick={() => setCurrentTheme(theme)}
+                  className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 focus:outline-none ${
+                    currentTheme.name === theme.name 
+                      ? 'border-slate-800 dark:border-slate-200 ring-2 ring-offset-2 ring-slate-400' 
+                      : 'border-slate-300 dark:border-slate-600'
+                  }`}
+                  style={{ backgroundColor: theme.bg }}
+                  title={`Switch to ${theme.name} theme`}
+                />
+              ))}
+            </div>
             
             {/* Stock Alerts Bell Notification */}
             {user.role !== 'super_admin' && (() => {
@@ -240,7 +266,7 @@ export default function DashboardLayout({
         </header>
 
         {/* 3. Main Dashboard Workspace Content Area */}
-        <main className="flex-1 overflow-y-auto bg-[#dfd7c1] dark:bg-slate-900 focus:outline-none p-6">
+        <main className="flex-1 overflow-y-auto focus:outline-none p-6" style={{ backgroundColor: currentTheme.bg }}>
           <div className="max-w-7xl mx-auto">
             {React.cloneElement(children, { onNavigate })}
           </div>

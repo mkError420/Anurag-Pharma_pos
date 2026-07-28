@@ -19,6 +19,7 @@ import Wastage from './components/Wastage';
 import Returns from './components/Returns';
 import ManualOrders from './components/ManualOrders';
 import AllTransactions from './components/AllTransactions';
+import Attendance from './components/Attendance';
 import { extractDominantColor } from './utils/colorExtractor';
 
 import API_BASE_URL from './config';
@@ -277,6 +278,7 @@ export default function App() {
       case '/wastage': return <Wastage />;
       case '/returns': return <Returns />;
       case '/staff': return <ManageStaff />;
+      case '/attendance': return <Attendance user={user} />;
       case '/settings': return <Settings />;
       default: return <Checkout resumedHeldBill={resumedHeldBill} onClearResumedHeldBill={() => setResumedHeldBill(null)} onHeldBillsChange={(count) => setHeldBillsCount(count)} onNavigate={setCurrentPath} />;
     }
