@@ -168,10 +168,11 @@ export default function TotalRevenue() {
       ['Supplier Credit (Owed)', 'Outflow', 'Total outstanding payable balance owed to suppliers', (revenueData.supplier_due || 0).toFixed(2)],
       ['Other Costs', 'Outflow', 'Shop operational costs and miscellaneous overheads', revenueData.other_costs.toFixed(2)],
       ['Wastage & Damage Loss', 'Outflow', 'Cost of damaged, expired, or stolen items written off', (revenueData.wastage_loss || 0).toFixed(2)],
+      ['Total Salaries Paid', 'Outflow', 'Total staff salary payments disbursed', (revenueData.staff_salaries || 0).toFixed(2)],
       ['Manual Sales Orders (Confirmed)', 'Inflow', 'Confirmed sales from manually collected salesman orders', (revenueData.manual_orders?.confirmed_value || 0).toFixed(2)],
       ['Manual Sales Orders (Pending Drafts)', 'Pending', 'Value of salesman order drafts currently in pending status', (revenueData.manual_orders?.pending_value || 0).toFixed(2)],
-      ['Net Profit (Cashflow Basis)', 'Summary', 'Net cashflow liquid profit (Cash Collected + Other Sales - Cash Paid - Other Costs - Wastage Loss - Customer Returns)', revenueData.net_profit_cashflow.toFixed(2)],
-      ['Net Profit (COGS Margin Basis)', 'Summary', 'Net trading margins profit (Sales + Other Sales - COGS - Other Costs - Wastage Loss - Customer Returns)', revenueData.net_profit_cogs.toFixed(2)]
+      ['Net Profit (Cashflow Basis)', 'Summary', 'Net cashflow liquid profit (Cash Collected + Other Sales - Cash Paid - Other Costs - Wastage Loss - Customer Returns - Salaries)', revenueData.net_profit_cashflow.toFixed(2)],
+      ['Net Profit (COGS Margin Basis)', 'Summary', 'Net trading margins profit (Sales + Other Sales - COGS - Other Costs - Wastage Loss - Customer Returns - Salaries)', revenueData.net_profit_cogs.toFixed(2)]
     ];
 
     const csvContent = "\uFEFF" + [
@@ -235,6 +236,7 @@ export default function TotalRevenue() {
         ['Supplier Credit (Owed)', formatCurrency(revenueData.supplier_due || 0), 'Outflow'],
         ['Other Costs', formatCurrency(revenueData.other_costs), 'Outflow'],
         ['Wastage & Damage Loss', formatCurrency(revenueData.wastage_loss || 0), 'Outflow'],
+        ['Total Salaries Paid', formatCurrency(revenueData.staff_salaries || 0), 'Outflow'],
         ['Manual Sales Orders (Confirmed)', formatCurrency(revenueData.manual_orders?.confirmed_value || 0), 'Inflow'],
         ['Manual Sales Orders (Pending)', formatCurrency(revenueData.manual_orders?.pending_value || 0), 'Pending']
       ];
@@ -531,6 +533,22 @@ export default function TotalRevenue() {
               </div>
             </div>
 
+            {/* Total Salaries Paid Card */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Salaries Paid</span>
+                <div className="p-2.5 bg-purple-50 text-purple-500 rounded-xl">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+              </div>
+              <div className="mt-4">
+                <span className="block text-2xl font-black text-slate-800">{formatCurrency(revenueData.staff_salaries || 0)}</span>
+                <span className="text-xs text-slate-450 mt-1 block">Total staff salary payments</span>
+              </div>
+            </div>
+
             {/* Net Cashflow Profit Card */}
             <div className={`border rounded-2xl p-6 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between ${revenueData.net_profit_cashflow >= 0
               ? 'bg-emerald-50/40 border-emerald-200 text-emerald-800'
@@ -613,6 +631,10 @@ export default function TotalRevenue() {
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-500">Customer Returns:</span>
                     <span className="font-bold text-rose-600">-{formatCurrency(revenueData.customer_returns || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">Total Salaries Paid:</span>
+                    <span className="font-bold text-rose-600">-{formatCurrency(revenueData.staff_salaries || 0)}</span>
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex justify-between items-center">
@@ -820,6 +842,10 @@ export default function TotalRevenue() {
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-500">Customer Returns:</span>
                     <span className="font-bold text-rose-600">-{formatCurrency(revenueData.customer_returns || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">Total Salaries Paid:</span>
+                    <span className="font-bold text-rose-600">-{formatCurrency(revenueData.staff_salaries || 0)}</span>
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex justify-between items-center">

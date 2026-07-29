@@ -5,12 +5,16 @@
 
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../middleware/auth.php';
+require_once __DIR__ . '/SalaryController.php';
 
 class AnalyticsController {
 
     public static function getRevenueBreakdown() {
         Auth::authenticate();
         Auth::authorize(['super_admin', 'shop_admin']);
+
+        // Ensure staff_salaries table exists
+        SalaryController::ensureSchema();
 
         $shopId = Auth::$shopId;
         $hasShop = $shopId !== null;
