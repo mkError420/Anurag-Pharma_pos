@@ -604,6 +604,15 @@ class AnalyticsController {
                 $grandCost    += $cost;
             }
 
+            // Get total discount for the period
+            $discountSql = 'SELECT SUM(discount) AS total_discount
+                            FROM sales
+                            WHERE shop_id = ? AND DATE(created_at) BETWEEN ? AND ?';
+            $discountStmt = DB::query($discountSql, [$shopId, $startDate, $endDate]);
+            $totalDiscount = (float)($discountStmt->fetchColumn() ?: 0);
+
+            // Subtract discount from grand revenue
+            $grandRevenue -= $totalDiscount;
             $grandProfit = $grandRevenue - $grandCost;
             $grandMargin = $grandRevenue > 0 ? round(($grandProfit / $grandRevenue) * 100, 2) : 0.0;
 
@@ -616,6 +625,7 @@ class AnalyticsController {
                 'grand_cost'    => $grandCost,
                 'grand_profit'  => $grandProfit,
                 'grand_margin'  => $grandMargin,
+                'total_discount'=> $totalDiscount,
             ]);
 
         } catch (\Exception $e) {
@@ -656,15 +666,33 @@ class AnalyticsController {
             $stmt = DB::query($sql, [$shopId, $startDate, $endDate]);
             $productSales = $stmt->fetchAll();
 
+            // Get total discount for the period
+            $discountSql = 'SELECT SUM(discount) AS total_discount
+                            FROM sales
+                            WHERE shop_id = ? AND DATE(created_at) BETWEEN ? AND ?';
+            $discountStmt = DB::query($discountSql, [$shopId, $startDate, $endDate]);
+            $totalDiscount = (float)($discountStmt->fetchColumn() ?: 0);
+
+            // Calculate total revenue before discount
+            $totalRevenueBeforeDiscount = 0.0;
             foreach ($productSales as &$ps) {
                 $ps['product_id'] = (int)$ps['product_id'];
                 $ps['total_quantity_sold'] = (int)$ps['total_quantity_sold'];
                 $ps['total_revenue'] = (float)$ps['total_revenue'];
                 $ps['total_cost'] = (float)$ps['total_cost'];
+                $totalRevenueBeforeDiscount += $ps['total_revenue'];
             }
 
+            // Add discount information to response
+            $response = [
+                'products' => $productSales,
+                'total_discount' => $totalDiscount,
+                'total_revenue_before_discount' => $totalRevenueBeforeDiscount,
+                'total_revenue_after_discount' => $totalRevenueBeforeDiscount - $totalDiscount
+            ];
+
             header('Content-Type: application/json');
-            echo json_encode($productSales);
+            echo json_encode($response);
 
         } catch (\Exception $e) {
             error_log('Fetch daily product sales error: ' . $e->getMessage());

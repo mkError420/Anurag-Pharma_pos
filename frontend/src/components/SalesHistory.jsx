@@ -176,10 +176,11 @@ export default function SalesHistory() {
       doc.setFontSize(12);
       doc.setTextColor(0);
       doc.text(`Total Cost: BDT ${parseFloat(d.grand_cost).toFixed(3)}`, 14, 45);
-      doc.text(`Total Revenue: BDT ${parseFloat(d.grand_revenue).toFixed(3)}`, 14, 52);
+      doc.text(`Total Discount: BDT ${parseFloat(d.total_discount || 0).toFixed(3)}`, 14, 52);
+      doc.text(`Net Revenue: BDT ${parseFloat(d.grand_revenue).toFixed(3)}`, 14, 59);
       
       doc.setTextColor(isLoss ? 220 : 20, isLoss ? 38 : 160, isLoss ? 38 : 20); // Red if loss, green if profit
-      doc.text(`Net Profit: ${isLoss ? '-' : '+'}BDT ${Math.abs(parseFloat(d.grand_profit)).toFixed(3)} (${d.grand_margin}% margin)`, 14, 59);
+      doc.text(`Net Profit: ${isLoss ? '-' : '+'}BDT ${Math.abs(parseFloat(d.grand_profit)).toFixed(3)} (${d.grand_margin}% margin)`, 14, 66);
       
       // Table Data
       const tableColumn = ["#", "Product", "Qty", "Cost Price", "Selling Price", "Profit", "Margin"];
@@ -203,7 +204,7 @@ export default function SalesHistory() {
 
       // Generate Table
       autoTable(doc, {
-        startY: 68,
+        startY: 75,
         head: [tableColumn],
         body: tableRows,
         theme: 'grid',
@@ -251,7 +252,7 @@ export default function SalesHistory() {
         throw new Error('Could not load daily product sales summary.');
       }
       const data = await response.json();
-      setProductDailySales(data);
+      setProductDailySales(data.products || data);
     } catch (err) {
       triggerAlert('error', err.message);
     } finally {
@@ -1681,6 +1682,7 @@ export default function SalesHistory() {
                 <th className="p-4">Customer</th>
                 <th className="p-4">Cashier</th>
                 <th className="p-4">Method</th>
+                <th className="p-4 text-right">Discount</th>
                 <th className="p-4 text-right">Total Final</th>
                 <th className="p-4 text-right">Paid</th>
                 <th className="p-4 text-right">Due</th>
@@ -1723,6 +1725,15 @@ export default function SalesHistory() {
                       <span className="capitalize px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-medium">
                         {sale.payment_method.replace('_', ' ')}
                       </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      {parseFloat(sale.discount || 0) > 0 ? (
+                        <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-lg border border-amber-100">
+                          ৳{parseFloat(sale.discount || 0).toFixed(3)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">-</span>
+                      )}
                     </td>
                     <td className="p-4 text-right font-extrabold text-indigo-600">৳{parseFloat(sale.final_amount).toFixed(3)}</td>
                     <td className="p-4 text-right">
@@ -1891,6 +1902,17 @@ export default function SalesHistory() {
                 </tfoot>
               </table>
             )}
+          </div>
+          {/* Discount Summary */}
+          <div className="bg-amber-50 border-t border-amber-100 p-4">
+            <div className="flex justify-between items-center text-sm">
+              <span className="font-semibold text-amber-800">Total Discount Applied:</span>
+              <span className="font-bold text-amber-700">৳{productDailySales.total_discount ? parseFloat(productDailySales.total_discount).toFixed(3) : '0.000'}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs mt-1 text-amber-600">
+              <span>Net Revenue After Discount:</span>
+              <span className="font-semibold">৳{productDailySales.total_revenue_after_discount ? parseFloat(productDailySales.total_revenue_after_discount).toFixed(3) : productDailySales.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0).toFixed(3)}</span>
+            </div>
           </div>
         </div>
       )}
@@ -2697,7 +2719,7 @@ export default function SalesHistory() {
                     </div>
 
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                       {/* Total Cost Price */}
                       <div className="bg-white border border-slate-200 rounded-xl p-6 text-center shadow-sm">
                         <p className="text-[12px] font-bold text-slate-400 uppercase tracking-wider mb-2">Total Cost Price</p>
@@ -2705,11 +2727,18 @@ export default function SalesHistory() {
                         <p className="text-[13px] text-slate-400 mt-2 font-medium">What you paid</p>
                       </div>
 
+                      {/* Total Discount */}
+                      <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-6 text-center shadow-sm">
+                        <p className="text-[12px] font-bold text-amber-400 uppercase tracking-wider mb-2">Total Discount</p>
+                        <p className="text-3xl font-extrabold text-amber-600">৳{parseFloat(d.total_discount || 0).toFixed(3)}</p>
+                        <p className="text-[13px] text-amber-400/90 mt-2 font-medium">Discounts given</p>
+                      </div>
+
                       {/* Total Selling Price */}
                       <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-6 text-center shadow-sm">
-                        <p className="text-[12px] font-bold text-indigo-400 uppercase tracking-wider mb-2">Total Selling Price</p>
+                        <p className="text-[12px] font-bold text-indigo-400 uppercase tracking-wider mb-2">Net Revenue</p>
                         <p className="text-3xl font-extrabold text-indigo-600">৳{parseFloat(d.grand_revenue).toFixed(3)}</p>
-                        <p className="text-[13px] text-indigo-400/90 mt-2 font-medium">What customer paid</p>
+                        <p className="text-[13px] text-indigo-400/90 mt-2 font-medium">After discount</p>
                       </div>
 
                       {/* Total Profit */}
