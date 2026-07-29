@@ -19,11 +19,11 @@ export default function DashboardLayout({
   
   // Theme colors
   const themeColors = [
-    { name: 'beige', bg: '#f8f1ea', logo: '#dd7922' },
     { name: 'green', bg: '#c4e0c4d3', logo: '#0f5c0f' },
+    { name: 'beige', bg: '#f8f1ea', logo: '#dd7922' },
     { name: 'blue', bg: '#d4e0e8', logo: '#00405e' }
   ];
-  
+
   const [currentTheme, setCurrentTheme] = useState(themeColors[0]);
 
   // Dynamic Badge Color mapping based on user role
