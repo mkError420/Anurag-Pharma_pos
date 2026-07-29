@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 
 export default function Attendance({ onNavigate, user }) {
-  const [todayAttendance, setTodayAttendance] = useState(null);
+  const [todayAttendance, setTodayAttendance] = useState([]);
   const [myAttendance, setMyAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState(null);
@@ -47,7 +47,7 @@ export default function Attendance({ onNavigate, user }) {
       });
       if (response.ok) {
         const data = await response.json();
-        setTodayAttendance(data);
+        setTodayAttendance(Array.isArray(data) ? data : (data ? [data] : []));
       }
     } catch (err) {
       console.error('Error fetching today attendance:', err);
@@ -126,7 +126,10 @@ export default function Attendance({ onNavigate, user }) {
   };
 
   const confirmCheckOut = async () => {
-    if (!todayAttendance) return;
+    // Find the most recent check-in without a check-out
+    const pendingCheckIn = todayAttendance.find(a => a.check_in_time && !a.check_out_time);
+    
+    if (!pendingCheckIn) return;
 
     const now = new Date();
     const timeString = now.toTimeString().slice(0, 5);
@@ -140,7 +143,7 @@ export default function Attendance({ onNavigate, user }) {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          date: todayAttendance.date,
+          date: pendingCheckIn.date,
           check_out_time: timeString,
           notes: noteText || null
         })
@@ -216,63 +219,65 @@ export default function Attendance({ onNavigate, user }) {
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs p-6">
         <h3 className="text-lg font-bold text-slate-800 mb-4">Today's Attendance</h3>
         
-        {todayAttendance ? (
+        {todayAttendance.length > 0 ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
-              <div className="flex items-center space-x-4">
-                <div className={`px-3 py-1.5 rounded-full text-sm font-bold ${getStatusBadge(todayAttendance.status)}`}>
-                  {todayAttendance.status.replace('_', ' ').toUpperCase()}
+            {todayAttendance.map((record, index) => (
+              <div key={record.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                <div className="flex items-center space-x-4">
+                  <div className={`px-3 py-1.5 rounded-full text-sm font-bold ${getStatusBadge(record.status)}`}>
+                    Shift {index + 1}
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    {record.date}
+                  </div>
                 </div>
-                <div className="text-sm text-slate-600">
-                  {todayAttendance.date}
+                <div className="flex items-center space-x-4">
+                  {record.check_in_time && (
+                    <div className="text-sm">
+                      <span className="text-slate-500">Check-in:</span>{' '}
+                      <span className="font-semibold text-slate-800">{record.check_in_time}</span>
+                    </div>
+                  )}
+                  {record.check_out_time && (
+                    <div className="text-sm">
+                      <span className="text-slate-500">Check-out:</span>{' '}
+                      <span className="font-semibold text-slate-800">{record.check_out_time}</span>
+                    </div>
+                  )}
+                  {record.check_in_time && record.check_out_time && (
+                    <div className="text-sm">
+                      <span className="text-slate-500">Duration:</span>{' '}
+                      <span className="font-semibold text-slate-800">{calculateWorkingHours(record.check_in_time, record.check_out_time)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center space-x-4">
-                {todayAttendance.check_in_time && (
-                  <div className="text-sm">
-                    <span className="text-slate-500">Check-in:</span>{' '}
-                    <span className="font-semibold text-slate-800">{todayAttendance.check_in_time}</span>
-                  </div>
-                )}
-                {todayAttendance.check_out_time && (
-                  <div className="text-sm">
-                    <span className="text-slate-500">Check-out:</span>{' '}
-                    <span className="font-semibold text-slate-800">{todayAttendance.check_out_time}</span>
-                  </div>
-                )}
-              </div>
-            </div>
+            ))}
             
             <div className="flex space-x-3">
               <button
-                disabled={!!todayAttendance.check_in_time}
+                disabled={todayAttendance.some(a => a.check_in_time && !a.check_out_time)}
                 onClick={handleCheckIn}
                 className={`font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors ${
-                  todayAttendance.check_in_time
+                  todayAttendance.some(a => a.check_in_time && !a.check_out_time)
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                     : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                 }`}
               >
-                {todayAttendance.check_in_time ? 'Checked In' : 'Check In'}
+                {todayAttendance.some(a => a.check_in_time && !a.check_out_time) ? 'Checked In' : 'Check In'}
               </button>
               <button
-                disabled={!todayAttendance.check_in_time || !!todayAttendance.check_out_time}
+                disabled={!todayAttendance.some(a => a.check_in_time && !a.check_out_time)}
                 onClick={handleCheckOut}
                 className={`font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors ${
-                  !todayAttendance.check_in_time || todayAttendance.check_out_time
+                  !todayAttendance.some(a => a.check_in_time && !a.check_out_time)
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                     : 'bg-rose-600 hover:bg-rose-700 text-white'
                 }`}
               >
-                {todayAttendance.check_out_time ? 'Checked Out' : 'Check Out'}
+                Check Out
               </button>
             </div>
-            
-            {todayAttendance.notes && (
-              <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">
-                <span className="font-semibold">Notes:</span> {todayAttendance.notes}
-              </div>
-            )}
           </div>
         ) : (
           <div className="flex items-center justify-between">

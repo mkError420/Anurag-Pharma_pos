@@ -247,6 +247,38 @@ class TransactionController {
                 }
             }
 
+            // 7. Staff Salary
+            if ($type === 'all' || $type === 'salary') {
+                $sql = "SELECT 
+                            CONCAT('SALARY-', sal.id) AS ref_id,
+                            sal.id AS raw_id,
+                            'salary' AS type,
+                            DATE_FORMAT(sal.salary_date, '%Y-%m-%d 00:00:00') AS date,
+                            u.name AS party_name,
+                            CONCAT('Staff Salary (', sal.month, ')', COALESCE(CONCAT(' - ', sal.notes), '')) AS description,
+                            sal.paid_amount AS amount,
+                            sal.paid_amount AS paid_amount,
+                            0.00 AS due_amount,
+                            'expense' AS status,
+                            sal.payment_method AS payment_method,
+                            'Staff Salary' AS category
+                        FROM staff_salaries sal
+                        JOIN users u ON sal.user_id = u.id
+                        WHERE " . ($hasShop ? 'sal.shop_id = ?' : '1=1');
+                $params = $hasShop ? [$shopId] : [];
+
+                if (!empty($startDate) && !empty($endDate)) {
+                    $sql .= " AND sal.salary_date BETWEEN ? AND ?";
+                    $params[] = $startDate;
+                    $params[] = $endDate;
+                }
+
+                $stmt = DB::query($sql, $params);
+                foreach ($stmt->fetchAll() as $row) {
+                    $transactions[] = self::formatRow($row);
+                }
+            }
+
             // Search filter if provided
             if (!empty($search)) {
                 $searchLower = strtolower($search);
@@ -273,6 +305,7 @@ class TransactionController {
                 'total_wastage' => 0.0,
                 'total_other_cost' => 0.0,
                 'total_other_sales' => 0.0,
+                'total_salary' => 0.0,
                 'count' => count($transactions)
             ];
 
@@ -295,6 +328,9 @@ class TransactionController {
                         break;
                     case 'other_sales':
                         $summary['total_other_sales'] += $t['amount'];
+                        break;
+                    case 'salary':
+                        $summary['total_salary'] += $t['amount'];
                         break;
                 }
             }

@@ -74,6 +74,7 @@ require_once __DIR__ . '/controllers/OtherController.php';
 require_once __DIR__ . '/controllers/OtherSalesController.php';
 require_once __DIR__ . '/controllers/TransactionController.php';
 require_once __DIR__ . '/controllers/AttendanceController.php';
+require_once __DIR__ . '/controllers/SalaryController.php';
 
 // Parse Request URI and Method
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -293,6 +294,9 @@ $routes = [
         '/^attendance\/today$/' => function() { AttendanceController::getTodayAttendance(); },
         '/^attendance\/archive$/' => function() { AttendanceController::archiveOldAttendance(); },
         '/^attendance\/monthly-report$/' => function() { AttendanceController::getMonthlyStaffReport(); },
+        // Salaries
+        '/^salaries$/' => function() { SalaryController::listSalaries(); },
+        '/^salaries\/calculate$/' => function() { SalaryController::calculateSalary(); },
     ],
     'POST' => [
         // Auth
@@ -338,6 +342,8 @@ $routes = [
         '/^users\/staff$/' => function($args, $data) { OtherController::createStaff($data); },
         // Attendance
         '/^attendance$/' => function($args, $data) { AttendanceController::createAttendance($data); },
+        // Salaries
+        '/^salaries$/' => function($args, $data) { SalaryController::createSalary($data); },
     ],
     'PUT' => [
         // Auth
@@ -378,6 +384,8 @@ $routes = [
         '/^users\/staff\/(\d+)$/' => function($args, $data) { OtherController::updateStaff($args[0], $data); },
         // Attendance
         '/^attendance$/' => function($args, $data) { AttendanceController::updateAttendance($data); },
+        // Salaries
+        '/^salaries\/(\d+)$/' => function($args, $data) { SalaryController::updateSalary($args[0], $data); },
     ],
     'DELETE' => [
         // Products
@@ -413,6 +421,8 @@ $routes = [
         '/^users\/staff\/(\d+)$/' => function($args) { OtherController::deleteStaff($args[0]); },
         // Attendance
         '/^attendance\/(\d+)$/' => function($args) { AttendanceController::deleteAttendance($args[0]); },
+        // Salaries
+        '/^salaries\/(\d+)$/' => function($args) { SalaryController::deleteSalary($args[0]); },
     ]
 ];
 

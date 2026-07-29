@@ -37,19 +37,7 @@ class AttendanceController {
         try {
             DB::beginTransaction();
             
-            // Check if attendance already exists for this user on this date
-            $stmt = DB::query(
-                'SELECT id FROM attendance WHERE user_id = ? AND date = ?',
-                [$userId, $date]
-            );
-            $existing = $stmt->fetch();
-            
-            if ($existing) {
-                DB::rollBack();
-                Auth::jsonError('Attendance already marked for this date.', 400);
-            }
-            
-            // Insert attendance record
+            // Insert attendance record (multiple records per day now allowed for shifting duties)
             DB::query(
                 'INSERT INTO attendance (shop_id, user_id, date, check_in_time, check_out_time, status, notes) 
                  VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -214,8 +202,8 @@ class AttendanceController {
                 );
             }
 
-            // Get shop's standard working hours (default to 8.0 if column doesn't exist yet)
-            $standardHours = 8.0;
+            // Get shop's standard working hours (default to 10.0 if column doesn't exist yet)
+            $standardHours = 10.0;
             try {
                 $stmt = DB::query('SELECT standard_working_hours FROM shops WHERE id = ?', [$shopId]);
                 $shop = $stmt->fetch();
@@ -224,7 +212,7 @@ class AttendanceController {
                 }
             } catch (\Exception $e) {
                 // Column doesn't exist yet, use default
-                $standardHours = 8.0;
+                $standardHours = 10.0;
             }
 
             $query = '
@@ -335,13 +323,14 @@ class AttendanceController {
                 'SELECT a.*, u.name as user_name, u.email as user_email
                  FROM attendance a
                  JOIN users u ON a.user_id = u.id
-                 WHERE a.user_id = ? AND a.shop_id = ? AND a.date = ?',
+                 WHERE a.user_id = ? AND a.shop_id = ? AND a.date = ?
+                 ORDER BY a.check_in_time ASC',
                 [$userId, $shopId, $today]
             );
-            $attendance = $stmt->fetch();
+            $attendanceList = $stmt->fetchAll();
             
             header('Content-Type: application/json');
-            echo json_encode($attendance ?: null);
+            echo json_encode($attendanceList);
             
         } catch (\Exception $e) {
             error_log('Get today attendance error: ' . $e->getMessage());
@@ -481,22 +470,47 @@ class AttendanceController {
             );
             $staffList = $stmt->fetchAll();
             
+            // Check if attendance table exists
+            $attendanceTableExists = false;
+            try {
+                $checkTable = DB::query("SHOW TABLES LIKE 'attendance'");
+                $attendanceTableExists = $checkTable->fetch() !== false;
+            } catch (\Exception $e) {
+                $attendanceTableExists = false;
+            }
+            
             // Get attendance summary for each staff member for the specified month
             $report = [];
             foreach ($staffList as $staff) {
-                $stmt = DB::query(
-                    'SELECT 
-                        COUNT(*) as total_days,
-                        SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as present_days,
-                        SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as absent_days,
-                        SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as late_days,
-                        SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as half_day_days,
-                        GROUP_CONCAT(CONCAT(date, \'|\', check_in_time, \'|\', check_out_time, \'|\', notes) ORDER BY date SEPARATOR \'||\') as attendance_details
-                     FROM attendance 
-                     WHERE shop_id = ? AND user_id = ? AND DATE_FORMAT(date, "%Y-%m") = ?',
-                    ['present', 'absent', 'late', 'half_day', $shopId, $staff['id'], $month]
-                );
-                $attendanceData = $stmt->fetch();
+                $attendanceData = [
+                    'total_days' => 0,
+                    'present_days' => 0,
+                    'absent_days' => 0,
+                    'late_days' => 0,
+                    'half_day_days' => 0,
+                    'attendance_details' => null
+                ];
+                
+                if ($attendanceTableExists) {
+                    try {
+                        $stmt = DB::query(
+                            'SELECT 
+                                COUNT(*) as total_days,
+                                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as present_days,
+                                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as absent_days,
+                                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as late_days,
+                                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as half_day_days,
+                                GROUP_CONCAT(CONCAT(date, \'|\', check_in_time, \'|\', check_out_time, \'|\', notes) ORDER BY date SEPARATOR \'||\') as attendance_details
+                             FROM attendance 
+                             WHERE shop_id = ? AND user_id = ? AND DATE_FORMAT(date, "%Y-%m") = ?',
+                            ['present', 'absent', 'late', 'half_day', $shopId, $staff['id'], $month]
+                        );
+                        $attendanceData = $stmt->fetch();
+                    } catch (\Exception $e) {
+                        // If query fails, use default values
+                        error_log('Attendance query failed for staff ' . $staff['id'] . ': ' . $e->getMessage());
+                    }
+                }
                 
                 // Calculate total working hours
                 $totalMinutes = 0;

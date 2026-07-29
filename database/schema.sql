@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS `shops` (
   `phone` VARCHAR(20) NULL,
   `address` TEXT NULL,
   `tax_rate` DECIMAL(5,2) NOT NULL DEFAULT 10.00,
+  `standard_working_hours` DECIMAL(4,2) NOT NULL DEFAULT 10.00,
   `status` ENUM('active', 'inactive') DEFAULT 'active',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -34,6 +35,11 @@ CREATE TABLE IF NOT EXISTS `users` (
   `role` ENUM('super_admin', 'shop_admin', 'shop_staff') NOT NULL,
   `status` ENUM('active', 'inactive') DEFAULT 'active',
   `allowed_sections` TEXT NULL,
+  `base_salary` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `salary_type` ENUM('monthly', 'daily', 'hourly') NOT NULL DEFAULT 'monthly',
+  `daily_rate` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `hourly_rate` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `overtime_rate_per_hour` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -331,6 +337,78 @@ CREATE TABLE IF NOT EXISTS `held_bills` (
   CONSTRAINT `fk_held_bills_shop` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_held_bills_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_held_bills_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `attendance`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `attendance` (
+  `id` INT AUTO_INCREMENT,
+  `shop_id` INT NOT NULL,
+  `user_id` INT NOT NULL,
+  `date` DATE NOT NULL,
+  `status` ENUM('present', 'absent', 'late', 'half_day') NOT NULL DEFAULT 'present',
+  `check_in_time` TIME NULL,
+  `check_out_time` TIME NULL,
+  `overtime_hours` DECIMAL(8,2) NOT NULL DEFAULT 0.00,
+  `notes` TEXT NULL,
+  `is_archived` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_attendance_shop_user_date` (`shop_id`, `user_id`, `date`),
+  INDEX `idx_attendance_date` (`date`),
+  CONSTRAINT `fk_attendance_shop`
+    FOREIGN KEY (`shop_id`)
+    REFERENCES `shops` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_attendance_user`
+    FOREIGN KEY (`user_id`)
+    REFERENCES `users` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
+-- Table `staff_salaries`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `staff_salaries` (
+  `id` INT AUTO_INCREMENT,
+  `shop_id` INT NOT NULL,
+  `user_id` INT NOT NULL,
+  `month` VARCHAR(7) NOT NULL,
+  `salary_date` DATE NOT NULL,
+  `base_salary` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `working_days` INT NOT NULL DEFAULT 0,
+  `present_days` INT NOT NULL DEFAULT 0,
+  `absent_days` INT NOT NULL DEFAULT 0,
+  `late_days` INT NOT NULL DEFAULT 0,
+  `half_days` INT NOT NULL DEFAULT 0,
+  `total_working_hours` DECIMAL(8,2) NOT NULL DEFAULT 0.00,
+  `overtime_hours` DECIMAL(8,2) NOT NULL DEFAULT 0.00,
+  `overtime_pay` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `attendance_deduction` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `bonus` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `net_salary` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `paid_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `payment_method` ENUM('cash', 'card', 'mobile_pay', 'bank_transfer', 'other') NOT NULL DEFAULT 'cash',
+  `notes` TEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_staff_salaries_shop_month` (`shop_id`, `month`),
+  INDEX `idx_staff_salaries_user` (`user_id`),
+  CONSTRAINT `fk_staff_salaries_shop`
+    FOREIGN KEY (`shop_id`)
+    REFERENCES `shops` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT `fk_staff_salaries_user`
+    FOREIGN KEY (`user_id`)
+    REFERENCES `users` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------

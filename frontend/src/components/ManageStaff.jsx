@@ -52,7 +52,7 @@ export default function ManageStaff() {
     check_out_time: '',
     notes: ''
   });
-  const [standardWorkingHours, setStandardWorkingHours] = useState(8);
+  const [standardWorkingHours, setStandardWorkingHours] = useState(10);
   const [showStandardHoursModal, setShowStandardHoursModal] = useState(false);
 
   // Monthly report state
@@ -63,6 +63,39 @@ export default function ManageStaff() {
   const [selectedStaffReport, setSelectedStaffReport] = useState(null);
   const [staffAttendanceDetails, setStaffAttendanceDetails] = useState([]);
   const [staffDetailsLoading, setStaffDetailsLoading] = useState(false);
+
+  // Salary & Payroll state
+  const [salariesList, setSalariesList] = useState([]);
+  const [salariesLoading, setSalariesLoading] = useState(false);
+  const [salaryMonth, setSalaryMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM format
+  const [salaryStaffFilter, setSalaryStaffFilter] = useState('');
+  const [showProcessSalaryModal, setShowProcessSalaryModal] = useState(false);
+  const [calculatingSalary, setCalculatingSalary] = useState(false);
+  const [salaryCalculation, setSalaryCalculation] = useState(null);
+  const [showPayslipModal, setShowPayslipModal] = useState(false);
+  const [selectedPayslip, setSelectedPayslip] = useState(null);
+  const [editingSalaryRecord, setEditingSalaryRecord] = useState(null);
+
+  const [salaryFormData, setSalaryFormData] = useState({
+    user_id: '',
+    month: new Date().toISOString().slice(0, 7),
+    salary_date: new Date().toISOString().split('T')[0],
+    base_salary: 0,
+    working_days: 0,
+    present_days: 0,
+    absent_days: 0,
+    late_days: 0,
+    half_days: 0,
+    total_working_hours: 0,
+    overtime_hours: 0,
+    overtime_pay: 0,
+    attendance_deduction: 0,
+    bonus: 0,
+    net_salary: 0,
+    paid_amount: 0,
+    payment_method: 'cash',
+    notes: ''
+  });
 
   useEffect(() => {
     if (!showAddModal) setShowAddPassword(false);
@@ -79,7 +112,12 @@ export default function ManageStaff() {
     password: '',
     role: 'shop_staff',
     status: 'active',
-    allowed_sections: []
+    allowed_sections: [],
+    base_salary: 0,
+    salary_type: 'monthly',
+    daily_rate: 0,
+    hourly_rate: 0,
+    overtime_rate_per_hour: 0
   });
 
   const fetchStaff = async () => {
@@ -205,6 +243,150 @@ export default function ManageStaff() {
     }
   }, [activeTab, reportMonth, selectedShop, userRole]);
 
+  const fetchSalaries = async () => {
+    setSalariesLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      let url = `${API_BASE_URL}/salaries?month=${salaryMonth}`;
+      if (salaryStaffFilter) {
+        url += `&user_id=${salaryStaffFilter}`;
+      }
+      if (userRole === 'super_admin' && selectedShop) {
+        url += `&shop_id=${selectedShop}`;
+      }
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('Failed to retrieve staff salary records.');
+      const data = await response.json();
+      setSalariesList(data);
+    } catch (err) {
+      triggerAlert('error', err.message);
+    } finally {
+      setSalariesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'payroll') {
+      if (userRole === 'super_admin' && !selectedShop) return;
+      fetchSalaries();
+      // Also ensure staff list is loaded
+      if (staffList.length === 0) {
+        fetchStaff();
+      }
+    }
+  }, [activeTab, salaryMonth, salaryStaffFilter, selectedShop, userRole]);
+
+  const handleCalculateSalary = async (userId, targetMonth) => {
+    if (!userId || !targetMonth) {
+      triggerAlert('error', 'Please select a staff member and month.');
+      return;
+    }
+    setCalculatingSalary(true);
+    try {
+      const token = localStorage.getItem('token');
+      let url = `${API_BASE_URL}/salaries/calculate?user_id=${userId}&month=${targetMonth}`;
+      if (userRole === 'super_admin' && selectedShop) {
+        url += `&shop_id=${selectedShop}`;
+      }
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Failed to calculate staff attendance salary details.');
+      setSalaryCalculation(resData);
+
+      setSalaryFormData(prev => {
+        const bonus = prev.bonus || 0;
+        const netSal = Math.max(0, (resData.net_salary || 0) + bonus);
+        return {
+          ...prev,
+          user_id: resData.user_id,
+          month: resData.month,
+          base_salary: resData.base_salary || 0,
+          working_days: resData.working_days || 0,
+          present_days: resData.present_days || 0,
+          absent_days: resData.absent_days || 0,
+          late_days: resData.late_days || 0,
+          half_days: resData.half_days || 0,
+          total_working_hours: resData.total_working_hours || 0,
+          overtime_hours: resData.overtime_hours || 0,
+          overtime_pay: resData.overtime_pay || 0,
+          attendance_deduction: resData.attendance_deduction || 0,
+          bonus: bonus,
+          net_salary: netSal,
+          paid_amount: netSal
+        };
+      });
+    } catch (err) {
+      triggerAlert('error', err.message);
+    } finally {
+      setCalculatingSalary(false);
+    }
+  };
+
+  const handleProcessSalarySubmit = async (e) => {
+    e.preventDefault();
+    if (!salaryFormData.user_id || !salaryFormData.month || !salaryFormData.salary_date || salaryFormData.paid_amount <= 0) {
+      triggerAlert('error', 'Please select staff, month, date, and valid payment amount.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const payload = {
+        ...salaryFormData,
+        shop_id: selectedShop || undefined
+      };
+
+      let url = `${API_BASE_URL}/salaries`;
+      let method = 'POST';
+
+      if (editingSalaryRecord) {
+        url = `${API_BASE_URL}/salaries/${editingSalaryRecord.id}`;
+        method = 'PUT';
+      }
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Failed to save salary payment.');
+
+      triggerAlert('success', editingSalaryRecord ? 'Salary record updated successfully!' : 'Staff salary payment disbursed successfully!');
+      setShowProcessSalaryModal(false);
+      setEditingSalaryRecord(null);
+      fetchSalaries();
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  const handleDeleteSalary = async (salaryId) => {
+    if (!window.confirm('Are you sure you want to delete this salary payment record?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/salaries/${salaryId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Failed to delete salary record.');
+
+      triggerAlert('success', 'Salary record deleted successfully!');
+      fetchSalaries();
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
   const fetchShopStandardHours = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -213,7 +395,7 @@ export default function ManageStaff() {
       });
       if (response.ok) {
         const data = await response.json();
-        setStandardWorkingHours(data.standard_working_hours || 8);
+        setStandardWorkingHours(data.standard_working_hours || 10);
       }
     } catch (err) {
       console.error('Error fetching standard hours:', err);
@@ -459,7 +641,12 @@ export default function ManageStaff() {
           email: formData.email,
           password: formData.password,
           role: formData.role,
-          allowed_sections: formData.allowed_sections
+          allowed_sections: formData.allowed_sections,
+          base_salary: parseFloat(formData.base_salary || 0),
+          salary_type: formData.salary_type || 'monthly',
+          daily_rate: parseFloat(formData.daily_rate || 0),
+          hourly_rate: parseFloat(formData.hourly_rate || 0),
+          overtime_rate_per_hour: parseFloat(formData.overtime_rate_per_hour || 0)
         })
       });
 
@@ -483,7 +670,12 @@ export default function ManageStaff() {
       role: staff.role,
       status: staff.status,
       password: '', // Don't preload hash password
-      allowed_sections: staff.allowed_sections || []
+      allowed_sections: staff.allowed_sections || [],
+      base_salary: staff.base_salary || 0,
+      salary_type: staff.salary_type || 'monthly',
+      daily_rate: staff.daily_rate || 0,
+      hourly_rate: staff.hourly_rate || 0,
+      overtime_rate_per_hour: staff.overtime_rate_per_hour || 0
     });
     setShowEditModal(true);
   };
@@ -502,7 +694,12 @@ export default function ManageStaff() {
         email: formData.email,
         role: formData.role,
         status: formData.status,
-        allowed_sections: formData.allowed_sections
+        allowed_sections: formData.allowed_sections,
+        base_salary: parseFloat(formData.base_salary || 0),
+        salary_type: formData.salary_type || 'monthly',
+        daily_rate: parseFloat(formData.daily_rate || 0),
+        hourly_rate: parseFloat(formData.hourly_rate || 0),
+        overtime_rate_per_hour: parseFloat(formData.overtime_rate_per_hour || 0)
       };
       if (formData.password) {
         payload.password = formData.password;
@@ -586,6 +783,10 @@ export default function ManageStaff() {
       setShowEditAttendanceModal(false);
       setEditingAttendance(null);
       fetchAttendance();
+      // Also refresh monthly report if on report tab
+      if (activeTab === 'report') {
+        fetchMonthlyReport();
+      }
     } catch (err) {
       triggerAlert('error', err.message);
     }
@@ -608,6 +809,10 @@ export default function ManageStaff() {
 
       triggerAlert('success', 'Attendance record deleted successfully!');
       fetchAttendance();
+      // Also refresh monthly report if on report tab
+      if (activeTab === 'report') {
+        fetchMonthlyReport();
+      }
       setDeleteAttendanceConfirm(null);
     } catch (err) {
       triggerAlert('error', err.message);
@@ -621,12 +826,14 @@ export default function ManageStaff() {
       password: '',
       role: 'shop_staff',
       status: 'active',
-      allowed_sections: []
+      allowed_sections: [],
+      base_salary: 0,
+      salary_type: 'monthly',
+      daily_rate: 0,
+      hourly_rate: 0,
+      overtime_rate_per_hour: 0
     });
-    setCurrentSupplier(null);
   };
-
-  const setCurrentSupplier = (val) => {}; // placeholder
 
   return (
     <>
@@ -679,6 +886,47 @@ export default function ManageStaff() {
             <span>Register New Staff</span>
           </button>
         )}
+        {activeTab === 'payroll' && (
+          <button
+            onClick={() => {
+              setEditingSalaryRecord(null);
+              setSalaryCalculation(null);
+              setSalaryFormData({
+                user_id: staffList[0]?.id || '',
+                month: new Date().toISOString().slice(0, 7),
+                salary_date: new Date().toISOString().split('T')[0],
+                base_salary: 0,
+                working_days: 0,
+                present_days: 0,
+                absent_days: 0,
+                late_days: 0,
+                half_days: 0,
+                total_working_hours: 0,
+                overtime_hours: 0,
+                overtime_pay: 0,
+                attendance_deduction: 0,
+                bonus: 0,
+                net_salary: 0,
+                paid_amount: 0,
+                payment_method: 'cash',
+                notes: ''
+              });
+              setShowProcessSalaryModal(true);
+              // Calculate salary after modal opens if staff is selected
+              if (staffList.length > 0 && staffList[0]?.id) {
+                setTimeout(() => {
+                  handleCalculateSalary(staffList[0].id, new Date().toISOString().slice(0, 7));
+                }, 100);
+              }
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
+          >
+           {/*  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg> */}
+            <span>Process Salary Disbursal</span>
+          </button>
+        )}
       </div>
 
       {/* Tab Navigation */}
@@ -712,6 +960,16 @@ export default function ManageStaff() {
           }`}
         >
           Monthly Report
+        </button>
+        <button
+          onClick={() => setActiveTab('payroll')}
+          className={`flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-colors ${
+            activeTab === 'payroll'
+              ? 'bg-white text-emerald-800 shadow-sm font-bold'
+              : 'text-slate-600 hover:text-slate-800'
+          }`}
+        >
+          Salary & Payroll
         </button>
       </div>
 
@@ -1068,6 +1326,182 @@ export default function ManageStaff() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      ) : activeTab === 'payroll' ? (
+        <div className="space-y-6">
+          {/* Summary Stat Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Salaries Paid</p>
+                <h3 className="text-2xl font-extrabold text-slate-800 mt-1">
+                  ৳{salariesList.reduce((sum, s) => sum + (s.paid_amount || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h3>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Disbursals Count</p>
+                <h3 className="text-2xl font-extrabold text-slate-800 mt-1">{salariesList.length}</h3>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-xl text-blue-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Overtime Pay Total</p>
+                <h3 className="text-2xl font-extrabold text-amber-600 mt-1">
+                  ৳{salariesList.reduce((sum, s) => sum + (s.overtime_pay || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h3>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-xl text-amber-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Attendance Deductions</p>
+                <h3 className="text-2xl font-extrabold text-rose-600 mt-1">
+                  ৳{salariesList.reduce((sum, s) => sum + (s.attendance_deduction || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h3>
+              </div>
+              <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Salaries Table */}
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3">
+              <div className="flex items-center space-x-3">
+                <h3 className="text-lg font-bold text-slate-800">Staff Payroll History</h3>
+                {userRole === 'super_admin' && shopsList.length > 0 && (
+                  <select
+                    value={selectedShop || ''}
+                    onChange={(e) => setSelectedShop(parseInt(e.target.value))}
+                    className="border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    {shopsList.map((shop) => (
+                      <option key={shop.id} value={shop.id}>{shop.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="flex items-center space-x-3">
+                <select
+                  value={salaryStaffFilter}
+                  onChange={(e) => setSalaryStaffFilter(e.target.value)}
+                  className="border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">All Staff Members</option>
+                  {staffList.map((st) => (
+                    <option key={st.id} value={st.id}>{st.name}</option>
+                  ))}
+                </select>
+                <input
+                  type="month"
+                  value={salaryMonth}
+                  onChange={(e) => setSalaryMonth(e.target.value)}
+                  className="border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                    <th className="p-4">Staff Member</th>
+                    <th className="p-4">Month</th>
+                    <th className="p-4">Base Salary</th>
+                    <th className="p-4">Attendance Summary</th>
+                    <th className="p-4">Overtime Pay</th>
+                    <th className="p-4">Deductions</th>
+                    <th className="p-4">Net Paid</th>
+                    <th className="p-4">Method & Date</th>
+                    <th className="p-4 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {salariesLoading ? (
+                    <tr>
+                      <td colSpan="9" className="p-12 text-center">
+                        <div className="flex justify-center items-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : salariesList.length === 0 ? (
+                    <tr>
+                      <td colSpan="9" className="p-12 text-center text-slate-400">
+                        No salary payment records found for the selected month/filter. Click "Process Salary Disbursal" to record a payment.
+                      </td>
+                    </tr>
+                  ) : (
+                    salariesList.map((salary) => (
+                      <tr key={salary.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-4 font-semibold text-slate-800">
+                          <div>{salary.staff_name}</div>
+                          <div className="text-xs text-slate-400 font-normal">{salary.staff_email}</div>
+                        </td>
+                        <td className="p-4 font-mono text-xs font-bold text-indigo-600">{salary.month}</td>
+                        <td className="p-4 text-slate-600 font-medium">৳{salary.base_salary?.toFixed(2)}</td>
+                        <td className="p-4">
+                          <div className="flex flex-wrap gap-1 text-[10px]">
+                            <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100 font-bold">P: {salary.present_days}d</span>
+                            {salary.absent_days > 0 && <span className="bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded border border-rose-100 font-bold">A: {salary.absent_days}d</span>}
+                            {salary.late_days > 0 && <span className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded border border-amber-100 font-bold">L: {salary.late_days}d</span>}
+                            {salary.half_days > 0 && <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 font-bold">H: {salary.half_days}d</span>}
+                            {salary.overtime_hours > 0 && <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-100 font-bold">OT: {salary.overtime_hours}h</span>}
+                          </div>
+                        </td>
+                        <td className="p-4 text-emerald-600 font-medium">+৳{salary.overtime_pay?.toFixed(2)}</td>
+                        <td className="p-4 text-rose-600 font-medium">-৳{salary.attendance_deduction?.toFixed(2)}</td>
+                        <td className="p-4 font-bold text-slate-800 text-base">৳{salary.paid_amount?.toFixed(2)}</td>
+                        <td className="p-4">
+                          <span className="capitalize px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            {salary.payment_method?.replace('_', ' ')}
+                          </span>
+                          <div className="text-[11px] text-slate-400 mt-0.5">{salary.salary_date}</div>
+                        </td>
+                        <td className="p-4 text-center space-x-1.5">
+                          <button
+                            onClick={() => { setSelectedPayslip(salary); setShowPayslipModal(true); }}
+                            className="text-emerald-600 hover:text-emerald-900 font-semibold text-xs border border-emerald-100 hover:bg-emerald-50 px-2 py-1 rounded-lg transition-colors"
+                            title="View / Print Payslip Voucher"
+                          >
+                            Payslip
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSalary(salary.id)}
+                            className="text-rose-600 hover:text-rose-900 font-semibold text-xs border border-rose-100 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       ) : null}
@@ -1531,6 +1965,293 @@ export default function ManageStaff() {
         </div>
       )}
 
+      {/* PROCESS SALARY MODAL */}
+      {showProcessSalaryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">{editingSalaryRecord ? 'Edit Salary Payment' : 'Process Salary Disbursal'}</h3>
+                <p className="text-sm text-slate-500">{editingSalaryRecord ? 'Update salary payment record' : 'Record a new salary payment for staff'}</p>
+              </div>
+              <button onClick={() => { setShowProcessSalaryModal(false); setEditingSalaryRecord(null); }} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handleProcessSalarySubmit} className="mt-4 space-y-4 overflow-y-auto flex-1">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Staff Member *</label>
+                  <select
+                    name="user_id"
+                    value={salaryFormData.user_id}
+                    onChange={(e) => {
+                      setSalaryFormData({ ...salaryFormData, user_id: e.target.value });
+                      if (e.target.value && salaryFormData.month) {
+                        handleCalculateSalary(e.target.value, salaryFormData.month);
+                      }
+                    }}
+                    required
+                    disabled={editingSalaryRecord}
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-50"
+                  >
+                    <option value="">Select Staff</option>
+                    {staffList.map(staff => (
+                      <option key={staff.id} value={staff.id}>{staff.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Month *</label>
+                  <input
+                    type="month"
+                    name="month"
+                    value={salaryFormData.month}
+                    onChange={(e) => {
+                      setSalaryFormData({ ...salaryFormData, month: e.target.value });
+                      if (salaryFormData.user_id) {
+                        handleCalculateSalary(salaryFormData.user_id, e.target.value);
+                      }
+                    }}
+                    required
+                    disabled={editingSalaryRecord}
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-50"
+                  />
+                </div>
+              </div>
+
+              {salaryCalculation && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <h4 className="text-sm font-bold text-slate-800 mb-3">Attendance-Based Calculation</h4>
+                  <div className="grid grid-cols-4 gap-3 text-sm">
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 text-center">
+                      <div className="text-lg font-bold text-slate-800">{salaryCalculation.present_days}</div>
+                      <div className="text-xs text-slate-500">Present</div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 text-center">
+                      <div className="text-lg font-bold text-rose-600">{salaryCalculation.absent_days}</div>
+                      <div className="text-xs text-slate-500">Absent</div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 text-center">
+                      <div className="text-lg font-bold text-amber-600">{salaryCalculation.late_days}</div>
+                      <div className="text-xs text-slate-500">Late</div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 text-center">
+                      <div className="text-lg font-bold text-blue-600">{salaryCalculation.half_days}</div>
+                      <div className="text-xs text-slate-500">Half Day</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Payment Date *</label>
+                  <input
+                    type="date"
+                    name="salary_date"
+                    value={salaryFormData.salary_date}
+                    onChange={(e) => setSalaryFormData({ ...salaryFormData, salary_date: e.target.value })}
+                    required
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Payment Method</label>
+                  <select
+                    name="payment_method"
+                    value={salaryFormData.payment_method}
+                    onChange={(e) => setSalaryFormData({ ...salaryFormData, payment_method: e.target.value })}
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="mobile_pay">Mobile Payment</option>
+                    <option value="check">Check</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Working Days</label>
+                  <input
+                    type="number"
+                    name="working_days"
+                    value={salaryFormData.working_days}
+                    readOnly
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 text-slate-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Working Hours</label>
+                  <input
+                    type="text"
+                    name="total_working_hours"
+                    value={salaryFormData.total_working_hours}
+                    readOnly
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 text-slate-600"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Base Salary</label>
+                  <input
+                    type="number"
+                    name="base_salary"
+                    value={salaryFormData.base_salary}
+                    onChange={(e) => {
+                      const baseSalary = parseFloat(e.target.value) || 0;
+                      const netSalary = Math.max(0, baseSalary + (salaryFormData.overtime_pay || 0) - (salaryFormData.attendance_deduction || 0) + (salaryFormData.bonus || 0));
+                      setSalaryFormData({ 
+                        ...salaryFormData, 
+                        base_salary: baseSalary,
+                        net_salary: netSalary,
+                        paid_amount: netSalary
+                      });
+                    }}
+                    step="0.01"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Overtime Hours</label>
+                  <input
+                    type="number"
+                    name="overtime_hours"
+                    value={salaryFormData.overtime_hours}
+                    readOnly
+                    step="0.01"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 text-slate-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Overtime Pay</label>
+                  <input
+                    type="number"
+                    name="overtime_pay"
+                    value={salaryFormData.overtime_pay}
+                    onChange={(e) => {
+                      const overtimePay = parseFloat(e.target.value) || 0;
+                      const netSalary = Math.max(0, (salaryFormData.base_salary || 0) + overtimePay - (salaryFormData.attendance_deduction || 0) + (salaryFormData.bonus || 0));
+                      setSalaryFormData({ 
+                        ...salaryFormData, 
+                        overtime_pay: overtimePay,
+                        net_salary: netSalary,
+                        paid_amount: netSalary
+                      });
+                    }}
+                    step="0.01"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Attendance Deduction</label>
+                  <input
+                    type="number"
+                    name="attendance_deduction"
+                    value={salaryFormData.attendance_deduction}
+                    onChange={(e) => {
+                      const attendanceDeduction = parseFloat(e.target.value) || 0;
+                      const netSalary = Math.max(0, (salaryFormData.base_salary || 0) + (salaryFormData.overtime_pay || 0) - attendanceDeduction + (salaryFormData.bonus || 0));
+                      setSalaryFormData({ 
+                        ...salaryFormData, 
+                        attendance_deduction: attendanceDeduction,
+                        net_salary: netSalary,
+                        paid_amount: netSalary
+                      });
+                    }}
+                    step="0.01"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Bonus</label>
+                  <input
+                    type="number"
+                    name="bonus"
+                    value={salaryFormData.bonus}
+                    onChange={(e) => {
+                      const bonus = parseFloat(e.target.value) || 0;
+                      const netSalary = Math.max(0, (salaryFormData.base_salary || 0) + (salaryFormData.overtime_pay || 0) - (salaryFormData.attendance_deduction || 0) + bonus);
+                      setSalaryFormData({ 
+                        ...salaryFormData, 
+                        bonus: bonus,
+                        net_salary: netSalary,
+                        paid_amount: netSalary
+                      });
+                    }}
+                    step="0.01"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Net Salary</label>
+                  <input
+                    type="number"
+                    name="net_salary"
+                    value={salaryFormData.net_salary}
+                    readOnly
+                    step="0.01"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 text-slate-600 font-bold text-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Paid Amount *</label>
+                <input
+                  type="number"
+                  name="paid_amount"
+                  value={salaryFormData.paid_amount}
+                  onChange={(e) => setSalaryFormData({ ...salaryFormData, paid_amount: parseFloat(e.target.value) || 0 })}
+                  step="0.01"
+                  required
+                  min="0"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 font-bold text-indigo-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Notes</label>
+                <textarea
+                  name="notes"
+                  value={salaryFormData.notes}
+                  onChange={(e) => setSalaryFormData({ ...salaryFormData, notes: e.target.value })}
+                  rows="2"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex space-x-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setShowProcessSalaryModal(false); setEditingSalaryRecord(null); }}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={calculatingSalary}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {calculatingSalary ? 'Calculating...' : editingSalaryRecord ? 'Update Payment' : 'Process Payment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* STAFF REPORT DETAIL MODAL */}
       {showStaffReportModal && selectedStaffReport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
@@ -1643,6 +2364,193 @@ export default function ManageStaff() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PAYSLIP MODAL */}
+      {showPayslipModal && selectedPayslip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div id="payslip-print-content" className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Salary Payslip</h3>
+                <p className="text-sm text-slate-500">{selectedPayslip.month} - Payment Date: {selectedPayslip.salary_date}</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => {
+                    const printContent = document.getElementById('payslip-print-content').innerHTML;
+                    const printWindow = window.open('', '_blank');
+                    printWindow.document.write(`
+                      <!DOCTYPE html>
+                      <html>
+                      <head>
+                        <title>Salary Payslip - ${selectedPayslip.staff_name || 'N/A'}</title>
+                        <style>
+                          body { font-family: Arial, sans-serif; padding: 20px; }
+                          h3 { color: #333; margin-bottom: 5px; }
+                          p { color: #666; margin-bottom: 20px; }
+                          .bg-slate-50 { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+                          h4 { color: #333; margin-bottom: 12px; font-size: 14px; font-weight: bold; }
+                          .grid { display: grid; gap: 8px; }
+                          .grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+                          .text-sm { font-size: 14px; }
+                          .text-slate-500 { color: #64748b; }
+                          .text-slate-800 { color: #1e293b; font-weight: 600; }
+                          .font-semibold { font-weight: 600; }
+                          .space-y-2 > div { margin-bottom: 8px; }
+                          .flex { display: flex; }
+                          .justify-between { justify-content: space-between; }
+                          .text-emerald-600 { color: #059669; }
+                          .text-rose-600 { color: #dc2626; }
+                          .text-amber-600 { color: #d97706; }
+                          .text-blue-600 { color: #2563eb; }
+                          .text-indigo-600 { color: #4f46e5; }
+                          .text-lg { font-size: 18px; }
+                          .border-t { border-top: 1px solid #cbd5e1; }
+                          .pt-2 { padding-top: 8px; }
+                          .mt-2 { margin-top: 8px; }
+                          @media print { body { -webkit-print-color-adjust: exact; } }
+                        </style>
+                      </head>
+                      <body>
+                        ${printContent}
+                        <script>
+                          window.onload = function() {
+                            window.print();
+                            window.onafterprint = function() {
+                              window.close();
+                            };
+                          };
+                        </script>
+                      </body>
+                      </html>
+                    `);
+                    printWindow.document.close();
+                  }}
+                  className="text-slate-600 hover:text-slate-900 font-semibold text-xs border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors flex items-center space-x-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  <span>Print</span>
+                </button>
+                <button onClick={() => setShowPayslipModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-4 overflow-y-auto flex-1">
+              {/* Staff Info */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                <h4 className="text-sm font-bold text-slate-800 mb-2">Staff Information</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-slate-500">Name:</span>
+                    <span className="font-semibold text-slate-800 ml-2">{selectedPayslip.staff_name || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Month:</span>
+                    <span className="font-semibold text-slate-800 ml-2">{selectedPayslip.month}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Salary Summary */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                <h4 className="text-sm font-bold text-slate-800 mb-3">Salary Breakdown</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Base Salary</span>
+                    <span className="font-semibold text-slate-800">৳{parseFloat(selectedPayslip.base_salary || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Working Days</span>
+                    <span className="font-semibold text-slate-800">{selectedPayslip.working_days || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Present Days</span>
+                    <span className="font-semibold text-emerald-600">{selectedPayslip.present_days || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Absent Days</span>
+                    <span className="font-semibold text-rose-600">{selectedPayslip.absent_days || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Late Days</span>
+                    <span className="font-semibold text-amber-600">{selectedPayslip.late_days || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Half Days</span>
+                    <span className="font-semibold text-blue-600">{selectedPayslip.half_days || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Total Working Hours</span>
+                    <span className="font-semibold text-slate-800">{selectedPayslip.total_working_hours || 0}h</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Overtime Hours</span>
+                    <span className="font-semibold text-slate-800">{selectedPayslip.overtime_hours || 0}h</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Overtime Pay</span>
+                    <span className="font-semibold text-emerald-600">৳{parseFloat(selectedPayslip.overtime_pay || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Attendance Deduction</span>
+                    <span className="font-semibold text-rose-600">-৳{parseFloat(selectedPayslip.attendance_deduction || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Bonus</span>
+                    <span className="font-semibold text-emerald-600">+৳{parseFloat(selectedPayslip.bonus || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="border-t border-slate-300 pt-2 mt-2">
+                    <div className="flex justify-between">
+                      <span className="font-bold text-slate-800">Net Salary</span>
+                      <span className="font-bold text-emerald-600 text-lg">৳{parseFloat(selectedPayslip.net_salary || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Paid Amount</span>
+                    <span className="font-bold text-indigo-600">৳{parseFloat(selectedPayslip.paid_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Details */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                <h4 className="text-sm font-bold text-slate-800 mb-2">Payment Details</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-slate-500">Payment Date:</span>
+                    <span className="font-semibold text-slate-800 ml-2">{selectedPayslip.salary_date}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Payment Method:</span>
+                    <span className="font-semibold text-slate-800 ml-2 capitalize">{selectedPayslip.payment_method || 'N/A'}</span>
+                  </div>
+                </div>
+                {selectedPayslip.notes && (
+                  <div className="mt-2">
+                    <span className="text-slate-500">Notes:</span>
+                    <p className="font-semibold text-slate-800 mt-1">{selectedPayslip.notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setShowPayslipModal(false)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

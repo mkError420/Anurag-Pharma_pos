@@ -1348,11 +1348,15 @@ class OtherController {
         }
 
         try {
-            $stmt = DB::query('SELECT id, name, email, role, status, allowed_sections, logo, created_at FROM users WHERE shop_id = ? ORDER BY name ASC', [$shopId]);
+            $stmt = DB::query('SELECT id, name, email, role, status, allowed_sections, base_salary, salary_type, daily_rate, hourly_rate, overtime_rate_per_hour, logo, created_at FROM users WHERE shop_id = ? ORDER BY name ASC', [$shopId]);
             $staff = $stmt->fetchAll();
 
             foreach ($staff as &$member) {
                 $member['id'] = (int)$member['id'];
+                $member['base_salary'] = (float)($member['base_salary'] ?? 0);
+                $member['daily_rate'] = (float)($member['daily_rate'] ?? 0);
+                $member['hourly_rate'] = (float)($member['hourly_rate'] ?? 0);
+                $member['overtime_rate_per_hour'] = (float)($member['overtime_rate_per_hour'] ?? 0);
                 if (is_string($member['allowed_sections'])) {
                     $member['allowed_sections'] = json_decode($member['allowed_sections'], true);
                 }
@@ -1378,6 +1382,11 @@ class OtherController {
         $password = $requestData['password'] ?? '';
         $role = $requestData['role'] ?? 'shop_staff';
         $allowedSections = isset($requestData['allowed_sections']) ? $requestData['allowed_sections'] : null;
+        $baseSalary = (float)($requestData['base_salary'] ?? 0);
+        $salaryType = $requestData['salary_type'] ?? 'monthly';
+        $dailyRate = (float)($requestData['daily_rate'] ?? 0);
+        $hourlyRate = (float)($requestData['hourly_rate'] ?? 0);
+        $overtimeRate = (float)($requestData['overtime_rate_per_hour'] ?? 0);
 
         if (empty($name) || empty($email) || empty($password)) {
             Auth::jsonError('Name, email, and password are required.', 400);
@@ -1397,8 +1406,8 @@ class OtherController {
             $passwordHash = password_hash($password, PASSWORD_BCRYPT);
             
             DB::query(
-                'INSERT INTO users (shop_id, name, email, password_hash, role, allowed_sections) VALUES (?, ?, ?, ?, ?, ?)',
-                [$shopId, $name, $email, $passwordHash, $role, $allowedSections ? json_encode($allowedSections) : null]
+                'INSERT INTO users (shop_id, name, email, password_hash, role, allowed_sections, base_salary, salary_type, daily_rate, hourly_rate, overtime_rate_per_hour) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [$shopId, $name, $email, $passwordHash, $role, $allowedSections ? json_encode($allowedSections) : null, $baseSalary, $salaryType, $dailyRate, $hourlyRate, $overtimeRate]
             );
             $newId = DB::lastInsertId();
 
@@ -1447,6 +1456,27 @@ class OtherController {
 
             $updateFields = ['name = ?', 'email = ?'];
             $params = [$name, $email];
+
+            if (array_key_exists('base_salary', $requestData)) {
+                $updateFields[] = 'base_salary = ?';
+                $params[] = (float)$requestData['base_salary'];
+            }
+            if (array_key_exists('salary_type', $requestData)) {
+                $updateFields[] = 'salary_type = ?';
+                $params[] = $requestData['salary_type'];
+            }
+            if (array_key_exists('daily_rate', $requestData)) {
+                $updateFields[] = 'daily_rate = ?';
+                $params[] = (float)$requestData['daily_rate'];
+            }
+            if (array_key_exists('hourly_rate', $requestData)) {
+                $updateFields[] = 'hourly_rate = ?';
+                $params[] = (float)$requestData['hourly_rate'];
+            }
+            if (array_key_exists('overtime_rate_per_hour', $requestData)) {
+                $updateFields[] = 'overtime_rate_per_hour = ?';
+                $params[] = (float)$requestData['overtime_rate_per_hour'];
+            }
 
             // Update password only if it's provided (non-empty string)
             if (isset($requestData['password']) && $requestData['password'] !== '') {

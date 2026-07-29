@@ -140,9 +140,20 @@ class AnalyticsController {
             $stmt = DB::query($otherSalesSql, $otherSalesParams);
             $totalOtherSales = (float)($stmt->fetchColumn() ?: 0);
 
+            // 11. Staff Salaries Expense
+            $salarySql = 'SELECT SUM(paid_amount) AS total_salaries FROM staff_salaries WHERE ' . ($hasShop ? 'shop_id = ?' : '1=1');
+            $salaryParams = $hasShop ? [$shopId] : [];
+            if (!empty($startDate) && !empty($endDate)) {
+                $salarySql .= ' AND salary_date BETWEEN ? AND ?';
+                $salaryParams[] = $startDate;
+                $salaryParams[] = $endDate;
+            }
+            $stmt = DB::query($salarySql, $salaryParams);
+            $totalSalaries = (float)($stmt->fetchColumn() ?: 0);
+
             // Calculate net profits
-            $netProfitCOGS = $totalSales + $totalOtherSales - ($totalCOGS - $totalReturnedCOGS) - $totalOther - $totalWastage - $totalRefunds;
-            $netProfitCashflow = $totalSalesCash + $totalOtherSales - $totalPurchasingCash - $totalOther - $totalWastage - $totalRefunds;
+            $netProfitCOGS = $totalSales + $totalOtherSales - ($totalCOGS - $totalReturnedCOGS) - $totalOther - $totalWastage - $totalRefunds - $totalSalaries;
+            $netProfitCashflow = $totalSalesCash + $totalOtherSales - $totalPurchasingCash - $totalOther - $totalWastage - $totalRefunds - $totalSalaries;
 
             // Generate 7-Day Trend Map
             $trendMap = [];
@@ -158,6 +169,7 @@ class AnalyticsController {
                     'returned_cogs' => 0.0,
                     'other_costs' => 0.0,
                     'wastage_loss' => 0.0,
+                    'staff_salaries' => 0.0,
                     'inventory_purchasing_cost' => 0.0,
                     'inventory_purchasing_cash_paid' => 0.0,
                     'net_profit_cogs' => 0.0,
@@ -269,12 +281,24 @@ class AnalyticsController {
                 }
             }
 
+            // Fetch daily staff salaries trend
+            $trendSalarySql = 'SELECT DATE_FORMAT(salary_date, "%Y-%m-%d") AS date, SUM(paid_amount) AS salary 
+                               FROM staff_salaries WHERE ' . ($hasShop ? 'shop_id = ?' : '1=1') . ' AND salary_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) 
+                               GROUP BY DATE_FORMAT(salary_date, "%Y-%m-%d")';
+            $stmt = DB::query($trendSalarySql, $hasShop ? [$shopId] : []);
+            while ($row = $stmt->fetch()) {
+                $dt = $row['date'];
+                if (isset($trendMap[$dt])) {
+                    $trendMap[$dt]['staff_salaries'] = (float)$row['salary'];
+                }
+            }
+
             // Calculate profit fields on trend map
             foreach ($trendMap as $dateStr => &$d) {
                 $dailyRefunds = $d['customer_returns'];
                 $dailyReturnedCOGS = $d['returned_cogs'];
-                $d['net_profit_cogs'] = $d['sales_revenue'] + $d['other_sales_revenue'] - ($d['cost_of_goods_sold'] - $dailyReturnedCOGS) - $d['other_costs'] - $d['wastage_loss'] - $dailyRefunds;
-                $d['net_profit_cashflow'] = $d['sales_cash_received'] + $d['other_sales_revenue'] - $d['inventory_purchasing_cash_paid'] - $d['other_costs'] - $d['wastage_loss'] - $dailyRefunds;
+                $d['net_profit_cogs'] = $d['sales_revenue'] + $d['other_sales_revenue'] - ($d['cost_of_goods_sold'] - $dailyReturnedCOGS) - $d['other_costs'] - $d['wastage_loss'] - $d['staff_salaries'] - $dailyRefunds;
+                $d['net_profit_cashflow'] = $d['sales_cash_received'] + $d['other_sales_revenue'] - $d['inventory_purchasing_cash_paid'] - $d['other_costs'] - $d['wastage_loss'] - $d['staff_salaries'] - $dailyRefunds;
             }
 
             $trend = array_values($trendMap);
@@ -335,6 +359,7 @@ class AnalyticsController {
                 'customer_due' => $totalCustomerDue,
                 'other_costs' => $totalOther,
                 'wastage_loss' => $totalWastage,
+                'staff_salaries' => $totalSalaries,
                 'net_profit_cogs' => $netProfitCOGS,
                 'net_profit_cashflow' => $netProfitCashflow,
                 'trend' => $trend,
