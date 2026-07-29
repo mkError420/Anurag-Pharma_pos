@@ -256,21 +256,21 @@ export default function Attendance({ onNavigate, user }) {
             
             <div className="flex space-x-3">
               <button
-                disabled={todayAttendance.some(a => a.check_in_time && !a.check_out_time)}
+                disabled={todayAttendance.some(a => a.check_in_time && !a.check_out_time) || todayAttendance.some(a => a.status === 'absent')}
                 onClick={handleCheckIn}
                 className={`font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors ${
-                  todayAttendance.some(a => a.check_in_time && !a.check_out_time)
+                  todayAttendance.some(a => a.check_in_time && !a.check_out_time) || todayAttendance.some(a => a.status === 'absent')
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                     : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                 }`}
               >
-                {todayAttendance.some(a => a.check_in_time && !a.check_out_time) ? 'Checked In' : 'Check In'}
+                {todayAttendance.some(a => a.status === 'absent') ? 'Marked Absent' : (todayAttendance.some(a => a.check_in_time && !a.check_out_time) ? 'Checked In' : 'Check In')}
               </button>
               <button
-                disabled={!todayAttendance.some(a => a.check_in_time && !a.check_out_time)}
+                disabled={!todayAttendance.some(a => a.check_in_time && !a.check_out_time) || todayAttendance.some(a => a.status === 'absent')}
                 onClick={handleCheckOut}
                 className={`font-semibold py-2.5 px-5 rounded-xl text-sm shadow transition-colors ${
-                  !todayAttendance.some(a => a.check_in_time && !a.check_out_time)
+                  !todayAttendance.some(a => a.check_in_time && !a.check_out_time) || todayAttendance.some(a => a.status === 'absent')
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                     : 'bg-rose-600 hover:bg-rose-700 text-white'
                 }`}

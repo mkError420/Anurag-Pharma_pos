@@ -12,11 +12,29 @@ class AttendanceController {
         Auth::authenticate();
         Auth::authorize(['shop_staff', 'shop_admin']);
         
-        $userId = Auth::$user['id'];
+        $currentUserId = Auth::$user['id'];
+        $currentUserRole = Auth::$user['role'];
         $shopId = Auth::$user['shop_id'];
         
         if ($shopId === null) {
             Auth::jsonError('Attendance can only be marked by shop users.', 403);
+        }
+        
+        // Shop admins can create attendance for other staff in their shop
+        // Shop staff can only create their own attendance
+        $targetUserId = $requestData['user_id'] ?? $currentUserId;
+        
+        if ($currentUserRole === 'shop_staff' && $targetUserId != $currentUserId) {
+            Auth::jsonError('Staff can only mark their own attendance.', 403);
+        }
+        
+        // Verify the target user belongs to the same shop
+        $stmt = DB::query(
+            'SELECT id FROM users WHERE id = ? AND shop_id = ?',
+            [$targetUserId, $shopId]
+        );
+        if (!$stmt->fetch()) {
+            Auth::jsonError('Target user not found in your shop.', 404);
         }
         
         $date = $requestData['date'] ?? date('Y-m-d');
@@ -41,7 +59,7 @@ class AttendanceController {
             DB::query(
                 'INSERT INTO attendance (shop_id, user_id, date, check_in_time, check_out_time, status, notes) 
                  VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [$shopId, $userId, $date, $checkInTime, $checkOutTime, $status, $notes]
+                [$shopId, $targetUserId, $date, $checkInTime, $checkOutTime, $status, $notes]
             );
             
             $attendanceId = DB::lastInsertId();

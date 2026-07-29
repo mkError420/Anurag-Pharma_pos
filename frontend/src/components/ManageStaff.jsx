@@ -819,6 +819,69 @@ export default function ManageStaff() {
     }
   };
 
+  const handleMarkAbsent = async (record) => {
+    const staffName = record.user_name || staffList.find(s => s.id === record.user_id)?.name || 'Staff';
+    if (!window.confirm(`Are you sure you want to mark ${staffName} as absent for ${record.date}? This will disable Check In/Check Out for this day.`)) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Check if attendance record exists
+      const existingRecord = attendanceList.find(
+        a => a.user_id === record.user_id && a.date === record.date
+      );
+      
+      let response;
+      if (existingRecord) {
+        // Update existing record
+        response = await fetch(`${API_BASE_URL}/attendance`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            user_id: record.user_id,
+            date: record.date,
+            status: 'absent',
+            check_in_time: null,
+            check_out_time: null,
+            notes: 'Marked absent by admin'
+          })
+        });
+      } else {
+        // Create new attendance record
+        response = await fetch(`${API_BASE_URL}/attendance`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            user_id: record.user_id,
+            date: record.date,
+            status: 'absent',
+            check_in_time: null,
+            check_out_time: null,
+            notes: 'Marked absent by admin'
+          })
+        });
+      }
+
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Failed to mark as absent.');
+
+      triggerAlert('success', 'Staff marked as absent successfully!');
+      fetchAttendance();
+      // Also refresh monthly report if on report tab
+      if (activeTab === 'report') {
+        fetchMonthlyReport();
+      }
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -1139,85 +1202,129 @@ export default function ManageStaff() {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
-                  <th className="p-4">Staff Name</th>
-                  <th className="p-4">Date</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4">Check In</th>
-                  <th className="p-4">Check Out</th>
-                  <th className="p-4">Total Hours</th>
-                  <th className="p-4">Overtime</th>
-                  <th className="p-4">Notes</th>
-                  <th className="p-4 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {attendanceLoading ? (
-                  <tr>
-                    <td colSpan="9" className="p-12 text-center">
-                      <div className="flex justify-center items-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
-                      </div>
-                    </td>
+            {attendanceLoading ? (
+              <div className="p-12 text-center">
+                <div className="flex justify-center items-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                </div>
+              </div>
+            ) : attendanceList.length === 0 ? (
+              <div className="p-12 text-center text-slate-400">
+                No attendance records found for the selected period.
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                    <th className="p-4 min-w-[120px]">Date</th>
+                    {staffList.map((staff) => (
+                      <th key={staff.id} className="p-4 min-w-[180px] text-center">
+                        <div className="font-semibold text-slate-800">{staff.name}</div>
+                      </th>
+                    ))}
                   </tr>
-                ) : attendanceList.length === 0 ? (
-                  <tr>
-                    <td colSpan="9" className="p-12 text-center text-slate-400">
-                      No attendance records found for the selected period.
-                    </td>
-                  </tr>
-                ) : (
-                  attendanceList.map((record) => (
-                    <tr key={record.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-4 font-semibold text-slate-800">{record.user_name}</td>
-                      <td className="p-4 text-slate-600">{record.date}</td>
-                      <td className="p-4">
-                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold ${
-                          record.status === 'present'
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                            : record.status === 'absent'
-                            ? 'bg-rose-50 text-rose-600 border border-rose-100'
-                            : record.status === 'late'
-                            ? 'bg-amber-50 text-amber-600 border border-amber-100'
-                            : 'bg-blue-50 text-blue-600 border border-blue-100'
-                        }`}>
-                          {record.status.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="p-4 text-slate-600">{record.check_in_time || '-'}</td>
-                      <td className="p-4 text-slate-600">{record.check_out_time || '-'}</td>
-                      <td className="p-4 text-slate-600 font-semibold">{calculateWorkingHours(record.check_in_time, record.check_out_time)}</td>
-                      <td className="p-4">
-                        {record.overtime_hours > 0 ? (
-                          <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100">
-                            {record.overtime_hours.toFixed(2)}h
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">-</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-slate-600 max-w-xs truncate">{record.notes || '-'}</td>
-                      <td className="p-4 text-center space-x-2">
-                        <button
-                          onClick={() => openEditAttendance(record)}
-                          className="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-100 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => setDeleteAttendanceConfirm(record)}
-                          className="text-rose-600 hover:text-rose-900 font-semibold text-xs border border-rose-100 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {(() => {
+                    // Get unique dates from attendance records
+                    const uniqueDates = [...new Set(attendanceList.map(r => r.date))].sort();
+                    
+                    return uniqueDates.map((date) => (
+                      <tr key={date} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-4 font-semibold text-slate-800 whitespace-nowrap">{date}</td>
+                        {staffList.map((staff) => {
+                          // Find attendance record for this staff on this date
+                          const staffAttendance = attendanceList.find(
+                            r => r.user_id === staff.id && r.date === date
+                          );
+                          
+                          if (!staffAttendance) {
+                            return (
+                              <td key={staff.id} className="p-4">
+                                <div className="flex justify-center">
+                                  {userRole === 'shop_admin' ? (
+                                    <button
+                                      onClick={() => handleMarkAbsent({ user_id: staff.id, date: date })}
+                                      className="text-amber-600 hover:text-amber-900 text-[10px] border border-amber-100 hover:bg-amber-50 px-1.5 py-0.5 rounded transition-colors"
+                                      title="Mark Absent"
+                                    >
+                                      Mark Absent
+                                    </button>
+                                  ) : (
+                                    <span className="text-slate-400">-</span>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          }
+                          
+                          return (
+                            <td key={staff.id} className="p-4">
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-center space-x-2">
+                                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                    staffAttendance.status === 'present'
+                                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                      : staffAttendance.status === 'absent'
+                                      ? 'bg-rose-50 text-rose-600 border border-rose-100'
+                                      : staffAttendance.status === 'late'
+                                      ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                                      : 'bg-blue-50 text-blue-600 border border-blue-100'
+                                  }`}>
+                                    {staffAttendance.status.replace('_', ' ')}
+                                  </span>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-xs text-slate-500">In: {staffAttendance.check_in_time || '-'}</div>
+                                  <div className="text-xs text-slate-500">Out: {staffAttendance.check_out_time || '-'}</div>
+                                </div>
+                                {staffAttendance.check_in_time && staffAttendance.check_out_time && (
+                                  <div className="text-center text-xs font-semibold text-slate-700">
+                                    {calculateWorkingHours(staffAttendance.check_in_time, staffAttendance.check_out_time)}
+                                  </div>
+                                )}
+                                {staffAttendance.overtime_hours > 0 && (
+                                  <div className="text-center">
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100">
+                                      +{staffAttendance.overtime_hours.toFixed(2)}h OT
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="flex justify-center space-x-1">
+                                  {userRole === 'shop_admin' && staffAttendance.status !== 'absent' && (
+                                    <button
+                                      onClick={() => handleMarkAbsent(staffAttendance)}
+                                      className="text-amber-600 hover:text-amber-900 text-[10px] border border-amber-100 hover:bg-amber-50 px-1.5 py-0.5 rounded transition-colors"
+                                      title="Mark Absent"
+                                    >
+                                      Absent
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => openEditAttendance(staffAttendance)}
+                                    className="text-indigo-600 hover:text-indigo-900 text-[10px] border border-indigo-100 hover:bg-indigo-50 px-1.5 py-0.5 rounded transition-colors"
+                                    title="Edit"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteAttendanceConfirm(staffAttendance)}
+                                    className="text-rose-600 hover:text-rose-900 text-[10px] border border-rose-100 hover:bg-rose-50 px-1.5 py-0.5 rounded transition-colors"
+                                    title="Delete"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       ) : activeTab === 'report' ? (
