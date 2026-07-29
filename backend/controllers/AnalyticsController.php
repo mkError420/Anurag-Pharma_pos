@@ -558,14 +558,14 @@ class AnalyticsController {
         }
 
         try {
-            // Per-product breakdown: qty sold, total revenue, total cost
+            // Per-product breakdown: qty sold, net total revenue (after discount), total cost
             $sql = '
                 SELECT
                     p.id            AS product_id,
                     p.name          AS product_name,
                     p.sku           AS product_sku,
                     SUM(si.quantity)                              AS total_qty,
-                    SUM(si.subtotal)                             AS total_revenue,
+                    SUM(si.subtotal * (1 - CASE WHEN s.total_amount > 0 THEN s.discount / s.total_amount ELSE 0 END)) AS total_revenue,
                     SUM(si.quantity * COALESCE(si.cost_price, p.cost_price, 0)) AS total_cost
                 FROM sale_items si
                 JOIN products p ON si.product_id = p.id
@@ -611,8 +611,6 @@ class AnalyticsController {
             $discountStmt = DB::query($discountSql, [$shopId, $startDate, $endDate]);
             $totalDiscount = (float)($discountStmt->fetchColumn() ?: 0);
 
-            // Subtract discount from grand revenue
-            $grandRevenue -= $totalDiscount;
             $grandProfit = $grandRevenue - $grandCost;
             $grandMargin = $grandRevenue > 0 ? round(($grandProfit / $grandRevenue) * 100, 2) : 0.0;
 
@@ -653,7 +651,8 @@ class AnalyticsController {
                         p.name as product_name,
                         p.sku as product_sku,
                         SUM(si.quantity) as total_quantity_sold,
-                        SUM(si.subtotal) as total_revenue,
+                        SUM(si.subtotal) as gross_revenue,
+                        SUM(si.subtotal * (1 - CASE WHEN s.total_amount > 0 THEN s.discount / s.total_amount ELSE 0 END)) as total_revenue,
                         SUM(si.quantity * COALESCE(si.cost_price, p.cost_price, 0)) as total_cost,
                         GROUP_CONCAT(DISTINCT s.id SEPARATOR ", ") as invoice_ids
                     FROM sale_items si
@@ -673,14 +672,17 @@ class AnalyticsController {
             $discountStmt = DB::query($discountSql, [$shopId, $startDate, $endDate]);
             $totalDiscount = (float)($discountStmt->fetchColumn() ?: 0);
 
-            // Calculate total revenue before discount
+            // Calculate total revenue before and after discount
             $totalRevenueBeforeDiscount = 0.0;
+            $totalRevenueAfterDiscount = 0.0;
             foreach ($productSales as &$ps) {
                 $ps['product_id'] = (int)$ps['product_id'];
                 $ps['total_quantity_sold'] = (int)$ps['total_quantity_sold'];
+                $ps['gross_revenue'] = (float)$ps['gross_revenue'];
                 $ps['total_revenue'] = (float)$ps['total_revenue'];
                 $ps['total_cost'] = (float)$ps['total_cost'];
-                $totalRevenueBeforeDiscount += $ps['total_revenue'];
+                $totalRevenueBeforeDiscount += $ps['gross_revenue'];
+                $totalRevenueAfterDiscount += $ps['total_revenue'];
             }
 
             // Add discount information to response
@@ -688,7 +690,7 @@ class AnalyticsController {
                 'products' => $productSales,
                 'total_discount' => $totalDiscount,
                 'total_revenue_before_discount' => $totalRevenueBeforeDiscount,
-                'total_revenue_after_discount' => $totalRevenueBeforeDiscount - $totalDiscount
+                'total_revenue_after_discount' => $totalRevenueAfterDiscount
             ];
 
             header('Content-Type: application/json');

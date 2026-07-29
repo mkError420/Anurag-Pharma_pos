@@ -252,7 +252,7 @@ export default function SalesHistory() {
         throw new Error('Could not load daily product sales summary.');
       }
       const data = await response.json();
-      setProductDailySales(data.products || data);
+      setProductDailySales(data);
     } catch (err) {
       triggerAlert('error', err.message);
     } finally {
@@ -1850,68 +1850,71 @@ export default function SalesHistory() {
             </p>
           </div>
           <div className="overflow-x-auto">
-            {dailySalesLoading ? (
-              <div className="p-12 text-center text-slate-400">Loading summary...</div>
-            ) : productDailySales.length === 0 ? (
-              <div className="p-12 text-center text-slate-400">No products were sold in this period.</div>
-            ) : (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="p-3 pl-4">SKU</th>
-                    <th className="p-3">Product Name</th>
-                    <th className="p-3">Invoice IDs</th>
-                    <th className="p-3 text-center">Total Quantity Sold</th>
-                    <th className="p-3 text-right pr-4">Total Purchase Amount</th>
-                    <th className="p-3 text-right pr-4">Total Revenue Generated</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {productDailySales.map(item => (
-                    <tr key={item.product_id} className="hover:bg-slate-50/50">
-                      <td className="p-3 pl-4 font-mono text-xs font-bold text-slate-500">{item.product_sku}</td>
-                      <td className="p-3 font-semibold text-slate-800">{item.product_name}</td>
-                      <td className="p-3 text-xs text-slate-500 max-w-xs break-words">{item.invoice_ids || '-'}</td>
-                      <td className="p-3 text-center">
-                        <span className="bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-100">
-                          {item.total_quantity_sold} units
-                        </span>
+            {(() => {
+              const productList = Array.isArray(productDailySales) ? productDailySales : (productDailySales.products || []);
+              return dailySalesLoading ? (
+                <div className="p-12 text-center text-slate-400">Loading summary...</div>
+              ) : productList.length === 0 ? (
+                <div className="p-12 text-center text-slate-400">No products were sold in this period.</div>
+              ) : (
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      <th className="p-3 pl-4">SKU</th>
+                      <th className="p-3">Product Name</th>
+                      <th className="p-3">Invoice IDs</th>
+                      <th className="p-3 text-center">Total Quantity Sold</th>
+                      <th className="p-3 text-right pr-4">Total Purchase Amount</th>
+                      <th className="p-3 text-right pr-4">Total Revenue Generated</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {productList.map(item => (
+                      <tr key={item.product_id} className="hover:bg-slate-50/50">
+                        <td className="p-3 pl-4 font-mono text-xs font-bold text-slate-500">{item.product_sku}</td>
+                        <td className="p-3 font-semibold text-slate-800">{item.product_name}</td>
+                        <td className="p-3 text-xs text-slate-500 max-w-xs break-words">{item.invoice_ids || '-'}</td>
+                        <td className="p-3 text-center">
+                          <span className="bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-100">
+                            {item.total_quantity_sold} units
+                          </span>
+                        </td>
+                        <td className="p-3 text-right pr-4 font-bold text-rose-600">
+                          ৳{parseFloat(item.total_cost || 0).toFixed(3)}
+                        </td>
+                        <td className="p-3 text-right pr-4 font-extrabold text-emerald-600">
+                          ৳{parseFloat(item.total_revenue).toFixed(3)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-50/50 border-t border-slate-200 font-bold">
+                      <td colSpan="3" className="p-3 pl-4 text-slate-500 uppercase text-xs">Total</td>
+                      <td className="p-3 text-center text-indigo-800">
+                        {productList.reduce((sum, item) => sum + item.total_quantity_sold, 0)} units
                       </td>
-                      <td className="p-3 text-right pr-4 font-bold text-rose-600">
-                        ৳{parseFloat(item.total_cost || 0).toFixed(3)}
+                      <td className="p-3 text-right pr-4 text-rose-700">
+                        ৳{productList.reduce((sum, item) => sum + parseFloat(item.total_cost || 0), 0).toFixed(3)}
                       </td>
-                      <td className="p-3 text-right pr-4 font-extrabold text-emerald-600">
-                        ৳{parseFloat(item.total_revenue).toFixed(3)}
+                      <td className="p-3 text-right pr-4 text-emerald-700">
+                        ৳{productList.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0).toFixed(3)}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-slate-50/50 border-t border-slate-200 font-bold">
-                    <td colSpan="3" className="p-3 pl-4 text-slate-500 uppercase text-xs">Total</td>
-                    <td className="p-3 text-center text-indigo-800">
-                      {productDailySales.reduce((sum, item) => sum + item.total_quantity_sold, 0)} units
-                    </td>
-                    <td className="p-3 text-right pr-4 text-rose-700">
-                      ৳{productDailySales.reduce((sum, item) => sum + parseFloat(item.total_cost || 0), 0).toFixed(3)}
-                    </td>
-                    <td className="p-3 text-right pr-4 text-emerald-700">
-                      ৳{productDailySales.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0).toFixed(3)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            )}
+                  </tfoot>
+                </table>
+              );
+            })()}
           </div>
           {/* Discount Summary */}
           <div className="bg-amber-50 border-t border-amber-100 p-4">
             <div className="flex justify-between items-center text-sm">
               <span className="font-semibold text-amber-800">Total Discount Applied:</span>
-              <span className="font-bold text-amber-700">৳{productDailySales.total_discount ? parseFloat(productDailySales.total_discount).toFixed(3) : '0.000'}</span>
+              <span className="font-bold text-amber-700">৳{productDailySales.total_discount !== undefined ? parseFloat(productDailySales.total_discount).toFixed(3) : '0.000'}</span>
             </div>
             <div className="flex justify-between items-center text-xs mt-1 text-amber-600">
               <span>Net Revenue After Discount:</span>
-              <span className="font-semibold">৳{productDailySales.total_revenue_after_discount ? parseFloat(productDailySales.total_revenue_after_discount).toFixed(3) : productDailySales.reduce((sum, item) => sum + parseFloat(item.total_revenue), 0).toFixed(3)}</span>
+              <span className="font-semibold">৳{productDailySales.total_revenue_after_discount !== undefined ? parseFloat(productDailySales.total_revenue_after_discount).toFixed(3) : (Array.isArray(productDailySales) ? productDailySales : (productDailySales.products || [])).reduce((sum, item) => sum + parseFloat(item.total_revenue), 0).toFixed(3)}</span>
             </div>
           </div>
         </div>
@@ -1956,8 +1959,10 @@ export default function SalesHistory() {
                 </div>
               ) : profitModal.details ? (() => {
                 const items = profitModal.details.items || [];
+                const saleDiscount = parseFloat(profitModal.details.discount || profitModal.sale.discount || 0);
                 const totalCost = items.reduce((s, i) => s + parseFloat(i.cost_price || 0) * i.quantity, 0);
-                const totalRevenue = items.reduce((s, i) => s + parseFloat(i.unit_price || 0) * i.quantity, 0);
+                const grossRevenue = items.reduce((s, i) => s + parseFloat(i.unit_price || 0) * i.quantity, 0);
+                const totalRevenue = Math.max(0, grossRevenue - saleDiscount);
                 const totalProfit = totalRevenue - totalCost;
                 const profitMargin = totalRevenue > 0 ? ((totalProfit / totalRevenue) * 100).toFixed(1) : '0.0';
 
@@ -1971,7 +1976,7 @@ export default function SalesHistory() {
                             <th className="px-4 py-3">Product</th>
                             <th className="px-4 py-3 text-center w-12">Qty</th>
                             <th className="px-4 py-3 text-right">Cost Price</th>
-                            <th className="px-4 py-3 text-right">Selling Price</th>
+                            <th className="px-4 py-3 text-right">Net Selling Price</th>
                             <th className="px-4 py-3 text-right">Profit</th>
                             <th className="px-4 py-3 text-center w-20">Margin</th>
                           </tr>
@@ -1982,7 +1987,9 @@ export default function SalesHistory() {
                             const sellPerUnit = parseFloat(item.unit_price || 0);
                             const qty = item.quantity;
                             const totalCostRow = costPerUnit * qty;
-                            const totalSellRow = sellPerUnit * qty;
+                            const grossSellRow = sellPerUnit * qty;
+                            const itemDiscount = grossRevenue > 0 ? (grossSellRow / grossRevenue) * saleDiscount : 0;
+                            const totalSellRow = Math.max(0, grossSellRow - itemDiscount);
                             const profitRow = totalSellRow - totalCostRow;
                             const marginRow = totalSellRow > 0 ? ((profitRow / totalSellRow) * 100).toFixed(1) : '0.0';
                             const isLoss = profitRow < 0;
@@ -2002,7 +2009,11 @@ export default function SalesHistory() {
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <div className="text-slate-800 font-semibold">৳{totalSellRow.toFixed(3)}</div>
-                                  <div className="text-xs text-slate-400">৳{sellPerUnit.toFixed(3)}/unit</div>
+                                  {itemDiscount > 0 ? (
+                                    <div className="text-xs text-amber-600 font-medium">(Discount: -৳{itemDiscount.toFixed(3)})</div>
+                                  ) : (
+                                    <div className="text-xs text-slate-400">৳{sellPerUnit.toFixed(3)}/unit</div>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <span className={`font-extrabold ${isLoss ? 'text-rose-600' : 'text-emerald-600'}`}>
@@ -2027,25 +2038,30 @@ export default function SalesHistory() {
                     </div>
 
                     {/* Summary Totals */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-center">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Cost Price</p>
-                        <p className="text-xl font-extrabold text-slate-700">৳{totalCost.toFixed(3)}</p>
-                        <p className="text-xs text-slate-400 mt-1">What you paid</p>
+                        <p className="text-lg font-extrabold text-slate-700">৳{totalCost.toFixed(3)}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">What you paid</p>
                       </div>
-                      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-center">
-                        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Total Selling Price</p>
-                        <p className="text-xl font-extrabold text-indigo-700">৳{totalRevenue.toFixed(3)}</p>
-                        <p className="text-xs text-indigo-400 mt-1">What customer paid</p>
+                      <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5 text-center">
+                        <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1">Discount Applied</p>
+                        <p className="text-lg font-extrabold text-amber-700">৳{saleDiscount.toFixed(3)}</p>
+                        <p className="text-xs text-amber-500 mt-0.5">Discount given</p>
                       </div>
-                      <div className={`border rounded-xl p-4 text-center ${totalProfit >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+                      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3.5 text-center">
+                        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Net Revenue</p>
+                        <p className="text-lg font-extrabold text-indigo-700">৳{totalRevenue.toFixed(3)}</p>
+                        <p className="text-xs text-indigo-400 mt-0.5">After discount</p>
+                      </div>
+                      <div className={`border rounded-xl p-3.5 text-center ${totalProfit >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
                         <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                           Total Profit
                         </p>
-                        <p className={`text-xl font-extrabold ${totalProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        <p className={`text-lg font-extrabold ${totalProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                           {totalProfit >= 0 ? '+' : '-'}৳{Math.abs(totalProfit).toFixed(3)}
                         </p>
-                        <p className={`text-xs mt-1 font-semibold ${totalProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        <p className={`text-xs mt-0.5 font-semibold ${totalProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                           {profitMargin}% margin
                         </p>
                       </div>
