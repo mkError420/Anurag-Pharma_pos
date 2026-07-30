@@ -137,6 +137,9 @@ export default function OtherCost() {
   const printCostDetails = (cost) => {
     const doc = new jsPDF();
     
+    // PDF-specific currency formatter (uses BDT instead of ৳ for better font support)
+    const formatCurrencyPDF = (val) => `BDT ${parseFloat(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    
     // Header
     doc.setFontSize(18);
     doc.text('Cost Entry Details', 14, 15);
@@ -150,7 +153,7 @@ export default function OtherCost() {
     // Cost Details
     doc.setFontSize(12);
     doc.text('Description: ' + cost.title, 14, 38);
-    doc.text('Total Amount: ' + formatCurrency(cost.amount), 14, 44);
+    doc.text('Total Amount: ' + formatCurrencyPDF(cost.amount), 14, 44);
     
     if (cost.notes) {
       doc.text('Notes: ' + cost.notes, 14, 50);
@@ -162,8 +165,8 @@ export default function OtherCost() {
       const tableData = items.map(item => [
         item.item_name || '-',
         item.quantity || 1,
-        formatCurrency(item.unit_price || 0),
-        formatCurrency((item.quantity || 1) * (item.unit_price || 0))
+        formatCurrencyPDF(item.unit_price || 0),
+        formatCurrencyPDF((item.quantity || 1) * (item.unit_price || 0))
       ]);
       
       autoTable(doc, {
@@ -175,7 +178,8 @@ export default function OtherCost() {
       });
     }
     
-    doc.save(`cost_entry_${cost.id}_${cost.cost_date}.pdf`);
+    // Open in new window for print preview
+    window.open(doc.output('bloburl'), '_blank');
   };
 
   // 1. CREATE COST
