@@ -75,6 +75,7 @@ require_once __DIR__ . '/controllers/OtherSalesController.php';
 require_once __DIR__ . '/controllers/TransactionController.php';
 require_once __DIR__ . '/controllers/AttendanceController.php';
 require_once __DIR__ . '/controllers/SalaryController.php';
+require_once __DIR__ . '/controllers/InvestmentController.php';
 
 // Parse Request URI and Method
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -297,6 +298,9 @@ $routes = [
         // Salaries
         '/^salaries$/' => function() { SalaryController::listSalaries(); },
         '/^salaries\/calculate$/' => function() { SalaryController::calculateSalary(); },
+        // Investments
+        '/^investments$/' => function() { InvestmentController::getInvestments(); },
+        '/^investments\/summary$/' => function() { InvestmentController::getInvestmentSummary(); },
     ],
     'POST' => [
         // Auth
@@ -344,6 +348,8 @@ $routes = [
         '/^attendance$/' => function($args, $data) { AttendanceController::createAttendance($data); },
         // Salaries
         '/^salaries$/' => function($args, $data) { SalaryController::createSalary($data); },
+        // Investments
+        '/^investments$/' => function($args, $data) { InvestmentController::createInvestment(); },
     ],
     'PUT' => [
         // Auth
@@ -386,6 +392,8 @@ $routes = [
         '/^attendance$/' => function($args, $data) { AttendanceController::updateAttendance($data); },
         // Salaries
         '/^salaries\/(\d+)$/' => function($args, $data) { SalaryController::updateSalary($args[0], $data); },
+        // Investments
+        '/^investments\/(\d+)$/' => function($args, $data) { InvestmentController::updateInvestment($args[0]); },
     ],
     'DELETE' => [
         // Products
@@ -423,6 +431,8 @@ $routes = [
         '/^attendance\/(\d+)$/' => function($args) { AttendanceController::deleteAttendance($args[0]); },
         // Salaries
         '/^salaries\/(\d+)$/' => function($args) { SalaryController::deleteSalary($args[0]); },
+        // Investments
+        '/^investments\/(\d+)$/' => function($args) { InvestmentController::deleteInvestment($args[0]); },
     ]
 ];
 

@@ -349,6 +349,61 @@ class AnalyticsController {
                 'pending_value' => $pendingValue
             ];
 
+            // Investment summary
+            $injectionSql = 'SELECT COALESCE(SUM(amount), 0) as total_injected
+                             FROM investments 
+                             WHERE investment_type = "capital_injection" 
+                             AND ' . ($hasShop ? 'shop_id = ?' : '1=1');
+            $injectionParams = $hasShop ? [$shopId] : [];
+            if (!empty($startDate) && !empty($endDate)) {
+                $injectionSql .= ' AND investment_date BETWEEN ? AND ?';
+                $injectionParams[] = $startDate;
+                $injectionParams[] = $endDate;
+            }
+            $stmt = DB::query($injectionSql, $injectionParams);
+            $totalInjected = (float)($stmt->fetchColumn() ?: 0);
+
+            $withdrawalSql = 'SELECT COALESCE(SUM(amount), 0) as total_withdrawn
+                              FROM investments 
+                              WHERE investment_type = "capital_withdrawal" 
+                              AND ' . ($hasShop ? 'shop_id = ?' : '1=1');
+            $withdrawalParams = $hasShop ? [$shopId] : [];
+            if (!empty($startDate) && !empty($endDate)) {
+                $withdrawalSql .= ' AND investment_date BETWEEN ? AND ?';
+                $withdrawalParams[] = $startDate;
+                $withdrawalParams[] = $endDate;
+            }
+            $stmt = DB::query($withdrawalSql, $withdrawalParams);
+            $totalWithdrawn = (float)($stmt->fetchColumn() ?: 0);
+
+            $reinvestedSql = 'SELECT COALESCE(SUM(amount), 0) as total_reinvested
+                             FROM investments 
+                             WHERE investment_type = "profit_reinvestment" 
+                             AND ' . ($hasShop ? 'shop_id = ?' : '1=1');
+            $reinvestedParams = $hasShop ? [$shopId] : [];
+            if (!empty($startDate) && !empty($endDate)) {
+                $reinvestedSql .= ' AND investment_date BETWEEN ? AND ?';
+                $reinvestedParams[] = $startDate;
+                $reinvestedParams[] = $endDate;
+            }
+            $stmt = DB::query($reinvestedSql, $reinvestedParams);
+            $totalReinvested = (float)($stmt->fetchColumn() ?: 0);
+
+            $externalSql = 'SELECT COALESCE(SUM(amount), 0) as total_external
+                            FROM investments 
+                            WHERE investment_type = "external_investment" 
+                            AND ' . ($hasShop ? 'shop_id = ?' : '1=1');
+            $externalParams = $hasShop ? [$shopId] : [];
+            if (!empty($startDate) && !empty($endDate)) {
+                $externalSql .= ' AND investment_date BETWEEN ? AND ?';
+                $externalParams[] = $startDate;
+                $externalParams[] = $endDate;
+            }
+            $stmt = DB::query($externalSql, $externalParams);
+            $totalExternal = (float)($stmt->fetchColumn() ?: 0);
+
+            $netCapitalPosition = $totalInjected + $totalReinvested + $totalExternal - $totalWithdrawn;
+
             header('Content-Type: application/json');
             echo json_encode([
                 'sales_revenue' => $totalSales,
@@ -367,7 +422,14 @@ class AnalyticsController {
                 'net_profit_cogs' => $netProfitCOGS,
                 'net_profit_cashflow' => $netProfitCashflow,
                 'trend' => $trend,
-                'manual_orders' => $manualMetrics
+                'manual_orders' => $manualMetrics,
+                'investments' => [
+                    'total_capital_injected' => $totalInjected,
+                    'total_capital_withdrawn' => $totalWithdrawn,
+                    'total_profit_reinvested' => $totalReinvested,
+                    'total_external_investment' => $totalExternal,
+                    'net_capital_position' => $netCapitalPosition
+                ]
             ]);
 
         } catch (\Exception $e) {

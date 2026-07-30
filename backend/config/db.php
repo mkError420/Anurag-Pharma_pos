@@ -488,6 +488,26 @@ class DB {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
 
+            // Create investments table if not exists
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `investments` (
+                    `id` INT AUTO_INCREMENT,
+                    `shop_id` INT NOT NULL,
+                    `investment_type` ENUM('capital_injection', 'capital_withdrawal', 'profit_reinvestment', 'external_investment') NOT NULL DEFAULT 'capital_injection',
+                    `amount` DECIMAL(10,2) NOT NULL,
+                    `description` TEXT NULL,
+                    `investor_name` VARCHAR(255) NULL,
+                    `investment_date` DATE NOT NULL,
+                    `created_by` INT NOT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (`id`),
+                    INDEX `idx_investments_shop` (`shop_id`),
+                    INDEX `idx_investments_date` (`investment_date`),
+                    CONSTRAINT `fk_investments_shop` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE CASCADE,
+                    CONSTRAINT `fk_investments_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE RESTRICT
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
         } catch (\PDOException $e) {
             error_log("Migration error: " . $e->getMessage());
             file_put_contents(__DIR__ . '/migration_error.txt', "Migration error: " . $e->getMessage());

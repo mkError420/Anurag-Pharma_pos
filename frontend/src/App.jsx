@@ -15,6 +15,7 @@ import HeldBills from './components/HeldBills';
 import OtherCost from './components/OtherCost';
 import OtherSales from './components/OtherSales';
 import TotalRevenue from './components/TotalRevenue';
+import InvestmentPage from './components/InvestmentPage';
 import Wastage from './components/Wastage';
 import Returns from './components/Returns';
 import ManualOrders from './components/ManualOrders';
@@ -232,6 +233,7 @@ export default function App() {
         case '/other-sales': return <OtherSales />;
         case '/all-transactions': return <AllTransactions />;
         case '/total-revenue': return <TotalRevenue />;
+        case '/investment': return <InvestmentPage />;
         case '/attendance': return <ManageStaff />;
         case '/settings': return <Settings />;
         default: return <Dashboard />;
@@ -276,6 +278,7 @@ export default function App() {
       case '/other-cost': return <OtherCost />;
       case '/other-sales': return <OtherSales />;
       case '/total-revenue': return <TotalRevenue />;
+      case '/investment': return <InvestmentPage />;
       case '/wastage': return <Wastage />;
       case '/returns': return <Returns />;
       case '/staff': return <ManageStaff />;
