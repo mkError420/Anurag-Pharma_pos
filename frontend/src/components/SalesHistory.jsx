@@ -1555,6 +1555,34 @@ export default function SalesHistory() {
 
       {/* Date Filters bar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap items-center gap-4 shadow-xs">
+         {/* Search Input */}
+        <div className="relative flex-1 min-w-[240px] max-w-md md:ml-auto">
+          <input
+            type="text"
+            placeholder="Search by Invoice ID, customer, cashier, or method..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setSearchFocusedIndex(-1); }}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setSearchFocusedIndex(prev => (prev < currentSales.length - 1 ? prev + 1 : prev));
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setSearchFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (searchFocusedIndex >= 0 && currentSales[searchFocusedIndex]) {
+                  openReceipt(currentSales[searchFocusedIndex]);
+                }
+              }
+            }}
+            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
+          <svg className="absolute left-3 top-2.5 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+        
         <div className="flex items-center space-x-2">
           <label className="text-xs font-bold text-slate-500 uppercase">From:</label>
           <input
@@ -1603,33 +1631,7 @@ export default function SalesHistory() {
           </button>
         )}
 
-        {/* Search Input */}
-        <div className="relative flex-1 min-w-[240px] max-w-md md:ml-auto">
-          <input
-            type="text"
-            placeholder="Search by Invoice ID, customer, cashier, or method..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setSearchFocusedIndex(-1); }}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setSearchFocusedIndex(prev => (prev < currentSales.length - 1 ? prev + 1 : prev));
-              } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setSearchFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
-              } else if (e.key === 'Enter') {
-                e.preventDefault();
-                if (searchFocusedIndex >= 0 && currentSales[searchFocusedIndex]) {
-                  openReceipt(currentSales[searchFocusedIndex]);
-                }
-              }
-            }}
-            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
-          <svg className="absolute left-3 top-2.5 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </div>
+       
       </div>
 
       {/* Sales Logs Table */}
