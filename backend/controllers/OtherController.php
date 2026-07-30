@@ -46,6 +46,12 @@ class OtherController {
                 $c['shop_id'] = (int)$c['shop_id'];
                 $c['amount'] = (float)$c['amount'];
                 $c['shop_name'] = $c['shop_name'] ?: 'System / Unknown';
+                // Parse items JSON if exists
+                if (!empty($c['items'])) {
+                    $c['items'] = json_decode($c['items'], true);
+                } else {
+                    $c['items'] = [];
+                }
             }
 
             header('Content-Type: application/json');
@@ -67,15 +73,19 @@ class OtherController {
         $amount = (float)($requestData['amount'] ?? 0);
         $costDate = $requestData['cost_date'] ?? null;
         $notes = $requestData['notes'] ?? null;
+        $items = $requestData['items'] ?? [];
 
         if (empty($title) || $amount <= 0 || empty($costDate)) {
             Auth::jsonError('Please provide title, positive amount, and cost date.', 400);
         }
 
+        // Encode items as JSON
+        $itemsJson = !empty($items) ? json_encode($items) : null;
+
         try {
             DB::query(
-                'INSERT INTO other_costs (shop_id, title, amount, cost_date, notes) VALUES (?, ?, ?, ?, ?)',
-                [$shopId, $title, $amount, $costDate, $notes]
+                'INSERT INTO other_costs (shop_id, title, amount, cost_date, notes, items) VALUES (?, ?, ?, ?, ?, ?)',
+                [$shopId, $title, $amount, $costDate, $notes, $itemsJson]
             );
             $newId = DB::lastInsertId();
 
@@ -104,10 +114,14 @@ class OtherController {
         $amount = (float)($requestData['amount'] ?? 0);
         $costDate = $requestData['cost_date'] ?? null;
         $notes = $requestData['notes'] ?? null;
+        $items = $requestData['items'] ?? [];
 
         if (empty($title) || $amount <= 0 || empty($costDate)) {
             Auth::jsonError('Please provide title, positive amount, and cost date.', 400);
         }
+
+        // Encode items as JSON
+        $itemsJson = !empty($items) ? json_encode($items) : null;
 
         try {
             $stmt = DB::query('SELECT id FROM other_costs WHERE id = ? AND shop_id = ?', [$costId, $shopId]);
@@ -116,8 +130,8 @@ class OtherController {
             }
 
             DB::query(
-                'UPDATE other_costs SET title = ?, amount = ?, cost_date = ?, notes = ? WHERE id = ? AND shop_id = ?',
-                [$title, $amount, $costDate, $notes, $costId, $shopId]
+                'UPDATE other_costs SET title = ?, amount = ?, cost_date = ?, notes = ?, items = ? WHERE id = ? AND shop_id = ?',
+                [$title, $amount, $costDate, $notes, $itemsJson, $costId, $shopId]
             );
 
             header('Content-Type: application/json');

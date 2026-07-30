@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function Investments({ startDate, endDate }) {
   const [investmentSummary, setInvestmentSummary] = useState(null);
   const [investments, setInvestments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewingInvestment, setViewingInvestment] = useState(null);
   const [editingInvestment, setEditingInvestment] = useState(null);
   const [formData, setFormData] = useState({
     investment_type: 'capital_injection',
@@ -103,6 +107,11 @@ export default function Investments({ startDate, endDate }) {
     }
   };
 
+  const handleView = (investment) => {
+    setViewingInvestment(investment);
+    setShowViewModal(true);
+  };
+
   const handleEdit = (investment) => {
     setEditingInvestment(investment);
     setFormData({
@@ -161,6 +170,37 @@ export default function Investments({ startDate, endDate }) {
       'external_investment': 'bg-amber-50 text-amber-600 border-amber-200'
     };
     return colors[type] || 'bg-slate-50 text-slate-600 border-slate-200';
+  };
+
+  const printInvestmentDetails = (investment) => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(18);
+    doc.text('Investment Details', 14, 15);
+    
+    doc.setFontSize(10);
+    doc.text(`Date: ${formatDate(investment.investment_date)}`, 14, 22);
+    doc.text(`Type: ${getInvestmentTypeLabel(investment.investment_type)}`, 14, 28);
+    
+    // Investment Details
+    doc.setFontSize(12);
+    doc.text('Amount: ' + formatCurrency(investment.amount), 14, 38);
+    
+    if (investment.investor_name) {
+      doc.text('Investor: ' + investment.investor_name, 14, 44);
+    }
+    
+    if (investment.description) {
+      doc.text('Description: ' + investment.description, 14, 50);
+    }
+    
+    // Additional Information
+    doc.setFontSize(10);
+    doc.text('Created At: ' + new Date(investment.created_at).toLocaleString(), 14, 58);
+    
+    // Save the PDF
+    doc.save(`investment_${investment.id}_${investment.investment_date}.pdf`);
   };
 
   if (loading) {
@@ -428,6 +468,12 @@ export default function Investments({ startDate, endDate }) {
                     <td className="py-3 text-center">
                       <div className="flex items-center justify-center space-x-2">
                         <button
+                          onClick={() => handleView(investment)}
+                          className="text-emerald-600 hover:text-emerald-800 text-xs font-semibold"
+                        >
+                          View
+                        </button>
+                        <button
                           onClick={() => handleEdit(investment)}
                           className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold"
                         >
@@ -541,6 +587,94 @@ export default function Investments({ startDate, endDate }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Investment Modal */}
+      {showViewModal && viewingInvestment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-slate-800">Investment Details</h3>
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  setViewingInvestment(null);
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4" id="investment-details">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                <span className="text-sm text-slate-500">Investment Type</span>
+                <span className={`text-sm font-bold px-3 py-1 rounded-full border ${getInvestmentTypeColor(viewingInvestment.investment_type)}`}>
+                  {getInvestmentTypeLabel(viewingInvestment.investment_type)}
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                <span className="text-sm text-slate-500">Amount</span>
+                <span className={`text-lg font-black ${viewingInvestment.investment_type === 'capital_withdrawal' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {viewingInvestment.investment_type === 'capital_withdrawal' ? '-' : '+'}{formatCurrency(viewingInvestment.amount)}
+                </span>
+              </div>
+              
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                <span className="text-sm text-slate-500">Date</span>
+                <span className="text-sm font-semibold text-slate-800">{formatDate(viewingInvestment.investment_date)}</span>
+              </div>
+              
+              {viewingInvestment.investor_name && (
+                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                  <span className="text-sm text-slate-500">Investor</span>
+                  <span className="text-sm font-semibold text-slate-800">{viewingInvestment.investor_name}</span>
+                </div>
+              )}
+              
+              {viewingInvestment.description && (
+                <div className="pb-3 border-b border-slate-100">
+                  <span className="text-sm text-slate-500 block mb-1">Description</span>
+                  <p className="text-sm text-slate-800">{viewingInvestment.description}</p>
+                </div>
+              )}
+              
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                <span className="text-sm text-slate-500">Created By</span>
+                <span className="text-sm font-semibold text-slate-800">{viewingInvestment.created_by_name || 'Unknown'}</span>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-500">Created At</span>
+                <span className="text-sm font-semibold text-slate-800">{new Date(viewingInvestment.created_at).toLocaleString()}</span>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 pt-4">
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  setViewingInvestment(null);
+                }}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => printInvestmentDetails(viewingInvestment)}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                <span>Print</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

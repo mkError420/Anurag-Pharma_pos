@@ -155,6 +155,11 @@ class DB {
                 $pdo->exec("ALTER TABLE `users` ADD COLUMN `allowed_sections` TEXT NULL");
             }
 
+            // Check if items column exists on other_costs table
+            if ($tableExists('other_costs') && !$columnExists('other_costs', 'items')) {
+                $pdo->exec("ALTER TABLE `other_costs` ADD COLUMN `items` JSON NULL AFTER `notes`");
+            }
+
             // Check if unit column exists on products table
             if ($tableExists('products') && !$columnExists('products', 'unit')) {
                 $pdo->exec("ALTER TABLE `products` ADD COLUMN `unit` VARCHAR(20) NOT NULL DEFAULT 'piece'");

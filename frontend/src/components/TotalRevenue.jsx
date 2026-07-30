@@ -1017,6 +1017,84 @@ export default function TotalRevenue() {
 
           </div>
 
+          {/* Investment & Capital Management Cards */}
+          {(() => {
+            if (!revenueData?.investments) return null;
+
+            const inv = revenueData.investments;
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Capital Injected Card */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Capital Injected</span>
+                    </div>
+                    <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                  <div className="text-2xl font-black text-emerald-600">
+                    {formatCurrency(inv.total_capital_injected)}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">Total capital added</div>
+                </div>
+
+                {/* Capital Withdrawn Card */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Capital Withdrawn</span>
+                    </div>
+                    <svg className="w-4 h-4 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
+                    </svg>
+                  </div>
+                  <div className="text-2xl font-black text-rose-600">
+                    {formatCurrency(inv.total_capital_withdrawn)}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">Total capital removed</div>
+                </div>
+
+                {/* Profit Reinvested Card */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Profit Reinvested</span>
+                    </div>
+                    <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                  <div className="text-2xl font-black text-indigo-600">
+                    {formatCurrency(inv.total_profit_reinvested)}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">Profits reinvested</div>
+                </div>
+
+                {/* Net Capital Position Card */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Net Capital Position</span>
+                    </div>
+                    <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
+                    </svg>
+                  </div>
+                  <div className={`text-2xl font-black ${inv.net_capital_position >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {formatCurrency(inv.net_capital_position)}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">Capital + Trading Profit + Cash Flow</div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Slices Visualization Grid (Doughnut & Pie Charts) */}
           {(() => {
             if (!revenueData) return null;

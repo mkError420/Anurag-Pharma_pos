@@ -402,7 +402,8 @@ class AnalyticsController {
             $stmt = DB::query($externalSql, $externalParams);
             $totalExternal = (float)($stmt->fetchColumn() ?: 0);
 
-            $netCapitalPosition = $totalInjected + $totalReinvested + $totalExternal - $totalWithdrawn;
+            // Net Capital Position = Capital movements + Trading Profit + Net Cash Flow
+            $netCapitalPosition = $totalInjected + $totalReinvested + $totalExternal - $totalWithdrawn + $netProfitCOGS + $netProfitCashflow;
 
             header('Content-Type: application/json');
             echo json_encode([

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function OtherCost() {
   const userObj = JSON.parse(localStorage.getItem('user') || '{}');
@@ -21,6 +23,7 @@ export default function OtherCost() {
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
   const [currentCost, setCurrentCost] = useState(null);
  
   // Form states
@@ -28,7 +31,8 @@ export default function OtherCost() {
     title: '',
     amount: '',
     cost_date: new Date().toBDISODateString(),
-    notes: ''
+    notes: '',
+    items: [ { item_name: '', quantity: 1, unit_price: '' } ]
   });
  
   const fetchCosts = async () => {
@@ -88,11 +92,104 @@ export default function OtherCost() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const handleItemChange = (index, field, value) => {
+    const newItems = [...formData.items];
+    newItems[index][field] = value;
+    setFormData({ ...formData, items: newItems });
+  };
+
+  const addItem = () => {
+    setFormData({
+      ...formData,
+      items: [...formData.items, { item_name: '', quantity: 1, unit_price: '' }]
+    });
+  };
+
+  const removeItem = (index) => {
+    if (formData.items.length === 1) return;
+    const newItems = formData.items.filter((_, i) => i !== index);
+    setFormData({ ...formData, items: newItems });
+  };
+
+  const calculateGrandTotal = () => {
+    return formData.items.reduce((total, item) => {
+      const qty = parseFloat(item.quantity) || 0;
+      const price = parseFloat(item.unit_price) || 0;
+      return total + (qty * price);
+    }, 0);
+  };
+
+  const parseItems = (itemsJson) => {
+    try {
+      return typeof itemsJson === 'string' ? JSON.parse(itemsJson) : itemsJson;
+    } catch {
+      return [];
+    }
+  };
+
+  // Open View Modal
+  const openView = (cost) => {
+    setCurrentCost(cost);
+    setShowViewModal(true);
+  };
+
+  // Print Cost Details
+  const printCostDetails = (cost) => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(18);
+    doc.text('Cost Entry Details', 14, 15);
+    
+    doc.setFontSize(10);
+    doc.text(`Date: ${formatDate(cost.cost_date)}`, 14, 22);
+    if (isSuperAdmin && cost.shop_name) {
+      doc.text(`Shop: ${cost.shop_name}`, 14, 28);
+    }
+    
+    // Cost Details
+    doc.setFontSize(12);
+    doc.text('Description: ' + cost.title, 14, 38);
+    doc.text('Total Amount: ' + formatCurrency(cost.amount), 14, 44);
+    
+    if (cost.notes) {
+      doc.text('Notes: ' + cost.notes, 14, 50);
+    }
+    
+    // Items Table
+    const items = parseItems(cost.items);
+    if (items && items.length > 0) {
+      const tableData = items.map(item => [
+        item.item_name || '-',
+        item.quantity || 1,
+        formatCurrency(item.unit_price || 0),
+        formatCurrency((item.quantity || 1) * (item.unit_price || 0))
+      ]);
+      
+      autoTable(doc, {
+        head: [['Item Name', 'Quantity', 'Unit Price', 'Total']],
+        body: tableData,
+        startY: cost.notes ? 58 : 52,
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [71, 85, 105] }
+      });
+    }
+    
+    doc.save(`cost_entry_${cost.id}_${cost.cost_date}.pdf`);
+  };
+
   // 1. CREATE COST
   const handleAddSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.title || !formData.amount || !formData.cost_date) {
+    if (!formData.title || !formData.cost_date) {
       triggerAlert('error', 'Please fill in all required fields.');
+      return;
+    }
+    
+    // Validate items
+    const validItems = formData.items.filter(i => i.item_name.trim() !== '' && parseFloat(i.unit_price) > 0);
+    if (validItems.length === 0) {
+      triggerAlert('error', 'Please add at least one valid item with a price.');
       return;
     }
 
@@ -106,9 +203,10 @@ export default function OtherCost() {
         },
         body: JSON.stringify({
           title: formData.title,
-          amount: parseFloat(formData.amount),
+          amount: calculateGrandTotal(),
           cost_date: formData.cost_date,
-          notes: formData.notes
+          notes: formData.notes,
+          items: validItems
         })
       });
 
@@ -131,7 +229,8 @@ export default function OtherCost() {
       title: cost.title,
       amount: cost.amount,
       cost_date: cost.cost_date ? cost.cost_date.split('T')[0] : '',
-      notes: cost.notes || ''
+      notes: cost.notes || '',
+      items: cost.items && cost.items.length > 0 ? cost.items : [ { item_name: '', quantity: 1, unit_price: '' } ]
     });
     setShowEditModal(true);
   };
@@ -139,6 +238,14 @@ export default function OtherCost() {
   // 3. UPDATE COST
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate items
+    const validItems = formData.items.filter(i => i.item_name.trim() !== '' && parseFloat(i.unit_price) > 0);
+    if (validItems.length === 0) {
+      triggerAlert('error', 'Please add at least one valid item with a price.');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/other-costs/${currentCost.id}`, {
@@ -149,9 +256,10 @@ export default function OtherCost() {
         },
         body: JSON.stringify({
           title: formData.title,
-          amount: parseFloat(formData.amount),
+          amount: calculateGrandTotal(),
           cost_date: formData.cost_date,
-          notes: formData.notes
+          notes: formData.notes,
+          items: validItems
         })
       });
 
@@ -191,7 +299,8 @@ export default function OtherCost() {
       title: '',
       amount: '',
       cost_date: new Date().toBDISODateString(),
-      notes: ''
+      notes: '',
+      items: [ { item_name: '', quantity: 1, unit_price: '' } ]
     });
     setCurrentCost(null);
   };
@@ -633,13 +742,13 @@ export default function OtherCost() {
                 <th className="p-4">Description</th>
                 <th className="p-4">Amount</th>
                 <th className="p-4">Notes</th>
-                {!isSuperAdmin && <th className="p-4 text-center">Actions</th>}
+                <th className="p-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? 5 : 5} className="p-12 text-center">
+                  <td colSpan={isSuperAdmin ? 6 : 5} className="p-12 text-center">
                     <div className="flex justify-center items-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                     </div>
@@ -647,7 +756,7 @@ export default function OtherCost() {
                 </tr>
               ) : filteredCosts.length === 0 ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? 5 : 5} className="p-12 text-center text-slate-400">
+                  <td colSpan={isSuperAdmin ? 6 : 5} className="p-12 text-center text-slate-400">
                     No cost entries matched current search criteria or date ranges.
                   </td>
                 </tr>
@@ -659,22 +768,30 @@ export default function OtherCost() {
                     <td className="p-4 font-bold text-slate-800">{cost.title}</td>
                     <td className="p-4 font-black text-rose-600">{formatCurrency(cost.amount)}</td>
                     <td className="p-4 text-slate-500 italic max-w-xs truncate">{cost.notes || '-'}</td>
-                    {!isSuperAdmin && (
-                      <td className="p-4 text-center space-x-2 whitespace-nowrap">
-                        <button
-                          onClick={() => openEdit(cost)}
-                          className="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-100 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(cost.id)}
-                          className="text-rose-600 hover:text-rose-900 font-semibold text-xs border border-rose-100 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    )}
+                    <td className="p-4 text-center space-x-2 whitespace-nowrap">
+                      <button
+                        onClick={() => openView(cost)}
+                        className="text-emerald-600 hover:text-emerald-900 font-semibold text-xs border border-emerald-100 hover:bg-emerald-50 px-2.5 py-1.5 rounded-lg transition-colors"
+                      >
+                        View
+                      </button>
+                      {!isSuperAdmin && (
+                        <>
+                          <button
+                            onClick={() => openEdit(cost)}
+                            className="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-100 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(cost.id)}
+                            className="text-rose-600 hover:text-rose-900 font-semibold text-xs border border-rose-100 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}
@@ -686,17 +803,30 @@ export default function OtherCost() {
       {/* --- ADD NEW COST MODAL --- */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Add New Cost Entry</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-800">Add New Cost Entry</h3>
+              <div className="flex items-center gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cost Date *</label>
+                  <input
+                    type="date"
+                    name="cost_date"
+                    value={formData.cost_date}
+                    onChange={handleInputChange}
+                    required
+                    className="border border-slate-200 rounded-lg p-1.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+                <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
             
-            <form onSubmit={handleAddSubmit} className="mt-4 space-y-4">
+            <form onSubmit={handleAddSubmit} className="mt-3 space-y-3 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Description / Title *</label>
                 <input
@@ -706,35 +836,91 @@ export default function OtherCost() {
                   onChange={handleInputChange}
                   required
                   placeholder="e.g. Electricity bill (June)"
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
+                  className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Amount (৳) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    name="amount"
-                    value={formData.amount}
-                    onChange={handleInputChange}
-                    required
-                    placeholder="e.g. 4500"
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
-                  />
+           {/*    <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Amount (৳)</label>
+                <input
+                  type="text"
+                  value={formatCurrency(calculateGrandTotal())}
+                  readOnly
+                  className="w-full border border-slate-200 rounded-lg p-2 text-sm bg-slate-50 font-bold text-slate-700"
+                />
+              </div> */}
+
+              {/* Items List */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cost Items</label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {formData.items.map((item, index) => (
+                    <div key={index} className="p-2 bg-slate-50 rounded border border-slate-200">
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-4">
+                          <label className="block text-xs font-semibold text-slate-600 mb-0.5">Item</label>
+                          <input
+                            type="text"
+                            value={item.item_name}
+                            onChange={(e) => handleItemChange(index, 'item_name', e.target.value)}
+                            placeholder="Item description"
+                            className="w-full border border-slate-200 rounded p-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-semibold text-slate-600 mb-0.5">Quantity</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                            className="w-full border border-slate-200 rounded p-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                          />
+                        </div>
+                        <div className="col-span-3">
+                          <label className="block text-xs font-semibold text-slate-600 mb-0.5">Unit Price (৳)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={item.unit_price}
+                            onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
+                            placeholder="0.00"
+                            className="w-full border border-slate-200 rounded p-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-semibold text-slate-600 mb-0.5">Total (৳)</label>
+                          <input
+                            type="text"
+                            value={formatCurrency((parseFloat(item.quantity) || 1) * (parseFloat(item.unit_price) || 0))}
+                            readOnly
+                            className="w-full border border-slate-200 rounded p-1.5 text-xs bg-slate-50 font-bold text-slate-700"
+                          />
+                        </div>
+                        <div className="col-span-1 flex items-end">
+                          {formData.items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeItem(index)}
+                              className="w-full py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded text-xs font-semibold border border-rose-200 transition-colors"
+                            >
+                              <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cost Date *</label>
-                  <input
-                    type="date"
-                    name="cost_date"
-                    value={formData.cost_date}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
-                  />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => addItem()}
+                  className="mt-2 w-full py-1.5 border-2 border-dashed border-slate-300 hover:border-indigo-400 text-slate-500 hover:text-indigo-600 rounded text-xs font-semibold transition-colors"
+                >
+                  + Add Another Item
+                </button>
               </div>
 
               <div>
@@ -743,23 +929,23 @@ export default function OtherCost() {
                   name="notes"
                   value={formData.notes}
                   onChange={handleInputChange}
-                  rows="3"
+                  rows="2"
                   placeholder="Payment receipt ref, paid by cash, etc."
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
+                  className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
                 />
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex space-x-3 justify-end">
+              <div className="pt-3 border-t border-slate-100 flex space-x-3 justify-end">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+                  className="px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-slate-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors shadow"
+                  className="px-4 py-1.5 bg-slate-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-colors shadow"
                 >
                   Save Cost Entry
                 </button>
@@ -772,42 +958,10 @@ export default function OtherCost() {
       {/* --- EDIT COST MODAL --- */}
       {showEditModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Edit Cost Entry</h3>
-              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <form onSubmit={handleEditSubmit} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Description / Title *</label>
-                <input
-                  type="text"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Amount (৳) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    name="amount"
-                    value={formData.amount}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
-                  />
-                </div>
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-800">Edit Cost Entry</h3>
+              <div className="flex items-center gap-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cost Date *</label>
                   <input
@@ -816,9 +970,111 @@ export default function OtherCost() {
                     value={formData.cost_date}
                     onChange={handleInputChange}
                     required
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
+                    className="border border-slate-200 rounded-lg p-1.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
                   />
                 </div>
+                <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <form onSubmit={handleEditSubmit} className="mt-3 space-y-3 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Description / Title *</label>
+                <input
+                  type="text"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Amount (৳)</label>
+                <input
+                  type="text"
+                  value={formatCurrency(calculateGrandTotal())}
+                  readOnly
+                  className="w-full border border-slate-200 rounded-lg p-2 text-sm bg-slate-50 font-bold text-slate-700"
+                />
+              </div>
+
+              {/* Items List */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cost Items</label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {formData.items.map((item, index) => (
+                    <div key={index} className="p-2 bg-slate-50 rounded border border-slate-200">
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-4">
+                          <label className="block text-xs font-semibold text-slate-600 mb-0.5">Item</label>
+                          <input
+                            type="text"
+                            value={item.item_name}
+                            onChange={(e) => handleItemChange(index, 'item_name', e.target.value)}
+                            placeholder="Item description"
+                            className="w-full border border-slate-200 rounded p-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-semibold text-slate-600 mb-0.5">Quantity</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                            className="w-full border border-slate-200 rounded p-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                          />
+                        </div>
+                        <div className="col-span-3">
+                          <label className="block text-xs font-semibold text-slate-600 mb-0.5">Unit Price (৳)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={item.unit_price}
+                            onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
+                            placeholder="0.00"
+                            className="w-full border border-slate-200 rounded p-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-semibold text-slate-600 mb-0.5">Total (৳)</label>
+                          <input
+                            type="text"
+                            value={formatCurrency((parseFloat(item.quantity) || 1) * (parseFloat(item.unit_price) || 0))}
+                            readOnly
+                            className="w-full border border-slate-200 rounded p-1.5 text-xs bg-slate-50 font-bold text-slate-700"
+                          />
+                        </div>
+                        <div className="col-span-1 flex items-end">
+                          {formData.items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeItem(index)}
+                              className="w-full py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded text-xs font-semibold border border-rose-200 transition-colors"
+                            >
+                              <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => addItem()}
+                  className="mt-2 w-full py-1.5 border-2 border-dashed border-slate-300 hover:border-indigo-400 text-slate-500 hover:text-indigo-600 rounded text-xs font-semibold transition-colors"
+                >
+                  + Add Another Item
+                </button>
               </div>
 
               <div>
@@ -827,27 +1083,125 @@ export default function OtherCost() {
                   name="notes"
                   value={formData.notes}
                   onChange={handleInputChange}
-                  rows="3"
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
+                  rows="2"
+                  className="w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
                 />
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex space-x-3 justify-end">
+              <div className="pt-3 border-t border-slate-100 flex space-x-3 justify-end">
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+                  className="px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-slate-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors shadow"
+                  className="px-4 py-1.5 bg-slate-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition-colors shadow"
                 >
                   Save Changes
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- VIEW COST MODAL --- */}
+      {showViewModal && currentCost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-800">Cost Entry Details</h3>
+              <button onClick={() => setShowViewModal(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="mt-3 space-y-3 overflow-y-auto flex-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cost Date</label>
+                  <div className="text-sm font-semibold text-slate-700">{formatDate(currentCost.cost_date)}</div>
+                </div>
+                {isSuperAdmin && currentCost.shop_name && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Shop</label>
+                    <div className="text-sm font-semibold text-slate-700">{currentCost.shop_name}</div>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Amount</label>
+                  <div className="text-sm font-black text-rose-600">{formatCurrency(currentCost.amount)}</div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Description</label>
+                <div className="text-sm font-bold text-slate-800">{currentCost.title}</div>
+              </div>
+
+              {currentCost.notes && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Notes</label>
+                  <div className="text-sm text-slate-600 italic">{currentCost.notes}</div>
+                </div>
+              )}
+
+              {/* Items List */}
+              {parseItems(currentCost.items) && parseItems(currentCost.items).length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cost Items</label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {parseItems(currentCost.items).map((item, index) => (
+                      <div key={index} className="p-2 bg-slate-50 rounded border border-slate-200">
+                        <div className="grid grid-cols-12 gap-2">
+                          <div className="col-span-5">
+                            <span className="text-xs font-semibold text-slate-500">Item:</span>
+                            <span className="text-xs font-medium text-slate-700 ml-1">{item.item_name || '-'}</span>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-xs font-semibold text-slate-500">Quantity:</span>
+                            <span className="text-xs font-medium text-slate-700 ml-1">{item.quantity || 1}</span>
+                          </div>
+                          <div className="col-span-3">
+                            <span className="text-xs font-semibold text-slate-500">Unit Price:</span>
+                            <span className="text-xs font-medium text-slate-700 ml-1">{formatCurrency(item.unit_price || 0)}</span>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-xs font-semibold text-slate-500">Total:</span>
+                            <span className="text-xs font-bold text-slate-800 ml-1">
+                              {formatCurrency((item.quantity || 1) * (item.unit_price || 0))}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 flex space-x-3 justify-end">
+                <button
+                  onClick={() => printCostDetails(currentCost)}
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shadow flex items-center space-x-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  <span>Print</span>
+                </button>
+                <button
+                  onClick={() => setShowViewModal(false)}
+                  className="px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
