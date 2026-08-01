@@ -33,7 +33,7 @@ export default function OtherSales() {
   // Pagination & Filters for Recent History
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 4;
  
@@ -45,24 +45,49 @@ export default function OtherSales() {
       if (isSuperAdmin && selectedShopId) {
         url += `shop_id=${selectedShopId}&`;
       }
-      if (filterStartDate) url += `start_date=${filterStartDate}&`;
-      if (filterEndDate) url += `end_date=${filterEndDate}&`;
 
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to retrieve sale records.');
       const data = await response.json();
-      
-      // Filter by category client-side
+
+      // Filter by date and search term client-side for better control
       let filteredData = data;
-      if (filterCategory) {
-        filteredData = data.filter(sale => {
-          const items = parseItems(sale.items);
-          return items.some(item => item.category === filterCategory);
+
+      // Filter by start date
+      if (filterStartDate) {
+        filteredData = filteredData.filter(sale => {
+          const saleDate = sale.sale_date ? sale.sale_date.split('T')[0] : '';
+          return saleDate >= filterStartDate;
         });
       }
-      
+
+      // Filter by end date
+      if (filterEndDate) {
+        filteredData = filteredData.filter(sale => {
+          const saleDate = sale.sale_date ? sale.sale_date.split('T')[0] : '';
+          return saleDate <= filterEndDate;
+        });
+      }
+
+      // Filter by search term
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        filteredData = filteredData.filter(sale => {
+          const title = (sale.title || '').toLowerCase();
+          const customerName = (sale.customer_name || '').toLowerCase();
+          const items = parseItems(sale.items);
+          const itemNames = items.map(item => (item.item_name || '').toLowerCase()).join(' ');
+          const categories = items.map(item => (item.category || '').toLowerCase()).join(' ');
+
+          return title.includes(searchLower) ||
+                 customerName.includes(searchLower) ||
+                 itemNames.includes(searchLower) ||
+                 categories.includes(searchLower);
+        });
+      }
+
       setSales(filteredData);
       setCurrentPage(1);
     } catch (err) {
@@ -70,6 +95,25 @@ export default function OtherSales() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Calculate total amount by category
+  const getCategoryTotal = (category) => {
+    return sales.reduce((total, sale) => {
+      const items = parseItems(sale.items);
+      const categoryItems = items.filter(item => {
+        const itemCategory = item.category || '';
+        return itemCategory.trim() === category.trim();
+      });
+      const categoryTotal = categoryItems.reduce((sum, item) => {
+        if (category === 'Mobile Banking Services' || category === 'Banking Transaction') {
+          return sum + (parseFloat(item.unit_price) || 0);
+        } else {
+          return sum + ((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0));
+        }
+      }, 0);
+      return total + categoryTotal;
+    }, 0);
   };
  
   useEffect(() => {
@@ -366,16 +410,17 @@ export default function OtherSales() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <button
             type="button"
-            onClick={() => handleQuickCategoryClick('Wastage / Scrap', 'Scrap/Wastage: ')}
-            className="flex flex-col items-start p-4 bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200 rounded-2xl hover:shadow-md hover:border-orange-300 transition-all text-left"
+            onClick={() => handleQuickCategoryClick('Wastage / Scrap', '')}
+            className="flex flex-col items-start p-4 bg-gradient-to-br from-rose-50 to-rose-100/50 border border-rose-200 rounded-2xl hover:shadow-md hover:border-rose-300 transition-all text-left"
           >
-            <div className="bg-orange-100 text-orange-600 p-2 rounded-lg mb-3">
+            <div className="bg-rose-100 text-rose-600 p-2 rounded-lg mb-3">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </div>
             <span className="font-bold text-slate-800">Wastage / Scrap</span>
-            <span className="text-xs text-slate-500 mt-1">Paper, Hardboard, Plastic</span>
+            <span className="text-xs text-slate-500 mt-1">Damaged goods, expired items</span>
+            <span className="text-xs font-bold text-rose-600 mt-2">{formatCurrency(getCategoryTotal('Wastage / Scrap'))}</span>
           </button>
           
           <button
@@ -390,6 +435,7 @@ export default function OtherSales() {
             </div>
             <span className="font-bold text-slate-800">Mobile Banking</span>
             <span className="text-xs text-slate-500 mt-1">bKash, Nagad, Recharge</span>
+            <span className="text-xs font-bold text-blue-600 mt-2">{formatCurrency(getCategoryTotal('Mobile Banking Services'))}</span>
           </button>
 
           <button
@@ -404,6 +450,7 @@ export default function OtherSales() {
             </div>
             <span className="font-bold text-slate-800">Banking Transaction</span>
             <span className="text-xs text-slate-500 mt-1">Bank Deposits, Withdrawals, Transfers</span>
+            <span className="text-xs font-bold text-purple-600 mt-2">{formatCurrency(getCategoryTotal('Banking Transaction'))}</span>
           </button>
 
           <button
@@ -418,6 +465,7 @@ export default function OtherSales() {
             </div>
             <span className="font-bold text-slate-800">Miscellaneous</span>
             <span className="text-xs text-slate-500 mt-1">Pallets, Bags, Fees</span>
+            <span className="text-xs font-bold text-emerald-600 mt-2">{formatCurrency(getCategoryTotal('Miscellaneous'))}</span>
           </button>
         </div>
       </div>
@@ -438,6 +486,13 @@ export default function OtherSales() {
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); fetchSales(); }}
+              placeholder="Search by title, customer, item, or category..."
+              className="border border-slate-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-emerald-500 outline-none flex-1"
+            />
+            <input
               type="date"
               value={filterStartDate}
               onChange={(e) => { setFilterStartDate(e.target.value); fetchSales(); }}
@@ -449,14 +504,17 @@ export default function OtherSales() {
               onChange={(e) => { setFilterEndDate(e.target.value); fetchSales(); }}
               className="border border-slate-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-emerald-500 outline-none flex-1"
             />
-            <select
-              value={filterCategory}
-              onChange={(e) => { setFilterCategory(e.target.value); fetchSales(); }}
-              className="border border-slate-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-emerald-500 outline-none flex-1"
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setFilterStartDate('');
+                setFilterEndDate('');
+                fetchSales();
+              }}
+              className="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors"
             >
-              <option value="">All Categories</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+              Clear
+            </button>
           </div>
         </div>
         
