@@ -13,6 +13,8 @@ export default function OtherSales() {
   const [alert, setAlert] = useState(null);
   const [shops, setShops] = useState([]);
   const [selectedShopId, setSelectedShopId] = useState('');
+  const [showEntryForm, setShowEntryForm] = useState(false);
+  const [editingSale, setEditingSale] = useState(null);
  
   // View Details Modal
   const [viewSale, setViewSale] = useState(null);
@@ -116,6 +118,8 @@ export default function OtherSales() {
       // Otherwise add a new item
       addItem(category, defaultName);
     }
+    // Open the entry form when a quick category is clicked
+    setShowEntryForm(true);
   };
 
   const removeItem = (index) => {
@@ -167,6 +171,25 @@ export default function OtherSales() {
     }, 0);
   };
 
+  const handleEdit = (sale) => {
+    const items = parseItems(sale.items);
+    setEditingSale(sale);
+    setFormData({
+      customer_name: sale.customer_name || '',
+      customer_phone: sale.customer_phone || '',
+      sale_date: sale.sale_date ? sale.sale_date.split('T')[0] : new Date().toBDISODateString(),
+      notes: sale.notes || '',
+      items: items.length > 0 ? items.map(i => ({
+        category: i.category || 'Miscellaneous',
+        item_name: i.item_name || '',
+        quantity: i.quantity || 1,
+        unit_price: i.unit_price || ''
+      })) : [{ category: 'Miscellaneous', item_name: '', quantity: 1, unit_price: '' }]
+    });
+    setViewSale(null);
+    setShowEntryForm(true);
+  };
+
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!formData.sale_date) {
@@ -184,8 +207,13 @@ export default function OtherSales() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/other-sales`, {
-        method: 'POST',
+      const url = editingSale
+        ? `${API_BASE_URL}/other-sales/${editingSale.id}`
+        : `${API_BASE_URL}/other-sales`;
+      const method = editingSale ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -200,10 +228,11 @@ export default function OtherSales() {
       });
 
       const resData = await response.json();
-      if (!response.ok) throw new Error(resData.error || 'Failed to record sale entry.');
+      if (!response.ok) throw new Error(resData.error || (editingSale ? 'Failed to update sale entry.' : 'Failed to record sale entry.'));
 
-      triggerAlert('success', 'Sale entry recorded successfully!');
+      triggerAlert('success', editingSale ? 'Sale entry updated successfully!' : 'Sale entry recorded successfully!');
       resetForm();
+      setShowEntryForm(false);
       fetchSales();
     } catch (err) {
       triggerAlert('error', err.message);
@@ -232,6 +261,7 @@ export default function OtherSales() {
   };
 
   const resetForm = () => {
+    setEditingSale(null);
     setFormData({
       customer_name: '',
       customer_phone: '',
@@ -306,387 +336,430 @@ export default function OtherSales() {
         )}
       </div>
  
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* LEFT COLUMN: Entry Form */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* Quick Category Shortcuts + Cart Button */}
+      <div>
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Quick Entry Shortcuts</h3>
+          {/* Cart Button — opens Quick Entry Form modal */}
+          <button
+            onClick={() => setShowEntryForm(true)}
+            className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-5 rounded-xl text-sm shadow-xs transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+            </svg>
+            <span>New Entry</span>
+          </button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <button
+            type="button"
+            onClick={() => handleQuickCategoryClick('Wastage / Scrap', 'Scrap/Wastage: ')}
+            className="flex flex-col items-start p-4 bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200 rounded-2xl hover:shadow-md hover:border-orange-300 transition-all text-left"
+          >
+            <div className="bg-orange-100 text-orange-600 p-2 rounded-lg mb-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <span className="font-bold text-slate-800">Wastage / Scrap</span>
+            <span className="text-xs text-slate-500 mt-1">Paper, Hardboard, Plastic</span>
+          </button>
           
-          {/* Quick Category Shortcuts */}
-          <div>
-            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3">Quick Entry Shortcuts</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <button
-                type="button"
-                onClick={() => handleQuickCategoryClick('Wastage / Scrap', 'Scrap/Wastage: ')}
-                className="flex flex-col items-start p-4 bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200 rounded-2xl hover:shadow-md hover:border-orange-300 transition-all text-left"
-              >
-                <div className="bg-orange-100 text-orange-600 p-2 rounded-lg mb-3">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </div>
-                <span className="font-bold text-slate-800">Wastage / Scrap</span>
-                <span className="text-xs text-slate-500 mt-1">Paper, Hardboard, Plastic</span>
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => handleQuickCategoryClick('Mobile Banking Services', 'Cash-In/Out: ')}
-                className="flex flex-col items-start p-4 bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200 rounded-2xl hover:shadow-md hover:border-blue-300 transition-all text-left"
-              >
-                <div className="bg-blue-100 text-blue-600 p-2 rounded-lg mb-3">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <span className="font-bold text-slate-800">Mobile Banking</span>
-                <span className="text-xs text-slate-500 mt-1">bKash, Nagad, Recharge</span>
-              </button>
+          <button
+            type="button"
+            onClick={() => handleQuickCategoryClick('Mobile Banking Services', 'Cash-In/Out: ')}
+            className="flex flex-col items-start p-4 bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200 rounded-2xl hover:shadow-md hover:border-blue-300 transition-all text-left"
+          >
+            <div className="bg-blue-100 text-blue-600 p-2 rounded-lg mb-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <span className="font-bold text-slate-800">Mobile Banking</span>
+            <span className="text-xs text-slate-500 mt-1">bKash, Nagad, Recharge</span>
+          </button>
 
-              <button
-                type="button"
-                onClick={() => handleQuickCategoryClick('Banking Transaction', 'Transaction: ')}
-                className="flex flex-col items-start p-4 bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200 rounded-2xl hover:shadow-md hover:border-purple-300 transition-all text-left"
-              >
-                <div className="bg-purple-100 text-purple-600 p-2 rounded-lg mb-3">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
-                </div>
-                <span className="font-bold text-slate-800">Banking Transaction</span>
-                <span className="text-xs text-slate-500 mt-1">Bank Deposits, Withdrawals, Transfers</span>
-              </button>
+          <button
+            type="button"
+            onClick={() => handleQuickCategoryClick('Banking Transaction', 'Transaction: ')}
+            className="flex flex-col items-start p-4 bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200 rounded-2xl hover:shadow-md hover:border-purple-300 transition-all text-left"
+          >
+            <div className="bg-purple-100 text-purple-600 p-2 rounded-lg mb-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+            </div>
+            <span className="font-bold text-slate-800">Banking Transaction</span>
+            <span className="text-xs text-slate-500 mt-1">Bank Deposits, Withdrawals, Transfers</span>
+          </button>
 
-              <button
-                type="button"
-                onClick={() => handleQuickCategoryClick('Miscellaneous', '')}
-                className="flex flex-col items-start p-4 bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-200 rounded-2xl hover:shadow-md hover:border-emerald-300 transition-all text-left"
-              >
-                <div className="bg-emerald-100 text-emerald-600 p-2 rounded-lg mb-3">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                </div>
-                <span className="font-bold text-slate-800">Miscellaneous</span>
-                <span className="text-xs text-slate-500 mt-1">Pallets, Bags, Fees</span>
+          <button
+            type="button"
+            onClick={() => handleQuickCategoryClick('Miscellaneous', '')}
+            className="flex flex-col items-start p-4 bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-200 rounded-2xl hover:shadow-md hover:border-emerald-300 transition-all text-left"
+          >
+            <div className="bg-emerald-100 text-emerald-600 p-2 rounded-lg mb-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <span className="font-bold text-slate-800">Miscellaneous</span>
+            <span className="text-xs text-slate-500 mt-1">Pallets, Bags, Fees</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Recent History — now full-width, in main content area */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-3">
+          <div className="flex justify-between items-center">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Recent History</h3>
+            <div className="flex items-center space-x-2">
+              <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg">
+                {sales.length}
+              </span>
+              <button onClick={exportPDF} className="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-bold py-1 px-2.5 rounded-lg transition-colors flex items-center shadow-sm">
+                PDF Export
               </button>
             </div>
           </div>
-
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center border-b border-slate-100 pb-3">
-              <svg className="w-5 h-5 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input 
+              type="date" 
+              value={filterStartDate} 
+              onChange={(e) => setFilterStartDate(e.target.value)} 
+              className="border border-slate-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-emerald-500 outline-none flex-1"
+            />
+            <input 
+              type="date" 
+              value={filterEndDate} 
+              onChange={(e) => setFilterEndDate(e.target.value)} 
+              className="border border-slate-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-emerald-500 outline-none flex-1"
+            />
+            <button 
+              onClick={() => fetchSales()} 
+              className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors"
+            >
+              Filter
+            </button>
+          </div>
+        </div>
+        
+        <div className="p-3">
+          {loading ? (
+            <div className="p-8 text-center text-slate-500 text-sm font-medium">Loading history...</div>
+          ) : sales.length === 0 ? (
+            <div className="p-8 text-center flex flex-col items-center justify-center text-slate-400">
+              <svg className="w-12 h-12 mb-3 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              Quick Entry Form
-            </h3>
-
-            <form onSubmit={handleAddSubmit} className="space-y-5">
-              {/* Customer & Date */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-2 grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Customer Name</label>
-                    <input
-                      type="text"
-                      name="customer_name"
-                      value={formData.customer_name}
-                      onChange={handleInputChange}
-                      placeholder="Optional"
-                      className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Phone</label>
-                    <input
-                      type="text"
-                      name="customer_phone"
-                      value={formData.customer_phone}
-                      onChange={handleInputChange}
-                      placeholder="Optional"
-                      className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/50"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Sale Date *</label>
-                  <input
-                    type="date"
-                    name="sale_date"
-                    value={formData.sale_date}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/50"
-                  />
-                </div>
-              </div>
-
-              {/* Line Items */}
-              <div className="pt-4 border-t border-slate-100">
-                <div className="flex justify-between items-center mb-3">
-                  <h4 className="text-sm font-bold text-slate-700">Items / Services</h4>
-                </div>
-                
-                <div className="space-y-4">
-                  {formData.items.map((item, index) => (
-                    <div key={index} className="flex flex-col gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative">
-                      {formData.items.length > 1 && (
+              <p className="text-sm font-medium">No recent entries found.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {(() => {
+                const totalPages = Math.ceil(sales.length / itemsPerPage) || 1;
+                const currentSales = sales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+                return currentSales.map(sale => (
+                  <div 
+                    key={sale.id} 
+                    onClick={() => setViewSale(sale)}
+                    className="bg-white border border-slate-200 p-3.5 rounded-xl shadow-sm hover:shadow-md hover:border-emerald-300 cursor-pointer transition-all flex flex-col group"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{formatDate(sale.sale_date)}</span>
+                      <span className="text-sm font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">{formatCurrency(sale.amount)}</span>
+                    </div>
+                    <div className="text-sm font-bold text-slate-800 leading-tight">
+                      {sale.title || 'Custom Sale'}
+                    </div>
+                    <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-100">
+                      <span className="text-xs font-medium text-slate-500 truncate max-w-[150px] flex items-center">
+                        <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        {sale.customer_name || 'Walk-in'}
+                      </span>
+                      <div className="flex items-center space-x-1.5">
                         <button
-                          type="button"
-                          onClick={() => removeItem(index)}
-                          className="absolute top-2 right-2 p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="Remove Item"
+                          onClick={(e) => { e.stopPropagation(); handleEdit(sale); }}
+                          className="text-[10px] bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-md font-bold uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-colors"
                         >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          Edit
                         </button>
-                      )}
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Sale Category</label>
-                          <select
-                            value={item.category}
-                            onChange={(e) => handleItemChange(index, 'category', e.target.value)}
-                            className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none font-medium bg-slate-50"
-                          >
-                            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Item / Description</label>
-                          <input
-                            type="text"
-                            value={item.item_name}
-                            onChange={(e) => handleItemChange(index, 'item_name', e.target.value)}
-                            placeholder='e.g., "50kg Old Cartons" or "Mobile Cash-In Fee"'
-                            required
-                            className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none"
-                          />
-                        </div>
+                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2.5 py-1 rounded-md font-bold uppercase tracking-wider group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                          Details
+                        </span>
                       </div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
+        </div>
+        
+        {sales.length > 0 && (
+          <div className="p-3 border-t border-slate-100 bg-slate-50 flex flex-wrap justify-center items-center gap-3 text-xs font-bold text-slate-500 mt-auto">
+            <button 
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1.5 rounded-lg hover:bg-slate-200 disabled:opacity-50 transition-colors"
+            >
+              Prev
+            </button>
+            <span>Page {currentPage} of {Math.ceil(sales.length / itemsPerPage) || 1}</span>
+            <button 
+              onClick={() => setCurrentPage(p => Math.min(Math.ceil(sales.length / itemsPerPage) || 1, p + 1))}
+              disabled={currentPage === (Math.ceil(sales.length / itemsPerPage) || 1)}
+              className="px-3 py-1.5 rounded-lg hover:bg-slate-200 disabled:opacity-50 transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                            {item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? 'Transaction Amount' : 'Quantity / Weight'}
-                          </label>
-                          <div className="relative">
+      {/* QUICK ENTRY FORM MODAL */}
+      {showEntryForm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center">
+                <svg className="w-5 h-5 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                {editingSale ? `Edit Sale #${editingSale.id}` : 'Quick Entry Form'}
+              </h3>
+              <button
+                onClick={() => setShowEntryForm(false)}
+                className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body — scrollable */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <form onSubmit={handleAddSubmit} className="space-y-5" id="quick-entry-form">
+                {/* Customer & Date */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="md:col-span-2 grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Customer Name</label>
+                      <input
+                        type="text"
+                        name="customer_name"
+                        value={formData.customer_name}
+                        onChange={handleInputChange}
+                        placeholder="Optional"
+                        className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Phone</label>
+                      <input
+                        type="text"
+                        name="customer_phone"
+                        value={formData.customer_phone}
+                        onChange={handleInputChange}
+                        placeholder="Optional"
+                        className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/50"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Sale Date *</label>
+                    <input
+                      type="date"
+                      name="sale_date"
+                      value={formData.sale_date}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/50"
+                    />
+                  </div>
+                </div>
+
+                {/* Line Items */}
+                <div className="pt-4 border-t border-slate-100">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-sm font-bold text-slate-700">Items / Services</h4>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {formData.items.map((item, index) => (
+                      <div key={index} className="flex flex-col gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative">
+                        {formData.items.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeItem(index)}
+                            className="absolute top-2 right-2 p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Remove Item"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Sale Category</label>
+                            <select
+                              value={item.category}
+                              onChange={(e) => handleItemChange(index, 'category', e.target.value)}
+                              className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none font-medium bg-slate-50"
+                            >
+                              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Item / Description</label>
+                            <input
+                              type="text"
+                              value={item.item_name}
+                              onChange={(e) => handleItemChange(index, 'item_name', e.target.value)}
+                              placeholder='e.g., "50kg Old Cartons" or "Mobile Cash-In Fee"'
+                              required
+                              className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              {item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? 'Transaction Amount' : 'Quantity / Weight'}
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.quantity}
+                                onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                                required
+                                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none pr-8"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
+                                {item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? '৳' : 'qty/kg'}
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              {item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? 'Commission / Fee (Profit)' : 'Unit Price / Amount (৳)'}
+                            </label>
                             <input
                               type="number"
                               min="0"
                               step="0.01"
-                              value={item.quantity}
-                              onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                              value={item.unit_price}
+                              onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
                               required
-                              className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none pr-8"
+                              placeholder={item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? 'Fee (Profit)' : 'Price'}
+                              className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none"
                             />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
-                              {item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? '৳' : 'qty/kg'}
+                          </div>
+                          <div className="col-span-2 md:col-span-2 flex items-center justify-end bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-3">Item Subtotal (Profit):</span>
+                            <span className="font-black text-emerald-600 text-lg">
+                              {formatCurrency(
+                                item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction'
+                                  ? (parseFloat(item.unit_price) || 0) 
+                                  : ((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0))
+                              )}
                             </span>
                           </div>
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                            {item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? 'Commission / Fee (Profit)' : 'Unit Price / Amount (৳)'}
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.unit_price}
-                            onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)}
-                            required
-                            placeholder={item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction' ? 'Fee (Profit)' : 'Price'}
-                            className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none"
-                          />
-                        </div>
-                        <div className="col-span-2 md:col-span-2 flex items-center justify-end bg-slate-50 rounded-lg p-2.5 border border-slate-100">
-                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-3">Item Subtotal (Profit):</span>
-                          <span className="font-black text-emerald-600 text-lg">
-                            {formatCurrency(
-                              item.category === 'Mobile Banking Services' || item.category === 'Banking Transaction'
-                                ? (parseFloat(item.unit_price) || 0) 
-                                : ((parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0))
-                            )}
-                          </span>
-                        </div>
                       </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={() => addItem()}
+                      className="text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center space-x-1 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span>Add Another Row</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Notes / Reference</label>
+                    <textarea
+                      name="notes"
+                      value={formData.notes}
+                      onChange={handleInputChange}
+                      rows="3"
+                      placeholder="Payment receipt ref, paid by cash, etc."
+                      className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/50"
+                    />
+                  </div>
+                  <div className="flex flex-col justify-end items-end space-y-3 bg-gradient-to-br from-emerald-50 to-emerald-100/30 p-5 rounded-2xl border border-emerald-100">
+                    <div className="flex justify-between w-full text-emerald-800/70 text-sm">
+                      <span className="font-semibold uppercase tracking-wider">
+                        {formData.items.every(i => i.category === 'Mobile Banking Services' || i.category === 'Banking Transaction') ? 'Total Transactions:' : 'Total Items/Rows:'}
+                      </span>
+                      <span className="font-bold">{formData.items.length}</span>
                     </div>
-                  ))}
-                </div>
-
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    onClick={() => addItem()}
-                    className="text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center space-x-1 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span>Add Another Row</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Notes / Reference</label>
-                  <textarea
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleInputChange}
-                    rows="3"
-                    placeholder="Payment receipt ref, paid by cash, etc."
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-emerald-500 outline-none bg-slate-50/50"
-                  />
-                </div>
-                <div className="flex flex-col justify-end items-end space-y-3 bg-gradient-to-br from-emerald-50 to-emerald-100/30 p-5 rounded-2xl border border-emerald-100">
-                  <div className="flex justify-between w-full text-emerald-800/70 text-sm">
-                    <span className="font-semibold uppercase tracking-wider">
-                      {formData.items.every(i => i.category === 'Mobile Banking Services' || i.category === 'Banking Transaction') ? 'Total Transactions:' : 'Total Items/Rows:'}
-                    </span>
-                    <span className="font-bold">{formData.items.length}</span>
-                  </div>
-                  <div className="w-full h-px bg-emerald-200/50"></div>
-                  <div className="flex justify-between items-center w-full text-emerald-800">
-                    <span className="font-black text-sm uppercase tracking-wider">Grand Total:</span>
-                    <span className="font-black text-2xl drop-shadow-sm">{formatCurrency(calculateGrandTotal())}</span>
+                    <div className="w-full h-px bg-emerald-200/50"></div>
+                    <div className="flex justify-between items-center w-full text-emerald-800">
+                      <span className="font-black text-sm uppercase tracking-wider">Grand Total:</span>
+                      <span className="font-black text-2xl drop-shadow-sm">{formatCurrency(calculateGrandTotal())}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="flex justify-end pt-5 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 hover:text-slate-800 transition-colors mr-3"
-                >
-                  Clear Form
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-8 py-2.5 bg-slate-500 hover:bg-slate-600 text-white rounded-xl text-sm font-black tracking-wide transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                  {submitting ? 'Processing...' : 'Complete Transaction'}
-                  {!submitting && (
-                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: Recent Sales */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col h-[600px] lg:sticky lg:top-6">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-3">
-              <div className="flex justify-between items-center">
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Recent History</h3>
-                <div className="flex items-center space-x-2">
-                  <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg">
-                    {sales.length}
-                  </span>
-                  <button onClick={exportPDF} className="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-bold py-1 px-2.5 rounded-lg transition-colors flex items-center shadow-sm">
-                    PDF Export
-                  </button>
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input 
-                  type="date" 
-                  value={filterStartDate} 
-                  onChange={(e) => setFilterStartDate(e.target.value)} 
-                  className="border border-slate-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-emerald-500 outline-none w-full"
-                />
-                <input 
-                  type="date" 
-                  value={filterEndDate} 
-                  onChange={(e) => setFilterEndDate(e.target.value)} 
-                  className="border border-slate-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-emerald-500 outline-none w-full"
-                />
-                <button 
-                  onClick={() => fetchSales()} 
-                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors"
-                >
-                  Filter
-                </button>
-              </div>
+              </form>
             </div>
-            
-            <div className="flex-1 overflow-y-auto p-3">
-              {loading ? (
-                <div className="p-8 text-center text-slate-500 text-sm font-medium">Loading history...</div>
-              ) : sales.length === 0 ? (
-                <div className="p-8 text-center flex flex-col items-center justify-center text-slate-400">
-                  <svg className="w-12 h-12 mb-3 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+
+            {/* Modal Footer */}
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end items-center space-x-3">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 hover:text-slate-800 transition-colors"
+              >
+                Clear Form
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  resetForm();
+                  setShowEntryForm(false);
+                }}
+                className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-sm font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="quick-entry-form"
+                disabled={submitting}
+                className="px-8 py-2.5 bg-slate-500 hover:bg-slate-600 text-white rounded-xl text-sm font-black tracking-wide transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                {submitting ? 'Processing...' : (editingSale ? 'Update Transaction' : 'Complete Transaction')}
+                {!submitting && (
+                  <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-sm font-medium">No recent entries found.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {(() => {
-                    const totalPages = Math.ceil(sales.length / itemsPerPage) || 1;
-                    const currentSales = sales.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-                    return currentSales.map(sale => (
-                      <div 
-                        key={sale.id} 
-                        onClick={() => setViewSale(sale)}
-                        className="bg-white border border-slate-200 p-3.5 rounded-xl shadow-sm hover:shadow-md hover:border-emerald-300 cursor-pointer transition-all flex flex-col group"
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{formatDate(sale.sale_date)}</span>
-                          <span className="text-sm font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">{formatCurrency(sale.amount)}</span>
-                        </div>
-                        <div className="text-sm font-bold text-slate-800 leading-tight">
-                          {sale.title || 'Custom Sale'}
-                        </div>
-                        <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-100">
-                          <span className="text-xs font-medium text-slate-500 truncate max-w-[150px] flex items-center">
-                            <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            {sale.customer_name || 'Walk-in'}
-                          </span>
-                          <span className="text-[10px] bg-slate-100 text-slate-500 px-2.5 py-1 rounded-md font-bold uppercase tracking-wider group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-                            Details
-                          </span>
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
-              )}
+                )}
+              </button>
             </div>
-            
-            {sales.length > 0 && (
-              <div className="p-3 border-t border-slate-100 bg-slate-50 flex flex-wrap justify-center items-center gap-3 text-xs font-bold text-slate-500 mt-auto">
-                <button 
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 rounded-lg hover:bg-slate-200 disabled:opacity-50 transition-colors"
-                >
-                  Prev
-                </button>
-                <span>Page {currentPage} of {Math.ceil(sales.length / itemsPerPage) || 1}</span>
-                <button 
-                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(sales.length / itemsPerPage) || 1, p + 1))}
-                  disabled={currentPage === (Math.ceil(sales.length / itemsPerPage) || 1)}
-                  className="px-3 py-1.5 rounded-lg hover:bg-slate-200 disabled:opacity-50 transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-            )}
           </div>
         </div>
-      </div>
+      )}
 
       {/* VIEW SALE MODAL */}
       {viewSale && (
@@ -789,12 +862,23 @@ export default function OtherSales() {
                 </svg>
                 <span>Delete</span>
               </button>
-              <button
-                onClick={() => setViewSale(null)}
-                className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold transition-all shadow-md hover:shadow-lg"
-              >
-                Close View
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => handleEdit(viewSale)}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md hover:shadow-lg flex items-center space-x-1.5"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span>Edit</span>
+                </button>
+                <button
+                  onClick={() => setViewSale(null)}
+                  className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-bold transition-all shadow-md hover:shadow-lg"
+                >
+                  Close View
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -802,4 +886,3 @@ export default function OtherSales() {
     </div>
   );
 }
-

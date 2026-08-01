@@ -229,12 +229,19 @@ export default function OtherCost() {
   // 2. OPEN EDIT MODAL
   const openEdit = (cost) => {
     setCurrentCost(cost);
+    const parsedItems = parseItems(cost.items);
     setFormData({
-      title: cost.title,
-      amount: cost.amount,
+      title: cost.title || '',
+      amount: cost.amount || '',
       cost_date: cost.cost_date ? cost.cost_date.split('T')[0] : '',
       notes: cost.notes || '',
-      items: cost.items && cost.items.length > 0 ? cost.items : [ { item_name: '', quantity: 1, unit_price: '' } ]
+      items: parsedItems && parsedItems.length > 0
+        ? parsedItems.map(i => ({
+            item_name: i.item_name || '',
+            quantity: i.quantity || 1,
+            unit_price: i.unit_price || ''
+          }))
+        : [{ item_name: '', quantity: 1, unit_price: '' }]
     });
     setShowEditModal(true);
   };
