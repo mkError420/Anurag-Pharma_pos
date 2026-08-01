@@ -936,9 +936,9 @@ export default function ManualOrders() {
                         </td>
                         <td className="py-2.5 text-right space-x-1.5 whitespace-nowrap">
                           <button onClick={() => openDetails(order)} className="text-slate-500 hover:text-slate-900 border border-slate-200 px-2 py-1 rounded font-medium">View</button>
+                          <button onClick={() => openEditOrder(order)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Edit</button>
                           {order.status === 'pending' ? (
                             <>
-                              <button onClick={() => openEditOrder(order)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Edit</button>
                               <button onClick={() => handleHoldOrder(order.id)} className="text-amber-600 hover:text-amber-900 border border-amber-100 px-2 py-1 rounded font-medium">Hold</button>
                               <button onClick={() => handleConfirmOrder(order.id)} className="bg-slate-500 hover:bg-slate-600 text-white font-bold px-2 py-1 rounded">Confirm</button>
                               <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
@@ -1080,9 +1080,9 @@ export default function ManualOrders() {
                     {/* Actions Row */}
                     <div className="pt-2 border-t border-slate-200/80 flex flex-wrap items-center justify-end gap-1.5">
                       <button onClick={() => openDetails(order)} className="text-slate-600 hover:text-slate-900 border border-slate-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">View</button>
+                      <button onClick={() => openEditOrder(order)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">Edit</button>
                       {order.status === 'pending' ? (
                         <>
-                          <button onClick={() => openEditOrder(order)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">Edit</button>
                           <button onClick={() => handleConfirmOrder(order.id)} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold px-2.5 py-1 rounded-lg text-xs shadow-2xs">Confirm</button>
                           <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-200 bg-white px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs">Delete</button>
                         </>
@@ -1149,9 +1149,9 @@ export default function ManualOrders() {
                         </td>
                         <td className="py-2.5 text-right space-x-1.5 whitespace-nowrap">
                           <button onClick={() => openDetails(order)} className="text-slate-500 hover:text-slate-900 border border-slate-200 px-2 py-1 rounded font-medium">View</button>
+                          <button onClick={() => openEditOrder(order)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Edit</button>
                           {order.status === 'pending' ? (
                             <>
-                              <button onClick={() => openEditOrder(order)} className="text-indigo-660 hover:text-indigo-900 border border-indigo-100 px-2 py-1 rounded font-medium">Edit</button>
                               <button onClick={() => handleConfirmOrder(order.id)} className="bg-slate-500 hover:bg-slate-600 text-white font-bold px-2 py-1 rounded">Confirm</button>
                               <button onClick={() => handleDeleteOrder(order.id)} className="text-rose-600 hover:text-rose-900 border border-rose-100 px-2 py-1 rounded font-medium">Delete</button>
                             </>
@@ -2227,6 +2227,15 @@ export default function ManualOrders() {
                 className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
               >
                 Close
+              </button>
+              <button
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  openEditOrder(viewingOrder);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition-colors shadow-sm"
+              >
+                Edit Order
               </button>
               {viewingOrder.status === 'pending' && (
                 <button

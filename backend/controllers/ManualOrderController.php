@@ -226,7 +226,7 @@ class ManualOrderController {
         try {
             DB::beginTransaction();
 
-            $stmt = DB::query('SELECT status FROM manual_orders WHERE id = ? AND shop_id = ?', [$orderId, $shopId]);
+            $stmt = DB::query('SELECT * FROM manual_orders WHERE id = ? AND shop_id = ? FOR UPDATE', [$orderId, $shopId]);
             $order = $stmt->fetch();
 
             if (!$order) {
@@ -234,9 +234,35 @@ class ManualOrderController {
                 Auth::jsonError('Manual order not found.', 404);
             }
 
-            if ($order['status'] !== 'pending') {
-                DB::rollBack();
-                Auth::jsonError('Only pending manual orders can be updated.', 400);
+            // If order was confirmed, revert old sale effects (stock & customer due balance)
+            $saleId = $order['sale_id'] ? (int)$order['sale_id'] : null;
+            if ($order['status'] === 'confirmed' && $saleId) {
+                $sStmt = DB::query('SELECT * FROM sales WHERE id = ? AND shop_id = ?', [$saleId, $shopId]);
+                $oldSale = $sStmt->fetch();
+
+                if ($oldSale) {
+                    // Revert old stock
+                    $siStmt = DB::query('SELECT product_id, quantity FROM sale_items WHERE sale_id = ? AND shop_id = ?', [$saleId, $shopId]);
+                    $oldSaleItems = $siStmt->fetchAll();
+                    foreach ($oldSaleItems as $osi) {
+                        DB::query(
+                            'UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ? AND shop_id = ?',
+                            [(float)$osi['quantity'], (int)$osi['product_id'], $shopId]
+                        );
+                    }
+
+                    // Revert old customer due balance
+                    $oldDue = (float)$oldSale['due_amount'];
+                    if ($oldDue > 0 && $oldSale['customer_id']) {
+                        DB::query(
+                            'UPDATE customers SET due_balance = GREATEST(due_balance - ?, 0) WHERE id = ? AND shop_id = ?',
+                            [$oldDue, (int)$oldSale['customer_id'], $shopId]
+                        );
+                    }
+
+                    // Clear old sale_items
+                    DB::query('DELETE FROM sale_items WHERE sale_id = ? AND shop_id = ?', [$saleId, $shopId]);
+                }
             }
 
             // Perform header updates dynamically
@@ -284,6 +310,135 @@ class ManualOrderController {
                         [$orderId, $shopId, $productId, $quantity, $unitPrice, $subtotal]
                     );
                 }
+            }
+
+            // If order is confirmed and has a sale_id, re-process sales and stock
+            if ($order['status'] === 'confirmed' && $saleId) {
+                // Fetch latest order header
+                $uStmt = DB::query('SELECT * FROM manual_orders WHERE id = ? AND shop_id = ?', [$orderId, $shopId]);
+                $updatedOrder = $uStmt->fetch();
+
+                // Fetch latest items
+                $moiStmt = DB::query('SELECT product_id, quantity, unit_price, subtotal FROM manual_order_items WHERE order_id = ? AND shop_id = ?', [$orderId, $shopId]);
+                $latestOrderItems = $moiStmt->fetchAll();
+
+                $calculatedTotal = 0.00;
+                $validatedItems = [];
+
+                foreach ($latestOrderItems as $lItem) {
+                    $pId = (int)$lItem['product_id'];
+                    $qty = (float)$lItem['quantity'];
+                    $uPrice = (float)$lItem['unit_price'];
+
+                    $pStmt = DB::query('SELECT id, price, cost_price, stock_quantity FROM products WHERE id = ? AND shop_id = ? FOR UPDATE', [$pId, $shopId]);
+                    $prod = $pStmt->fetch();
+
+                    $costPrice = $prod ? (float)$prod['cost_price'] : 0.00;
+                    $subTotal = $qty * $uPrice;
+                    $calculatedTotal += $subTotal;
+
+                    $validatedItems[] = [
+                        'product_id' => $pId,
+                        'quantity' => $qty,
+                        'unit_price' => $uPrice,
+                        'cost_price' => $costPrice,
+                        'subtotal' => $subTotal
+                    ];
+
+                    // Deduct stock
+                    if ($prod) {
+                        $newStock = (float)$prod['stock_quantity'] - $qty;
+                        DB::query('UPDATE products SET stock_quantity = ? WHERE id = ? AND shop_id = ?', [$newStock, $pId, $shopId]);
+                    }
+                }
+
+                $finalAmount = ($calculatedTotal - (float)$updatedOrder['discount']) + (float)$updatedOrder['tax'];
+                $effectivePayMethod = $updatedOrder['payment_method'];
+
+                $paidAmount = 0.00;
+                $dueAmount = 0.00;
+                $paymentMethodForSale = 'cash';
+
+                if ($effectivePayMethod === 'cash') {
+                    $paidAmount = $finalAmount;
+                    $dueAmount = 0.00;
+                    $paymentMethodForSale = 'cash';
+                } else {
+                    $paidAmount = 0.00;
+                    $dueAmount = $finalAmount;
+                    $paymentMethodForSale = 'other';
+                }
+
+                $resCustId = $updatedOrder['customer_id'] !== null ? (int)$updatedOrder['customer_id'] : null;
+
+                // Update sales record
+                DB::query(
+                    'UPDATE sales SET customer_id = ?, total_amount = ?, discount = ?, tax = ?, final_amount = ?, paid_amount = ?, due_amount = ?, payment_method = ? WHERE id = ? AND shop_id = ?',
+                    [$resCustId, $calculatedTotal, (float)$updatedOrder['discount'], (float)$updatedOrder['tax'], $finalAmount, $paidAmount, $dueAmount, $paymentMethodForSale, $saleId, $shopId]
+                );
+
+                // Insert new sale items
+                foreach ($validatedItems as $vItem) {
+                    DB::query(
+                        'INSERT INTO sale_items (shop_id, sale_id, product_id, quantity, unit_price, cost_price, subtotal) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        [$shopId, $saleId, $vItem['product_id'], $vItem['quantity'], $vItem['unit_price'], $vItem['cost_price'], $vItem['subtotal']]
+                    );
+                }
+
+                // Update customer due balance if due exists
+                if ($dueAmount > 0 && $resCustId) {
+                    DB::query(
+                        'UPDATE customers SET due_balance = due_balance + ? WHERE id = ? AND shop_id = ?',
+                        [$dueAmount, $resCustId, $shopId]
+                    );
+                }
+            }
+
+            // If order was held, update corresponding held_bill entry
+            if ($order['status'] === 'held') {
+                $hbStmt = DB::query('SELECT items FROM manual_order_items WHERE order_id = ? AND shop_id = ?', [$orderId, $shopId]);
+                $moItems = $hbStmt->fetchAll();
+
+                $totalAmount = 0.00;
+                $itemsForHeldBill = [];
+                foreach ($moItems as $mItem) {
+                    $subTotal = (float)$mItem['quantity'] * (float)$mItem['unit_price'];
+                    $totalAmount += $subTotal;
+
+                    $pStmt = DB::query('SELECT name, sku FROM products WHERE id = ? AND shop_id = ?', [(int)$mItem['product_id'], $shopId]);
+                    $prod = $pStmt->fetch();
+
+                    $itemsForHeldBill[] = [
+                        'product_id' => (int)$mItem['product_id'],
+                        'product_name' => $prod ? $prod['name'] : 'Product #' . $mItem['product_id'],
+                        'product_sku' => $prod ? $prod['sku'] : '',
+                        'quantity' => (float)$mItem['quantity'],
+                        'unit_price' => (float)$mItem['unit_price'],
+                        'subtotal' => $subTotal
+                    ];
+                }
+
+                $finalAmount = $totalAmount - (float)($discount ?? $order['discount']) + (float)($tax ?? $order['tax']);
+                $dueAmount = (($paymentMethod ?? $order['payment_method']) === 'credit') ? $finalAmount : 0.00;
+                $discountPercent = $totalAmount > 0 ? (((float)($discount ?? $order['discount'])) / $totalAmount) * 100 : 0;
+
+                DB::query(
+                    'UPDATE held_bills 
+                     SET customer_name = ?, customer_phone = ?, customer_address = ?, discount_percent = ?, discount_amount = ?, items = ?, due_amount = ? 
+                     WHERE shop_id = ? AND notes LIKE ?',
+                    [
+                        $customerName ?? $order['customer_name'],
+                        $customerPhone ?? $order['customer_phone'],
+                        $customerAddress ?? $order['customer_address'],
+                        $discountPercent,
+                        (float)($discount ?? $order['discount']),
+                        json_encode($itemsForHeldBill),
+                        $dueAmount,
+                        $shopId,
+                        'Held from Manual Order #' . $orderId
+                    ]
+                );
             }
 
             DB::commit();
