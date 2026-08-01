@@ -1,0 +1,17 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # 1. Backend API requests
+  RewriteRule ^backend/(.*)$ backend/index.php [L,QSA]
+
+  # 2. Assets routing to frontend/dist/assets
+  RewriteRule ^assets/(.*)$ frontend/dist/assets/$1 [L]
+
+  # 3. SPA Fallback - route all other requests to frontend/dist/index.html
+  RewriteCond %{REQUEST_URI} !^/backend/
+  RewriteCond %{REQUEST_URI} !^/frontend/
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(.*)$ frontend/dist/index.html [L,QSA]
+</IfModule>

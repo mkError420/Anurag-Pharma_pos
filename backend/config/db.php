@@ -24,10 +24,10 @@ class DB {
                 $defaultPass = '';
                 $defaultDb   = 'multitenant_pos';
             } else {
-                $defaultHost = 'sql107.infinityfree.com';
-                $defaultUser = 'if0_42333746';
-                $defaultPass = 'VHxnlDleyPf09'; // Your production DB password
-                $defaultDb   = 'if0_42333746_mk_pos';
+                $defaultHost = 'localhost'; // Usually localhost on cPanel
+                $defaultUser = 'nextgenp_posgen';
+                $defaultPass = 'posofnextgen123456@#$%'; // Your production DB password
+                $defaultDb   = 'nextgenp_pos';
             }
 
             // Only use environment variables if a .env file actually exists in the project.
