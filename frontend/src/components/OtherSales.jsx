@@ -33,6 +33,7 @@ export default function OtherSales() {
   // Pagination & Filters for Recent History
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 4;
  
@@ -46,13 +47,23 @@ export default function OtherSales() {
       }
       if (filterStartDate) url += `start_date=${filterStartDate}&`;
       if (filterEndDate) url += `end_date=${filterEndDate}&`;
- 
+
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to retrieve sale records.');
       const data = await response.json();
-      setSales(data);
+      
+      // Filter by category client-side
+      let filteredData = data;
+      if (filterCategory) {
+        filteredData = data.filter(sale => {
+          const items = parseItems(sale.items);
+          return items.some(item => item.category === filterCategory);
+        });
+      }
+      
+      setSales(filteredData);
       setCurrentPage(1);
     } catch (err) {
       setError(err.message);
@@ -426,24 +437,26 @@ export default function OtherSales() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
-            <input 
-              type="date" 
-              value={filterStartDate} 
-              onChange={(e) => setFilterStartDate(e.target.value)} 
+            <input
+              type="date"
+              value={filterStartDate}
+              onChange={(e) => { setFilterStartDate(e.target.value); fetchSales(); }}
               className="border border-slate-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-emerald-500 outline-none flex-1"
             />
-            <input 
-              type="date" 
-              value={filterEndDate} 
-              onChange={(e) => setFilterEndDate(e.target.value)} 
+            <input
+              type="date"
+              value={filterEndDate}
+              onChange={(e) => { setFilterEndDate(e.target.value); fetchSales(); }}
               className="border border-slate-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-emerald-500 outline-none flex-1"
             />
-            <button 
-              onClick={() => fetchSales()} 
-              className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors"
+            <select
+              value={filterCategory}
+              onChange={(e) => { setFilterCategory(e.target.value); fetchSales(); }}
+              className="border border-slate-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-emerald-500 outline-none flex-1"
             >
-              Filter
-            </button>
+              <option value="">All Categories</option>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
         </div>
         

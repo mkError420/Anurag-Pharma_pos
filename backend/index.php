@@ -140,6 +140,30 @@ $routes = [
             header('Content-Type: application/json');
             echo json_encode(['status' => 'healthy', 'timestamp' => date('c')]);
         },
+        // Public Logo Endpoint (no authentication required)
+        '/^public\/logo$/' => function() {
+            require_once __DIR__ . '/config/db.php';
+            try {
+                // Fetch logo from super admin (role = 'super_admin')
+                $stmt = DB::query(
+                    'SELECT logo FROM users WHERE role = ? AND status = ? LIMIT 1',
+                    ['super_admin', 'active']
+                );
+                $result = $stmt->fetch();
+                
+                header('Content-Type: application/json');
+                header('Cache-Control: public, max-age=3600'); // Cache for 1 hour
+                if ($result && !empty($result['logo'])) {
+                    echo json_encode(['logo' => $result['logo']]);
+                } else {
+                    echo json_encode(['logo' => null]);
+                }
+            } catch (\Exception $e) {
+                error_log('Logo fetch error: ' . $e->getMessage());
+                header('Content-Type: application/json');
+                echo json_encode(['logo' => null]);
+            }
+        },
         // Diagnostics
         '/^diagnostic$/' => function() {
             header('Content-Type: text/plain');
