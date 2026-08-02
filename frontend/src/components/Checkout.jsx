@@ -524,6 +524,17 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       return;
     }
 
+    // Check if product is expired
+    if (product.expiry_date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const expiryDate = new Date(product.expiry_date);
+      if (expiryDate < today) {
+        triggerAlert('error', `"${product.name}" has expired on ${product.expiry_date}. Cannot add to cart.`);
+        return;
+      }
+    }
+
     const existingIndex = activeTab.cart.findIndex(item => item.id === product.id);
 
     if (existingIndex > -1) {
@@ -1406,22 +1417,36 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                         const remainingQty = product.stock_quantity - (inCartItem ? inCartItem.quantity : 0);
                         const isOutOfStock = remainingQty <= 0;
 
+                        // Check if product is expired
+                        let isExpired = false;
+                        if (product.expiry_date) {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const expiryDate = new Date(product.expiry_date);
+                          isExpired = expiryDate < today;
+                        }
+
+                        const isDisabled = isOutOfStock || isExpired;
+
                         return (
-                          <tr key={product.id} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''}`}>
+                          <tr key={product.id} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''} ${isExpired ? 'bg-red-50' : ''}`}>
                             <td
-                              className="p-3 pl-4 font-semibold text-slate-800 cursor-pointer hover:text-indigo-600 transition-colors"
-                              onClick={() => !isOutOfStock && addToCart(product)}
-                              title={isOutOfStock ? 'Out of stock' : 'Click to add to cart'}
+                              className={`p-3 pl-4 font-semibold transition-colors ${isDisabled ? 'text-slate-400 cursor-not-allowed' : 'text-slate-800 cursor-pointer hover:text-indigo-600'}`}
+                              onClick={() => !isDisabled && addToCart(product)}
+                              title={isExpired ? `Expired on ${product.expiry_date}` : (isOutOfStock ? 'Out of stock' : 'Click to add to cart')}
                             >
                               {product.name}
+                              {isExpired && <span className="ml-2 text-xs text-red-600 font-bold">(Expired)</span>}
                             </td>
                             <td className="p-3 text-right font-extrabold text-slate-700">৳{parseFloat(product.price).toFixed(3)}</td>
                             <td className="p-3 text-center">
-                              <span className={`px-2 py-0.5 rounded text-xs font-bold ${remainingQty <= product.low_stock_threshold
+                              <span className={`px-2 py-0.5 rounded text-xs font-bold ${isExpired
+                                ? 'bg-red-50 text-red-600 border border-red-100'
+                                : remainingQty <= product.low_stock_threshold
                                 ? 'bg-rose-50 text-rose-600 border border-rose-100'
                                 : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                                 }`}>
-                                {remainingQty} {product.unit || 'pcs'} left
+                                {isExpired ? 'Expired' : `${remainingQty} ${product.unit || 'pcs'} left`}
                               </span>
                             </td>
                             <td className="p-3 text-center">
@@ -1453,10 +1478,10 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                               ) : (
                                 <button
                                   onClick={() => addToCart(product)}
-                                  disabled={isOutOfStock}
+                                  disabled={isDisabled}
                                   className="bg-slate-600 hover:bg-indigo-700 text-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-xs"
                                 >
-                                  {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+                                  Add
                                 </button>
                               )}
                             </td>
