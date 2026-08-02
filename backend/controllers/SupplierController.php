@@ -712,6 +712,7 @@ class SupplierController {
 
         $poId = (int)$id;
         $shopId = Auth::$shopId;
+        $newSupplierId = $requestData['supplier_id'] ?? null;
         $orderDate = $requestData['order_date'] ?? null;
         $receivedDate = $requestData['received_date'] ?? null;
         $notes = $requestData['notes'] ?? null;
@@ -739,8 +740,10 @@ class SupplierController {
                 Auth::jsonError('Cannot update cancelled Purchase Orders.', 400);
             }
 
-            $supplierId = (int)$po['supplier_id'];
+            $oldSupplierId = (int)$po['supplier_id'];
+            $supplierId = $newSupplierId ? (int)$newSupplierId : $oldSupplierId;
             $poStatus = $po['status'];
+            $supplierChanged = ($oldSupplierId !== $supplierId);
 
             // Retrieve current PO info to get payment basis & paid amount fallback
             $poStmt = DB::query('SELECT payment_basis, paid_amount, due_amount FROM purchase_orders WHERE id = ? AND shop_id = ?', [$poId, $shopId]);
@@ -899,15 +902,34 @@ class SupplierController {
             }
 
 
-            // Update main PO total
+            // Update main PO total and supplier_id if changed
             DB::query(
-                'UPDATE purchase_orders SET order_date = ?, received_date = ?, total_amount = ?, paid_amount = ?, due_amount = ?, payment_basis = ?, notes = ?
+                'UPDATE purchase_orders SET order_date = ?, received_date = ?, total_amount = ?, paid_amount = ?, due_amount = ?, payment_basis = ?, notes = ?, supplier_id = ?
                  WHERE id = ? AND shop_id = ?',
-                [$orderDate, $receivedDate, $totalAmount, $paidAmount, $dueAmount, $paymentBasis, $notes, $poId, $shopId]
+                [$orderDate, $receivedDate, $totalAmount, $paidAmount, $dueAmount, $paymentBasis, $notes, $supplierId, $poId, $shopId]
             );
+
+            // If supplier changed, update all products in the PO to the new supplier
+            if ($supplierChanged) {
+                foreach ($items as $item) {
+                    $productId = (int)$item['product_id'];
+                    DB::query(
+                        'UPDATE products SET supplier_id = ? WHERE id = ? AND shop_id = ?',
+                        [$supplierId, $productId, $shopId]
+                    );
+                }
+            }
 
             // Re-apply supplier due balance
             if (($poStatus === 'ordered' || $poStatus === 'received') && $paymentBasis === 'credit' && $dueAmount > 0) {
+                // If supplier changed, remove due amount from old supplier
+                if ($supplierChanged) {
+                    DB::query(
+                        'UPDATE suppliers SET due_balance = GREATEST(due_balance - ?, 0) WHERE id = ? AND shop_id = ?',
+                        [$dueAmount, $oldSupplierId, $shopId]
+                    );
+                }
+                // Add due amount to new supplier
                 DB::query(
                     'UPDATE suppliers SET due_balance = due_balance + ? WHERE id = ? AND shop_id = ?',
                     [$dueAmount, $supplierId, $shopId]
@@ -917,6 +939,7 @@ class SupplierController {
             if ($poStatus === 'received') {
                 $columnCheck = DB::query("SHOW COLUMNS FROM suppliers LIKE 'total_spent'");
                 if ($columnCheck->fetch() !== false) {
+                    // Update total_spent for new supplier
                     DB::query(
                         'UPDATE suppliers s SET total_spent = (
                              SELECT COALESCE(SUM(stock_quantity * cost_price), 0)
@@ -925,6 +948,17 @@ class SupplierController {
                          ) WHERE id = ? AND shop_id = ?',
                         [$supplierId, $shopId]
                     );
+                    // If supplier changed, also update total_spent for old supplier
+                    if ($supplierChanged) {
+                        DB::query(
+                            'UPDATE suppliers s SET total_spent = (
+                                 SELECT COALESCE(SUM(stock_quantity * cost_price), 0)
+                                 FROM products
+                                 WHERE supplier_id = s.id AND shop_id = s.shop_id
+                             ) WHERE id = ? AND shop_id = ?',
+                            [$oldSupplierId, $shopId]
+                        );
+                    }
                 }
             }
 
