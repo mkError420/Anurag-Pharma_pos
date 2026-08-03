@@ -347,6 +347,161 @@ class TransactionController {
         }
     }
 
+    public static function deleteTransaction($refId) {
+        Auth::authenticate();
+        Auth::enforceTenant();
+        Auth::authorize(['super_admin', 'shop_admin']);
+
+        $shopId = Auth::$shopId;
+
+        try {
+            // Decode URL-encoded reference ID
+            $refId = urldecode($refId);
+            
+            // Parse the reference ID to determine type and raw ID
+            // Format: TYPE-ID (e.g., SALE-123, PO-456, WAST-789, etc.)
+            if (!preg_match('/^([A-Z]+)-(\d+)$/', $refId, $matches)) {
+                Auth::jsonError('Invalid reference ID format', 400);
+            }
+
+            $type = $matches[1];
+            $rawId = (int)$matches[2];
+
+            DB::beginTransaction();
+
+            switch ($type) {
+                case 'SALE':
+                    // Delete sale record and restore stock
+                    $stmt = DB::query('SELECT * FROM sales WHERE id = ? AND shop_id = ? FOR UPDATE', [$rawId, $shopId]);
+                    $sale = $stmt->fetch();
+                    
+                    if (!$sale) {
+                        DB::rollBack();
+                        Auth::jsonError('Sale not found', 404);
+                    }
+
+                    // Restore stock for each sale item
+                    $itemStmt = DB::query('SELECT product_id, quantity FROM sale_items WHERE sale_id = ?', [$rawId]);
+                    $items = $itemStmt->fetchAll();
+                    
+                    foreach ($items as $item) {
+                        DB::query('UPDATE products SET stock = stock + ? WHERE id = ?', [$item['quantity'], $item['product_id']]);
+                    }
+
+                    // Delete sale items
+                    DB::query('DELETE FROM sale_items WHERE sale_id = ?', [$rawId]);
+                    
+                    // Delete sale
+                    DB::query('DELETE FROM sales WHERE id = ?', [$rawId]);
+                    break;
+
+                case 'PO':
+                    // Delete purchase order
+                    $stmt = DB::query('SELECT * FROM purchase_orders WHERE id = ? AND shop_id = ? FOR UPDATE', [$rawId, $shopId]);
+                    $po = $stmt->fetch();
+                    
+                    if (!$po) {
+                        DB::rollBack();
+                        Auth::jsonError('Purchase order not found', 404);
+                    }
+
+                    // Restore stock for each purchase item (reverse the stock addition)
+                    $itemStmt = DB::query('SELECT product_id, quantity FROM purchase_order_items WHERE purchase_order_id = ?', [$rawId]);
+                    $items = $itemStmt->fetchAll();
+                    
+                    foreach ($items as $item) {
+                        DB::query('UPDATE products SET stock = stock - ? WHERE id = ?', [$item['quantity'], $item['product_id']]);
+                    }
+
+                    // Delete purchase order items
+                    DB::query('DELETE FROM purchase_order_items WHERE purchase_order_id = ?', [$rawId]);
+                    
+                    // Delete purchase order
+                    DB::query('DELETE FROM purchase_orders WHERE id = ?', [$rawId]);
+                    break;
+
+                case 'WAST':
+                    // Delete wastage record and restore stock
+                    $stmt = DB::query('SELECT * FROM wastages WHERE id = ? AND shop_id = ? FOR UPDATE', [$rawId, $shopId]);
+                    $wastage = $stmt->fetch();
+                    
+                    if (!$wastage) {
+                        DB::rollBack();
+                        Auth::jsonError('Wastage record not found', 404);
+                    }
+
+                    // Restore stock (wastage reduces stock, so deletion should add it back)
+                    DB::query('UPDATE products SET stock = stock + ? WHERE id = ?', [$wastage['quantity'], $wastage['product_id']]);
+                    
+                    // Delete wastage
+                    DB::query('DELETE FROM wastages WHERE id = ?', [$rawId]);
+                    break;
+
+                case 'OC':
+                    // Delete other cost
+                    $stmt = DB::query('SELECT * FROM other_costs WHERE id = ? AND shop_id = ? FOR UPDATE', [$rawId, $shopId]);
+                    $oc = $stmt->fetch();
+                    
+                    if (!$oc) {
+                        DB::rollBack();
+                        Auth::jsonError('Other cost not found', 404);
+                    }
+
+                    DB::query('DELETE FROM other_costs WHERE id = ?', [$rawId]);
+                    break;
+
+                case 'OS':
+                    // Delete other sales
+                    $stmt = DB::query('SELECT * FROM other_sales WHERE id = ? AND shop_id = ? FOR UPDATE', [$rawId, $shopId]);
+                    $os = $stmt->fetch();
+                    
+                    if (!$os) {
+                        DB::rollBack();
+                        Auth::jsonError('Other sales not found', 404);
+                    }
+
+                    DB::query('DELETE FROM other_sales WHERE id = ?', [$rawId]);
+                    break;
+
+                case 'SALARY':
+                    // Delete staff salary
+                    $stmt = DB::query('SELECT * FROM staff_salaries WHERE id = ? AND shop_id = ? FOR UPDATE', [$rawId, $shopId]);
+                    $salary = $stmt->fetch();
+                    
+                    if (!$salary) {
+                        DB::rollBack();
+                        Auth::jsonError('Staff salary not found', 404);
+                    }
+
+                    DB::query('DELETE FROM staff_salaries WHERE id = ?', [$rawId]);
+                    break;
+
+                case 'DUE-SALE':
+                case 'DUE-PO':
+                    // These are derived from sales/purchase orders, cannot delete directly
+                    DB::rollBack();
+                    Auth::jsonError('Due transactions cannot be deleted directly. Delete the parent sale or purchase order instead.', 400);
+                    break;
+
+                default:
+                    DB::rollBack();
+                    Auth::jsonError('Unknown transaction type', 400);
+            }
+
+            DB::commit();
+
+            header('Content-Type: application/json');
+            echo json_encode(['message' => 'Transaction deleted successfully']);
+
+        } catch (\Exception $e) {
+            if (DB::inTransaction()) {
+                DB::rollBack();
+            }
+            error_log('Delete transaction error: ' . $e->getMessage());
+            Auth::jsonError('Server error deleting transaction: ' . $e->getMessage(), 500);
+        }
+    }
+
     private static function formatRow($row) {
         return [
             'ref_id' => $row['ref_id'],

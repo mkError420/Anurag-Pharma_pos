@@ -300,6 +300,7 @@ $routes = [
         '/^other-sales$/' => function() { OtherSalesController::listOtherSales(); },
         // Transactions
         '/^transactions$/' => function() { TransactionController::listTransactions(); },
+        '/^transactions\/([A-Z]+-\d+)$/' => function($args) { TransactionController::deleteTransaction($args[0]); },
         // Wastages
         '/^wastages$/' => function() { OtherController::listWastages(); },
         // Returns
