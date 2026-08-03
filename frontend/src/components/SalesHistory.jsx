@@ -904,6 +904,7 @@ export default function SalesHistory() {
   // automatically created as a mirror whenever a sale has due_amount > 0, so
   // including both would double-count every due amount.
   // Ensure we only count positive due amounts to avoid negative values skewing the total
+  // The sales data already includes manual order sales since they're in the main sales table
   const totalDue = filteredSales.reduce((sum, s) => {
     const dueAmount = parseFloat(s.due_amount || 0);
     return sum + (dueAmount > 0 ? dueAmount : 0);
