@@ -834,7 +834,11 @@ class ManualOrderController {
                 }
             }
 
-
+            // Remove the old held-order placeholder bill created when this manual order was held.
+            DB::query(
+                'DELETE FROM held_bills WHERE shop_id = ? AND notes = ?',
+                [$shopId, 'Held from Manual Order #' . $orderId]
+            );
 
             // Update manual order status
             DB::query(
@@ -902,6 +906,12 @@ class ManualOrderController {
             DB::query(
                 'UPDATE sales SET paid_amount = paid_amount + ?, due_amount = ? WHERE id = ? AND shop_id = ?',
                 [$actualPayment, $newDue, $saleId, $shopId]
+            );
+
+            // Synchronize related held bill, if one exists for this manual order sale.
+            DB::query(
+                'UPDATE held_bills SET due_amount = ?, status = ? WHERE shop_id = ? AND notes = ?',
+                [$newDue, $newDue <= 0 ? 'completed' : 'held', $shopId, "Due from Manual Order Sale #$saleId"]
             );
 
             // Reduce customer due balance

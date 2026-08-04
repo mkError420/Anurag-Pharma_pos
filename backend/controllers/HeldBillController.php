@@ -202,12 +202,11 @@ class HeldBillController {
                 [$actualPayment, (int)$bill['customer_id'], $shopId]
             );
 
-            // Parse original sale ID from notes if linked
+            // Parse original sale ID from notes if linked.
+            // Supports both regular sales and manual order sales so due collection stays in sync.
             $originalSaleId = null;
-            if (!empty($bill['notes']) && strpos($bill['notes'], 'Due from Sale #') === 0) {
-                if (preg_match('/Due from Sale #(\d+)/', $bill['notes'], $matches)) {
-                    $originalSaleId = (int)$matches[1];
-                }
+            if (!empty($bill['notes']) && preg_match('/Due from (?:Manual Order )?Sale #(\d+)/', $bill['notes'], $matches)) {
+                $originalSaleId = (int)$matches[1];
             }
 
             if ($originalSaleId) {

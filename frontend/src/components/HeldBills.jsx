@@ -13,6 +13,7 @@ export default function HeldBills({ onResume = () => { }, onHeldBillsChange = ()
   const [endDate, setEndDate] = useState('');
   const [chartType, setChartType] = useState('due'); // 'due' or 'count'
   const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [showActivityPanel, setShowActivityPanel] = useState(false);
   const [error, setError] = useState(null);
   const [alert, setAlert] = useState(null);
   const [expandedBillId, setExpandedBillId] = useState(null);
@@ -255,9 +256,18 @@ export default function HeldBills({ onResume = () => { }, onHeldBillsChange = ()
       )}
 
       {/* Title Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-800">Due Bills</h2>
-        <p className="text-sm text-slate-500">Manage suspended carts, collect due payments, and monitor bill status</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Due Bills</h2>
+          <p className="text-sm text-slate-500">Manage suspended carts, collect due payments, and monitor bill status</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowActivityPanel(prev => !prev)}
+          className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+        >
+          {showActivityPanel ? 'Hide Activity' : 'Show Activity'}
+        </button>
       </div>
 
       {/* Summary Stat Cards */}
@@ -316,7 +326,7 @@ export default function HeldBills({ onResume = () => { }, onHeldBillsChange = ()
       </div>
 
       {/* Dynamic Graph Chart */}
-      {(() => {
+      {showActivityPanel && (() => {
         // Calculate dynamic trend data from the current filtered list
         const trendMap = {};
         const dates = [];
