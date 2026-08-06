@@ -101,7 +101,7 @@ export default function Home({ onNavigate, onLoginSuccess }) {
       </nav>
 
       {/* Hero Section with Carousel */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 mb-16">
         {loading ? (
           <div className="flex items-center justify-center h-96">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
@@ -214,7 +214,7 @@ export default function Home({ onNavigate, onLoginSuccess }) {
           </div>
         ) : (
           /* Fallback Hero Section */
-          <div className="text-center mb-12">
+          <div className="text-center mb-12 space-y-4">
             <h1 className="text-5xl font-bold text-white mb-6">
               Welcome to Our <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">POS System</span>
             </h1>
@@ -227,31 +227,16 @@ export default function Home({ onNavigate, onLoginSuccess }) {
         {/* Features */}
         <div className="grid md:grid-cols-3 gap-8 mb-16">
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 hover:border-indigo-500/50 transition-all">
-            <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-            </div>
             <h3 className="text-white font-semibold text-lg mb-2">Inventory Management</h3>
             <p className="text-slate-400 text-sm">Track stock levels, manage products, and get alerts for low inventory.</p>
           </div>
 
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 hover:border-purple-500/50 transition-all">
-            <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
             <h3 className="text-white font-semibold text-lg mb-2">Sales Analytics</h3>
             <p className="text-slate-400 text-sm">Comprehensive reports and insights to make data-driven decisions.</p>
           </div>
 
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 hover:border-pink-500/50 transition-all">
-            <div className="w-12 h-12 rounded-xl bg-pink-500/20 flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
             <h3 className="text-white font-semibold text-lg mb-2">Easy Checkout</h3>
             <p className="text-slate-400 text-sm">Fast and efficient checkout process with multiple payment options.</p>
           </div>
