@@ -173,7 +173,7 @@ export default function Wastage() {
         },
         body: JSON.stringify({
           product_id: parseInt(formData.product_id),
-          quantity: parseInt(formData.quantity),
+          quantity: parseFloat(formData.quantity),
           reason: formData.reason,
           notes: formData.notes,
           adjusted_at: formData.adjusted_at
@@ -887,7 +887,8 @@ export default function Wastage() {
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Quantity *</label>
                   <input
                     type="number"
-                    min="1"
+                    min="0.001"
+                    step="any"
                     name="quantity"
                     value={formData.quantity}
                     onChange={handleInputChange}

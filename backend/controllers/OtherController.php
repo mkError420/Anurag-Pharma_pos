@@ -228,7 +228,7 @@ class OtherController {
 
         $shopId = Auth::$shopId;
         $productId = $requestData['product_id'] ?? null;
-        $quantity = (int)($requestData['quantity'] ?? 0);
+        $quantity = (float)($requestData['quantity'] ?? 0);
         $reason = $requestData['reason'] ?? '';
         $notes = $requestData['notes'] ?? null;
         $adjustedAt = $requestData['adjusted_at'] ?? null;
@@ -248,7 +248,7 @@ class OtherController {
                 Auth::jsonError('Product not found.', 404);
             }
 
-            if ((int)$product['stock_quantity'] < $quantity) {
+            if ((float)$product['stock_quantity'] < $quantity) {
                 DB::rollBack();
                 Auth::jsonError('Insufficient stock quantity to record this wastage.', 400);
             }
@@ -293,7 +293,7 @@ class OtherController {
         $shopId = Auth::$shopId;
 
         $productId = $requestData['product_id'] ?? null;
-        $quantity = (int)($requestData['quantity'] ?? 0);
+        $quantity = (float)($requestData['quantity'] ?? 0);
         $reason = $requestData['reason'] ?? '';
         $notes = $requestData['notes'] ?? null;
         $adjustedAt = $requestData['adjusted_at'] ?? null;
@@ -315,7 +315,7 @@ class OtherController {
             }
 
             // Revert the original stock change
-            DB::query('UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ? AND shop_id = ?', [(int)$originalWastage['quantity'], (int)$originalWastage['product_id'], $shopId]);
+            DB::query('UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ? AND shop_id = ?', [(float)$originalWastage['quantity'], (int)$originalWastage['product_id'], $shopId]);
 
             // Apply the new stock change
             $stmt = DB::query('SELECT cost_price FROM products WHERE id = ? AND shop_id = ? FOR UPDATE', [$productId, $shopId]);
@@ -366,7 +366,7 @@ class OtherController {
             // Restore product stock
             DB::query(
                 'UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ? AND shop_id = ?',
-                [(int)$wastage['quantity'], (int)$wastage['product_id'], $shopId]
+                [(float)$wastage['quantity'], (int)$wastage['product_id'], $shopId]
             );
 
             // Delete wastage
