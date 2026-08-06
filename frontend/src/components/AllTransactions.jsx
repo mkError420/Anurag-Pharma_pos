@@ -431,7 +431,7 @@ export default function AllTransactions() {
         {/* Sales */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
           <div className="text-xs font-semibold uppercase tracking-wider text-emerald-600 mb-1">Sales</div>
-          <div className="text-xl font-bold text-slate-800">{formatMoney(summary.total_sales)}</div>
+          <div className="text-xl font-bold text-emerald-600">{formatMoney(summary.total_sales)}</div>
           <div className="absolute right-3 top-3 w-8 h-8 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -442,7 +442,7 @@ export default function AllTransactions() {
         {/* Purchases */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
           <div className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-1">Purchases</div>
-          <div className="text-xl font-bold text-slate-800">{formatMoney(summary.total_purchase)}</div>
+          <div className="text-xl font-bold text-indigo-600">{formatMoney(summary.total_purchase)}</div>
           <div className="absolute right-3 top-3 w-8 h-8 rounded-lg bg-indigo-50 text-indigo-500 flex items-center justify-center">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -452,9 +452,9 @@ export default function AllTransactions() {
 
         {/* Due */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
-          <div className="text-xs font-semibold uppercase tracking-wider text-amber-600 mb-1">Total Due</div>
-          <div className="text-xl font-bold text-slate-800">{formatMoney(summary.total_due)}</div>
-          <div className="absolute right-3 top-3 w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center">
+          <div className="text-xs font-semibold uppercase tracking-wider text-rose-600 mb-1">Total Due</div>
+          <div className="text-xl font-bold text-rose-800">{formatMoney(summary.total_due)}</div>
+          <div className="absolute right-3 top-3 w-8 h-8 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -464,7 +464,7 @@ export default function AllTransactions() {
         {/* Wastage */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
           <div className="text-xs font-semibold uppercase tracking-wider text-rose-600 mb-1">Wastage Loss</div>
-          <div className="text-xl font-bold text-slate-800">{formatMoney(summary.total_wastage)}</div>
+          <div className="text-xl font-bold text-rose-800">{formatMoney(summary.total_wastage)}</div>
           <div className="absolute right-3 top-3 w-8 h-8 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -475,7 +475,7 @@ export default function AllTransactions() {
         {/* Other Cost */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
           <div className="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-1">Other Cost</div>
-          <div className="text-xl font-bold text-slate-800">{formatMoney(summary.total_other_cost)}</div>
+          <div className="text-xl font-bold text-purple-800">{formatMoney(summary.total_other_cost)}</div>
           <div className="absolute right-3 top-3 w-8 h-8 rounded-lg bg-purple-50 text-purple-500 flex items-center justify-center">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -486,7 +486,7 @@ export default function AllTransactions() {
         {/* Other Sales */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
           <div className="text-xs font-semibold uppercase tracking-wider text-cyan-600 mb-1">Other Sales</div>
-          <div className="text-xl font-bold text-slate-800">{formatMoney(summary.total_other_sales)}</div>
+          <div className="text-xl font-bold text-cyan-800">{formatMoney(summary.total_other_sales)}</div>
           <div className="absolute right-3 top-3 w-8 h-8 rounded-lg bg-cyan-50 text-cyan-500 flex items-center justify-center">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
