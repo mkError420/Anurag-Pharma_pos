@@ -208,7 +208,7 @@ class OtherController {
                 $w['id'] = (int)$w['id'];
                 $w['shop_id'] = (int)$w['shop_id'];
                 $w['product_id'] = (int)$w['product_id'];
-                $w['quantity'] = (int)$w['quantity'];
+                $w['quantity'] = (float)$w['quantity'];
                 $w['cost_loss'] = (float)$w['cost_loss'];
             }
 
@@ -238,6 +238,13 @@ class OtherController {
         }
 
         try {
+            // Auto-migrate: ensure quantity column supports decimals
+            $colCheck = DB::query("SHOW COLUMNS FROM wastages LIKE 'quantity'");
+            $col = $colCheck->fetch();
+            if ($col && stripos($col['Type'], 'int') !== false) {
+                DB::query("ALTER TABLE wastages MODIFY COLUMN quantity DECIMAL(10,4) NOT NULL DEFAULT 0");
+            }
+
             DB::beginTransaction();
 
             $stmt = DB::query('SELECT price, cost_price, stock_quantity FROM products WHERE id = ? AND shop_id = ? FOR UPDATE', [$productId, $shopId]);

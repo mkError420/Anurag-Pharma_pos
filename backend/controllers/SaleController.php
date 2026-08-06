@@ -359,6 +359,8 @@ class SaleController {
         $saleId = (int)$id;
         $shopId = Auth::$shopId;
 
+        $hasShop = $shopId !== null;
+
         try {
             $stmt = DB::query(
                 "SELECT s.*, u.name as staff_name, 
@@ -368,8 +370,8 @@ class SaleController {
                  LEFT JOIN users u ON s.user_id = u.id
                  LEFT JOIN customers c ON s.customer_id = c.id
                  LEFT JOIN shops sh ON s.shop_id = sh.id
-                 WHERE s.id = ? AND s.shop_id = ?",
-                [$saleId, $shopId]
+                 WHERE s.id = ?" . ($hasShop ? " AND s.shop_id = ?" : ""),
+                $hasShop ? [$saleId, $shopId] : [$saleId]
             );
             $sale = $stmt->fetch();
 
@@ -396,8 +398,8 @@ class SaleController {
                 "SELECT si.*, p.name as product_name, p.sku as product_sku, COALESCE(si.cost_price, p.cost_price, 0) as cost_price 
                  FROM sale_items si
                  JOIN products p ON si.product_id = p.id
-                 WHERE si.sale_id = ? AND si.shop_id = ?",
-                [$saleId, $shopId]
+                 WHERE si.sale_id = ?" . ($hasShop ? " AND si.shop_id = ?" : ""),
+                $hasShop ? [$saleId, $shopId] : [$saleId]
             );
             $items = $stmt->fetchAll();
 

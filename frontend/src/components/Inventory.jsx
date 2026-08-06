@@ -66,6 +66,36 @@ export default function Inventory() {
   const [csvFile, setCsvFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
+  // Sale Details Modal state for Detailed Ledger Ref ID click
+  const [showSaleDetailsModal, setShowSaleDetailsModal] = useState(false);
+  const [saleDetailsData, setSaleDetailsData] = useState(null);
+  const [saleDetailsLoading, setSaleDetailsLoading] = useState(false);
+  const [saleDetailsError, setSaleDetailsError] = useState(null);
+
+  const fetchSaleDetailsForRef = async (saleId) => {
+    if (!saleId) return;
+    setShowSaleDetailsModal(true);
+    setSaleDetailsLoading(true);
+    setSaleDetailsError(null);
+    setSaleDetailsData(null);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/sales/${saleId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        const errRes = await response.json().catch(() => ({}));
+        throw new Error(errRes.error || 'Failed to retrieve sale details.');
+      }
+      const data = await response.json();
+      setSaleDetailsData(data);
+    } catch (err) {
+      setSaleDetailsError(err.message);
+    } finally {
+      setSaleDetailsLoading(false);
+    }
+  };
+
   // Form states
   const [formData, setFormData] = useState({
     name: '',
@@ -1839,8 +1869,28 @@ export default function Inventory() {
                                   {d.type.replace('_', ' ')}
                                 </span>
                               </td>
-                              <td className="p-4 text-center font-mono text-xs text-slate-500">
-                                {d.reference_number || '-'}
+                              <td className="p-4 text-center font-mono text-xs">
+                                {d.reference_number ? (
+                                  d.type === 'sale' && d.reference_id ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => fetchSaleDetailsForRef(d.reference_id)}
+                                      className="inline-flex items-center space-x-1 font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors border border-indigo-100 shadow-2xs group cursor-pointer"
+                                      title="Click to view full sale transaction details"
+                                    >
+                                      <span>{d.reference_number}</span>
+                                      <svg className="w-3 h-3 text-indigo-400 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                      </svg>
+                                    </button>
+                                  ) : (
+                                    <span className="text-slate-500 font-semibold px-2 py-0.5 bg-slate-100 rounded-md">
+                                      {d.reference_number}
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="text-slate-400">-</span>
+                                )}
                               </td>
                               <td className="p-4 text-center text-slate-600">
                                 {d.cost_price !== null ? Number(d.cost_price).toFixed(2) : '-'}
@@ -1876,6 +1926,203 @@ export default function Inventory() {
               </div>
             </div>
           ) : null}
+        </div>
+      )}
+
+      {/* --- SALE DETAILS MODAL FOR REF ID --- */}
+      {showSaleDetailsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-100">
+            
+            {/* Modal Header */}
+            <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-2xl border border-indigo-500/30">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    Sale Details
+                    {saleDetailsData && (
+                      <span className="text-xs font-mono font-bold bg-indigo-500/30 text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-400/30">
+                        #INV-{saleDetailsData.id}
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-400">Transaction summary and purchased items breakdown</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowSaleDetailsModal(false)}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content Body */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-slate-50/50">
+              {saleDetailsLoading ? (
+                <div className="py-16 text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                  <p className="text-sm font-semibold text-slate-500 mt-3">Fetching transaction details...</p>
+                </div>
+              ) : saleDetailsError ? (
+                <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-center text-sm font-medium">
+                  {saleDetailsError}
+                </div>
+              ) : saleDetailsData ? (
+                <>
+                  {/* Meta Cards Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Shop / Cashier Info */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Store & Staff</div>
+                      <div className="font-bold text-slate-800 text-sm">{saleDetailsData.shop_name || 'Store'}</div>
+                      {saleDetailsData.shop_address && (
+                        <div className="text-xs text-slate-500">{saleDetailsData.shop_address}</div>
+                      )}
+                      <div className="text-xs text-slate-600 pt-1 border-t border-slate-100 flex justify-between">
+                        <span className="text-slate-400">Cashier:</span>
+                        <span className="font-semibold">{saleDetailsData.staff_name || 'N/A'}</span>
+                      </div>
+                      <div className="text-xs text-slate-600 flex justify-between">
+                        <span className="text-slate-400">Date:</span>
+                        <span className="font-medium">{new Date(saleDetailsData.created_at).toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    {/* Customer Info */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer Info</div>
+                      <div className="font-bold text-slate-800 text-sm">
+                        {saleDetailsData.customer_name || 'Walk-in Customer'}
+                      </div>
+                      {saleDetailsData.customer_phone && (
+                        <div className="text-xs text-slate-500">Phone: {saleDetailsData.customer_phone}</div>
+                      )}
+                      {saleDetailsData.customer_address && (
+                        <div className="text-xs text-slate-500">Address: {saleDetailsData.customer_address}</div>
+                      )}
+                      <div className="text-xs text-slate-600 pt-1 border-t border-slate-100 flex justify-between items-center">
+                        <span className="text-slate-400">Payment Method:</span>
+                        <span className="font-bold uppercase text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                          {saleDetailsData.payment_method || 'Cash'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Items Table */}
+                  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                    <div className="p-3 bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Purchased Items ({saleDetailsData.items?.length || 0})
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-400 font-bold uppercase">
+                            <th className="p-3">Product</th>
+                            <th className="p-3 text-center">Qty</th>
+                            <th className="p-3 text-right">Unit Price</th>
+                            <th className="p-3 text-right">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                          {saleDetailsData.items && saleDetailsData.items.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/50">
+                              <td className="p-3">
+                                <div className="font-bold text-slate-800">{item.product_name || item.name}</div>
+                                {item.product_sku && (
+                                  <div className="text-[10px] text-slate-400 font-mono">SKU: {item.product_sku}</div>
+                                )}
+                              </td>
+                              <td className="p-3 text-center font-bold text-slate-800">
+                                {item.quantity}
+                              </td>
+                              <td className="p-3 text-right">
+                                BDT {parseFloat(item.unit_price || item.price || 0).toFixed(2)}
+                              </td>
+                              <td className="p-3 text-right font-bold text-slate-900">
+                                BDT {parseFloat(item.subtotal || (item.unit_price * item.quantity) || 0).toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Financial Summary */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-2 text-xs">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Subtotal</span>
+                      <span className="font-semibold">BDT {parseFloat(saleDetailsData.total_amount || 0).toFixed(2)}</span>
+                    </div>
+                    {saleDetailsData.discount > 0 && (
+                      <div className="flex justify-between text-rose-600">
+                        <span>Discount</span>
+                        <span className="font-semibold">-BDT {parseFloat(saleDetailsData.discount).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {saleDetailsData.tax > 0 && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Tax</span>
+                        <span className="font-semibold">+BDT {parseFloat(saleDetailsData.tax).toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-sm font-bold text-slate-900">
+                      <span>Final Total</span>
+                      <span className="text-base text-indigo-600">BDT {parseFloat(saleDetailsData.final_amount || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 flex justify-between text-slate-600">
+                      <span>Amount Paid</span>
+                      <span className="font-bold text-emerald-600">BDT {parseFloat(saleDetailsData.paid_amount || 0).toFixed(2)}</span>
+                    </div>
+                    {saleDetailsData.due_amount > 0 && (
+                      <div className="flex justify-between text-rose-600 font-bold">
+                        <span>Due Amount</span>
+                        <span>BDT {parseFloat(saleDetailsData.due_amount).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {saleDetailsData.notes && (
+                    <div className="p-3 bg-amber-50 border border-amber-200/60 rounded-xl text-xs text-amber-800">
+                      <span className="font-bold">Notes: </span>{saleDetailsData.notes}
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-white border-t border-slate-100 flex justify-end space-x-3">
+              {saleDetailsData && (
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs transition-colors flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  <span>Print Receipt</span>
+                </button>
+              )}
+              <button
+                onClick={() => setShowSaleDetailsModal(false)}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
 

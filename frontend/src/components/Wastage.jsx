@@ -720,7 +720,7 @@ export default function Wastage() {
                       <div className="font-bold text-slate-800">{w.product_name}</div>
                       <div className="text-xs text-slate-400 font-mono">SKU: {w.product_sku}</div>
                     </td>
-                    <td className="p-4 font-bold text-slate-800">-{w.quantity}</td>
+                    <td className="p-4 font-bold text-slate-800">-{parseFloat(w.quantity)}</td>
                     <td className="p-4 font-black text-rose-600">{formatCurrency(w.cost_loss)}</td>
                     <td className="p-4">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${w.reason === 'Damaged' ? 'bg-amber-100 text-amber-800' :
