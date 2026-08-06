@@ -38,8 +38,7 @@ export default function ManageStaff() {
   // Attendance state
   const [attendanceList, setAttendanceList] = useState([]);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
-  const [attendanceStartDate, setAttendanceStartDate] = useState(new Date().toISOString().split('T')[0].slice(0, 7) + '-01');
-  const [attendanceEndDate, setAttendanceEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [attendanceMonth, setAttendanceMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM format
   const [selectedStaffFilter, setSelectedStaffFilter] = useState('');
   const [attendanceArchiveTab, setAttendanceArchiveTab] = useState('current'); // 'current' or 'archive'
   const [showEditAttendanceModal, setShowEditAttendanceModal] = useState(false);
@@ -54,6 +53,7 @@ export default function ManageStaff() {
   });
   const [standardWorkingHours, setStandardWorkingHours] = useState(10);
   const [showStandardHoursModal, setShowStandardHoursModal] = useState(false);
+  const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'list'
 
   // Monthly report state
   const [monthlyReport, setMonthlyReport] = useState([]);
@@ -146,7 +146,10 @@ export default function ManageStaff() {
     try {
       const token = localStorage.getItem('token');
       const archived = attendanceArchiveTab === 'archive' ? '1' : '0';
-      let url = `${API_BASE_URL}/attendance?start_date=${attendanceStartDate}&end_date=${attendanceEndDate}&archived=${archived}`;
+      const startDate = `${attendanceMonth}-01`;
+      const endDate = new Date(attendanceMonth + '-01').toISOString().split('T')[0].slice(0, 8) + new Date(attendanceMonth + '-01').getDate() + 31;
+      
+      let url = `${API_BASE_URL}/attendance?start_date=${startDate}&end_date=${attendanceMonth}-31&archived=${archived}`;
       if (selectedStaffFilter) {
         url += `&user_id=${selectedStaffFilter}`;
       }
@@ -213,7 +216,7 @@ export default function ManageStaff() {
       if (userRole === 'super_admin' && !selectedShop) return;
       fetchAttendance();
     }
-  }, [activeTab, attendanceStartDate, attendanceEndDate, selectedStaffFilter, attendanceArchiveTab, selectedShop, userRole]);
+  }, [activeTab, attendanceMonth, selectedStaffFilter, attendanceArchiveTab, selectedShop, userRole]);
 
   const fetchMonthlyReport = async () => {
     setMonthlyReportLoading(true);
@@ -756,12 +759,26 @@ export default function ManageStaff() {
     setShowEditAttendanceModal(true);
   };
 
+  const openAddAttendance = (userId, date) => {
+    setEditingAttendance({ user_id: userId, date: date, isNew: true });
+    setAttendanceFormData({
+      date: date,
+      status: 'present',
+      check_in_time: '',
+      check_out_time: '',
+      notes: ''
+    });
+    setShowEditAttendanceModal(true);
+  };
+
   const handleAttendanceUpdate = async (e) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
+      const isNewRecord = editingAttendance.isNew;
+      
       const response = await fetch(`${API_BASE_URL}/attendance`, {
-        method: 'PUT',
+        method: isNewRecord ? 'POST' : 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -777,9 +794,9 @@ export default function ManageStaff() {
       });
 
       const resData = await response.json();
-      if (!response.ok) throw new Error(resData.error || 'Failed to update attendance.');
+      if (!response.ok) throw new Error(resData.error || (isNewRecord ? 'Failed to add attendance.' : 'Failed to update attendance.'));
 
-      triggerAlert('success', 'Attendance updated successfully!');
+      triggerAlert('success', isNewRecord ? 'Attendance added successfully!' : 'Attendance updated successfully!');
       setShowEditAttendanceModal(false);
       setEditingAttendance(null);
       fetchAttendance();
@@ -1164,17 +1181,33 @@ export default function ManageStaff() {
                   ))}
                 </select>
                 <input
-                  type="date"
-                  value={attendanceStartDate}
-                  onChange={(e) => setAttendanceStartDate(e.target.value)}
+                  type="month"
+                  value={attendanceMonth}
+                  onChange={(e) => setAttendanceMonth(e.target.value)}
                   className="border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
                 />
-                <input
-                  type="date"
-                  value={attendanceEndDate}
-                  onChange={(e) => setAttendanceEndDate(e.target.value)}
-                  className="border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
-                />
+                <div className="flex space-x-2 bg-slate-100 p-1 rounded-lg">
+                  <button
+                    onClick={() => setViewMode('calendar')}
+                    className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                      viewMode === 'calendar'
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    Calendar View
+                  </button>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                      viewMode === 'list'
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    List View
+                  </button>
+                </div>
               </div>
             </div>
             {/* Archive Tab Navigation */}
@@ -1208,11 +1241,114 @@ export default function ManageStaff() {
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                 </div>
               </div>
-            ) : attendanceList.length === 0 ? (
-              <div className="p-12 text-center text-slate-400">
-                No attendance records found for the selected period.
+            ) : viewMode === 'calendar' ? (
+              // Calendar View - CSV-like grid
+              <div className="p-4">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                      <th className="p-3 min-w-[100px] sticky left-0 bg-slate-50/50 z-10">Date</th>
+                      <th className="p-3 min-w-[100px]">Day</th>
+                      {staffList.map((staff) => (
+                        <th key={staff.id} className="p-3 min-w-[150px] text-center">
+                          <div className="font-semibold text-slate-800 text-xs">{staff.name}</div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {(() => {
+                      // Generate all days for the selected month
+                      const year = parseInt(attendanceMonth.split('-')[0]);
+                      const month = parseInt(attendanceMonth.split('-')[1]);
+                      const daysInMonth = new Date(year, month, 0).getDate();
+                      
+                      const days = [];
+                      for (let day = 1; day <= daysInMonth; day++) {
+                        const dateStr = `${attendanceMonth}-${String(day).padStart(2, '0')}`;
+                        const date = new Date(year, month - 1, day);
+                        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                        
+                        days.push({ date: dateStr, day: dayName, isWeekend });
+                      }
+                      
+                      return days.map(({ date, day, isWeekend }) => (
+                        <tr key={date} className={`hover:bg-slate-50/50 transition-colors ${isWeekend ? 'bg-slate-50/30' : ''}`}>
+                          <td className="p-3 font-semibold text-slate-800 whitespace-nowrap sticky left-0 bg-white z-10">{date}</td>
+                          <td className={`p-3 whitespace-nowrap ${isWeekend ? 'text-slate-400' : 'text-slate-600'}`}>{day}</td>
+                          {staffList.map((staff) => {
+                            // Find attendance record for this staff on this date
+                            const staffAttendance = attendanceList.find(
+                              r => r.user_id === staff.id && r.date === date
+                            );
+                            
+                            return (
+                              <td key={staff.id} className="p-2">
+                                {staffAttendance ? (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-center">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                        staffAttendance.status === 'present'
+                                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                          : staffAttendance.status === 'absent'
+                                          ? 'bg-rose-50 text-rose-600 border border-rose-100'
+                                          : staffAttendance.status === 'late'
+                                          ? 'bg-amber-50 text-amber-600 border border-amber-100'
+                                          : 'bg-blue-50 text-blue-600 border border-blue-100'
+                                      }`}>
+                                        {staffAttendance.status.replace('_', ' ')}
+                                      </span>
+                                    </div>
+                                    <div className="text-center text-[9px] text-slate-500">
+                                      {staffAttendance.check_in_time && staffAttendance.check_out_time ? 
+                                        `${staffAttendance.check_in_time} - ${staffAttendance.check_out_time}` : 
+                                        staffAttendance.check_in_time || staffAttendance.check_out_time || '-'
+                                      }
+                                    </div>
+                                    <div className="flex justify-center space-x-1">
+                                      <button
+                                        onClick={() => openEditAttendance(staffAttendance)}
+                                        className="text-indigo-600 hover:text-indigo-900 text-[9px] border border-indigo-100 hover:bg-indigo-50 px-1 py-0.5 rounded transition-colors"
+                                        title="Edit"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={() => setDeleteAttendanceConfirm(staffAttendance)}
+                                        className="text-rose-600 hover:text-rose-900 text-[9px] border border-rose-100 hover:bg-rose-50 px-1 py-0.5 rounded transition-colors"
+                                        title="Delete"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex justify-center">
+                                    {userRole === 'shop_admin' ? (
+                                      <button
+                                        onClick={() => openAddAttendance(staff.id, date)}
+                                        className="text-slate-400 hover:text-indigo-600 text-[9px] border border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
+                                        title="Add Attendance"
+                                      >
+                                        + Add
+                                      </button>
+                                    ) : (
+                                      <span className="text-slate-300">-</span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
               </div>
             ) : (
+              // List View - traditional table
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
@@ -1229,6 +1365,16 @@ export default function ManageStaff() {
                     // Get unique dates from attendance records
                     const uniqueDates = [...new Set(attendanceList.map(r => r.date))].sort();
                     
+                    if (uniqueDates.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={staffList.length + 1} className="p-12 text-center text-slate-400">
+                            No attendance records found for the selected period.
+                          </td>
+                        </tr>
+                      );
+                    }
+                    
                     return uniqueDates.map((date) => (
                       <tr key={date} className="hover:bg-slate-50/50 transition-colors">
                         <td className="p-4 font-semibold text-slate-800 whitespace-nowrap">{date}</td>
@@ -1244,11 +1390,11 @@ export default function ManageStaff() {
                                 <div className="flex justify-center">
                                   {userRole === 'shop_admin' ? (
                                     <button
-                                      onClick={() => handleMarkAbsent({ user_id: staff.id, date: date })}
-                                      className="text-amber-600 hover:text-amber-900 text-[10px] border border-amber-100 hover:bg-amber-50 px-1.5 py-0.5 rounded transition-colors"
-                                      title="Mark Absent"
+                                      onClick={() => openAddAttendance(staff.id, date)}
+                                      className="text-indigo-600 hover:text-indigo-900 text-[10px] border border-indigo-100 hover:bg-indigo-50 px-1.5 py-0.5 rounded transition-colors"
+                                      title="Add Attendance"
                                     >
-                                      Mark Absent
+                                      + Add
                                     </button>
                                   ) : (
                                     <span className="text-slate-400">-</span>
@@ -1896,7 +2042,9 @@ export default function ManageStaff() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Edit Attendance Record</h3>
+              <h3 className="text-lg font-bold text-slate-800">
+                {editingAttendance?.isNew ? 'Add Attendance Record' : 'Edit Attendance Record'}
+              </h3>
               <button onClick={() => setShowEditAttendanceModal(false)} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -1907,12 +2055,16 @@ export default function ManageStaff() {
             <form onSubmit={handleAttendanceUpdate} className="mt-4 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Staff Member</label>
-                <input
-                  type="text"
-                  value={editingAttendance?.user_name || ''}
+                <select
+                  value={editingAttendance?.user_id || ''}
                   disabled
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 text-slate-600 outline-none"
-                />
+                >
+                  <option value="">Select Staff</option>
+                  {staffList.map((staff) => (
+                    <option key={staff.id} value={staff.id}>{staff.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -1988,7 +2140,7 @@ export default function ManageStaff() {
                   type="submit"
                   className="px-5 py-2 bg-slate-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors shadow"
                 >
-                  Update Attendance
+                  {editingAttendance?.isNew ? 'Add Attendance' : 'Update Attendance'}
                 </button>
               </div>
             </form>
