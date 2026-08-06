@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Adjustments from './Adjustments';
 import API_BASE_URL from '../config';
 
@@ -94,6 +95,18 @@ export default function Inventory() {
     } finally {
       setSaleDetailsLoading(false);
     }
+  };
+
+  const handlePrintSaleDetails = (mode = 'regular') => {
+    if (mode === 'thermal') {
+      document.body.classList.add('print-mode-thermal');
+    } else {
+      document.body.classList.remove('print-mode-thermal');
+    }
+    window.print();
+    setTimeout(() => {
+      document.body.classList.remove('print-mode-thermal');
+    }, 500);
   };
 
   // Form states
@@ -2104,15 +2117,28 @@ export default function Inventory() {
             {/* Modal Footer */}
             <div className="p-4 bg-white border-t border-slate-100 flex justify-end space-x-3">
               {saleDetailsData && (
-                <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs transition-colors flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                  </svg>
-                  <span>Print Receipt</span>
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handlePrintSaleDetails('thermal')}
+                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center space-x-1.5 cursor-pointer"
+                    title="Print Thermal Receipt"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span>Thermal</span>
+                  </button>
+                  <button
+                    onClick={() => handlePrintSaleDetails('regular')}
+                    className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs transition-colors flex items-center space-x-1.5 cursor-pointer"
+                    title="Print Receipt / Invoice"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span>Print Receipt</span>
+                  </button>
+                </div>
               )}
               <button
                 onClick={() => setShowSaleDetailsModal(false)}
@@ -2124,6 +2150,188 @@ export default function Inventory() {
 
           </div>
         </div>
+      )}
+
+      {/* --- DYNAMIC PRINT AREA (OFF-SCREEN PORTAL FOR CLEAN INVOICE PRINTING) --- */}
+      {showSaleDetailsModal && saleDetailsData && createPortal(
+        <div id="receipt-print-area">
+          {/* Thermal View Container */}
+          <div className="thermal-only">
+            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 'bold', margin: '0 0 2px 0' }}>{saleDetailsData.shop_name || 'Store'}</h2>
+              {saleDetailsData.shop_address && <p style={{ margin: '0 0 2px 0', fontSize: '9px' }}>{saleDetailsData.shop_address}</p>}
+              <div style={{ fontSize: '9px', margin: '0 0 4px 0' }}>
+                {saleDetailsData.shop_phone && <span style={{ marginRight: '6px' }}>Tel: {saleDetailsData.shop_phone}</span>}
+                {saleDetailsData.shop_email && <span>Email: {saleDetailsData.shop_email}</span>}
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.05em' }}>*** TRANSACTION RECEIPT ***</p>
+            </div>
+
+            <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '4px 0', margin: '8px 0', fontSize: '9px', lineHeight: '1.3' }}>
+              <div><strong>Invoice ID:</strong> #{saleDetailsData.id}</div>
+              <div><strong>Date:</strong> {new Date(saleDetailsData.created_at).toLocaleString()}</div>
+              <div><strong>Cashier:</strong> {saleDetailsData.staff_name || 'N/A'}</div>
+              <div><strong>Customer:</strong> {saleDetailsData.customer_name || 'Walk-in Customer'}</div>
+              {saleDetailsData.customer_phone && <div><strong>Phone:</strong> {saleDetailsData.customer_phone}</div>}
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', margin: '8px 0' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px dashed #000' }}>
+                  <th style={{ textAlign: 'left', paddingBottom: '3px' }}>Item</th>
+                  <th style={{ textAlign: 'center', paddingBottom: '3px', width: '25px' }}>Qty</th>
+                  <th style={{ textAlign: 'center', paddingBottom: '3px', width: '25px' }}>Unit</th>
+                  <th style={{ textAlign: 'right', paddingBottom: '3px', width: '55px' }}>Price</th>
+                  <th style={{ textAlign: 'right', paddingBottom: '3px', width: '60px' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(saleDetailsData.items || []).map((item, idx) => (
+                  <tr key={idx}>
+                    <td style={{ paddingTop: '3px', maxWidth: '90px', wordBreak: 'break-all' }}>
+                      {item.product_name || item.name}
+                    </td>
+                    <td style={{ textAlign: 'center', paddingTop: '3px' }}>{item.quantity}</td>
+                    <td style={{ textAlign: 'center', paddingTop: '3px', color: '#666' }}>{item.unit || 'pcs'}</td>
+                    <td style={{ textAlign: 'right', paddingTop: '3px' }}>৳{parseFloat(item.unit_price || item.price || 0).toFixed(2)}</td>
+                    <td style={{ textAlign: 'right', paddingTop: '3px' }}>৳{parseFloat(item.subtotal || ((item.unit_price || item.price || 0) * item.quantity)).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', fontSize: '9px', lineHeight: '1.3' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Subtotal:</span>
+                <span>৳{parseFloat(saleDetailsData.total_amount || 0).toFixed(2)}</span>
+              </div>
+              {parseFloat(saleDetailsData.discount || 0) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Discount:</span>
+                  <span>-৳{parseFloat(saleDetailsData.discount).toFixed(2)}</span>
+                </div>
+              )}
+              {parseFloat(saleDetailsData.tax || 0) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Tax:</span>
+                  <span>+৳{parseFloat(saleDetailsData.tax).toFixed(2)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '3px', marginTop: '3px' }}>
+                <span>Final Total:</span>
+                <span>৳{parseFloat(saleDetailsData.final_amount || 0).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold' }}>
+                <span>Total Paid:</span>
+                <span>৳{parseFloat(saleDetailsData.paid_amount || 0).toFixed(2)}</span>
+              </div>
+              {parseFloat(saleDetailsData.due_amount || 0) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold', color: '#ef4444', borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
+                  <span>Due Amount:</span>
+                  <span>৳{parseFloat(saleDetailsData.due_amount).toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '9px' }}>
+              <p style={{ margin: '0 0 2px 0' }}>Payment: {(saleDetailsData.payment_method || 'Cash').toUpperCase()}</p>
+              <p style={{ margin: '0', fontWeight: 'bold' }}>*** THANK YOU ***</p>
+            </div>
+          </div>
+
+          {/* Regular A4 View Container */}
+          <div className="regular-only">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #e2e8f0', paddingBottom: '16px', marginBottom: '16px' }}>
+              <div>
+                <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e293b', margin: '0 0 4px 0' }}>{saleDetailsData.shop_name || 'Store'}</h1>
+                {saleDetailsData.shop_address && <p style={{ margin: '0 0 2px 0', color: '#64748b', fontSize: '12px' }}>{saleDetailsData.shop_address}</p>}
+                <div style={{ color: '#64748b', fontSize: '12px', marginTop: '2px' }}>
+                  {saleDetailsData.shop_phone && <span style={{ marginRight: '10px' }}>Tel: {saleDetailsData.shop_phone}</span>}
+                  {saleDetailsData.shop_email && <span>Email: {saleDetailsData.shop_email}</span>}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: 'bold', color: '#6366f1', margin: '0 0 4px 0' }}>INVOICE</h2>
+                <p style={{ margin: '0 0 2px 0', color: '#64748b', fontSize: '12px' }}><strong>Invoice ID:</strong> #{saleDetailsData.id}</p>
+                <p style={{ margin: '0', color: '#64748b', fontSize: '12px' }}><strong>Date:</strong> {new Date(saleDetailsData.created_at).toLocaleString()}</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', gap: '30px' }}>
+              <div style={{ flex: 1, backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px' }}>
+                <h3 style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px 0' }}>Billed To</h3>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>{saleDetailsData.customer_name || 'Walk-in Customer'}</div>
+                {saleDetailsData.customer_phone && <div style={{ color: '#475569', fontSize: '12px', marginBottom: '2px' }}>Phone: {saleDetailsData.customer_phone}</div>}
+                {saleDetailsData.customer_address && <div style={{ color: '#475569', fontSize: '12px' }}>Address: {saleDetailsData.customer_address}</div>}
+              </div>
+              <div style={{ flex: 1, backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px' }}>
+                <h3 style={{ fontSize: '11px', fontWeight: 'bold', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px 0' }}>Billed By</h3>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b', marginBottom: '4px' }}>{saleDetailsData.shop_name || 'Store'}</div>
+                <div style={{ color: '#475569', fontSize: '12px', marginBottom: '2px' }}>Cashier: {saleDetailsData.staff_name || 'N/A'}</div>
+                <div style={{ color: '#475569', fontSize: '12px' }}>Payment Method: {(saleDetailsData.payment_method || 'Cash').toUpperCase()}</div>
+              </div>
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', margin: '16px 0' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#475569', fontSize: '11px', textTransform: 'uppercase', fontWeight: 'bold', textAlign: 'left' }}>
+                  <th style={{ padding: '8px 0' }}>Item Description</th>
+                  <th style={{ padding: '8px 0', textAlign: 'center', width: '100px' }}>SKU</th>
+                  <th style={{ padding: '8px 0', textAlign: 'center', width: '60px' }}>Qty</th>
+                  <th style={{ padding: '8px 0', textAlign: 'right', width: '100px' }}>Unit Price</th>
+                  <th style={{ padding: '8px 0', textAlign: 'right', width: '100px' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody style={{ fontSize: '13px', color: '#334155' }}>
+                {(saleDetailsData.items || []).map((item, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '10px 0', fontWeight: '500' }}>{item.product_name || item.name}</td>
+                    <td style={{ padding: '10px 0', textAlign: 'center', color: '#64748b' }}>{item.product_sku || item.sku || 'N/A'}</td>
+                    <td style={{ padding: '10px 0', textAlign: 'center' }}>{item.quantity}</td>
+                    <td style={{ padding: '10px 0', textAlign: 'right' }}>BDT {parseFloat(item.unit_price || item.price || 0).toFixed(2)}</td>
+                    <td style={{ padding: '10px 0', textAlign: 'right', fontWeight: 'bold' }}>BDT {parseFloat(item.subtotal || ((item.unit_price || item.price || 0) * item.quantity)).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <div style={{ width: '250px', fontSize: '13px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: '#64748b' }}>
+                  <span>Subtotal</span>
+                  <span style={{ fontWeight: '600', color: '#1e293b' }}>BDT {parseFloat(saleDetailsData.total_amount || 0).toFixed(2)}</span>
+                </div>
+                {parseFloat(saleDetailsData.discount || 0) > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: '#e11d48' }}>
+                    <span>Discount</span>
+                    <span style={{ fontWeight: '600' }}>-BDT {parseFloat(saleDetailsData.discount).toFixed(2)}</span>
+                  </div>
+                )}
+                {parseFloat(saleDetailsData.tax || 0) > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: '#64748b' }}>
+                    <span>Tax</span>
+                    <span style={{ fontWeight: '600' }}>+BDT {parseFloat(saleDetailsData.tax).toFixed(2)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '2px solid #e2e8f0', borderBottom: '2px solid #e2e8f0', margin: '8px 0', fontWeight: 'bold', fontSize: '15px', color: '#4f46e5' }}>
+                  <span>Final Total</span>
+                  <span>BDT {parseFloat(saleDetailsData.final_amount || 0).toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: '#059669', fontWeight: 'bold' }}>
+                  <span>Amount Paid</span>
+                  <span>BDT {parseFloat(saleDetailsData.paid_amount || 0).toFixed(2)}</span>
+                </div>
+                {parseFloat(saleDetailsData.due_amount || 0) > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: '#dc2626', fontWeight: 'bold' }}>
+                    <span>Due Amount</span>
+                    <span>BDT {parseFloat(saleDetailsData.due_amount).toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
     </div>
