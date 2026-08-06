@@ -76,6 +76,7 @@ require_once __DIR__ . '/controllers/TransactionController.php';
 require_once __DIR__ . '/controllers/AttendanceController.php';
 require_once __DIR__ . '/controllers/SalaryController.php';
 require_once __DIR__ . '/controllers/InvestmentController.php';
+require_once __DIR__ . '/controllers/WebsiteContentController.php';
 
 // Parse Request URI and Method
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -163,6 +164,16 @@ $routes = [
                 header('Content-Type: application/json');
                 echo json_encode(['logo' => null]);
             }
+        },
+        // Public Hero Slides Endpoint (no authentication required)
+        '/^public\/hero-slides$/' => function() {
+            $controller = new WebsiteContentController();
+            $controller->getAllHeroSlides();
+        },
+        // Public Team Members Endpoint (no authentication required)
+        '/^public\/team-members$/' => function() {
+            $controller = new WebsiteContentController();
+            $controller->getAllTeamMembers();
         },
         // Diagnostics
         '/^diagnostic$/' => function() {
@@ -326,6 +337,32 @@ $routes = [
         // Investments
         '/^investments$/' => function() { InvestmentController::getInvestments(); },
         '/^investments\/summary$/' => function() { InvestmentController::getInvestmentSummary(); },
+        // Hero Slides (authenticated)
+        '/^hero-slides$/' => function() {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->getAllHeroSlides();
+            });
+        },
+        '/^hero-slides\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->getHeroSlideById($args[0]);
+            });
+        },
+        // Team Members (authenticated)
+        '/^team-members$/' => function() {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->getAllTeamMembers();
+            });
+        },
+        '/^team-members\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->getTeamMemberById($args[0]);
+            });
+        },
     ],
     'POST' => [
         // Auth
@@ -375,6 +412,20 @@ $routes = [
         '/^salaries$/' => function($args, $data) { SalaryController::createSalary($data); },
         // Investments
         '/^investments$/' => function($args, $data) { InvestmentController::createInvestment(); },
+        // Hero Slides
+        '/^hero-slides$/' => function($args, $data) {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->createHeroSlide();
+            });
+        },
+        // Team Members
+        '/^team-members$/' => function($args, $data) {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->createTeamMember();
+            });
+        },
     ],
     'PUT' => [
         // Auth
@@ -419,6 +470,20 @@ $routes = [
         '/^salaries\/(\d+)$/' => function($args, $data) { SalaryController::updateSalary($args[0], $data); },
         // Investments
         '/^investments\/(\d+)$/' => function($args, $data) { InvestmentController::updateInvestment($args[0]); },
+        // Hero Slides
+        '/^hero-slides\/(\d+)$/' => function($args, $data) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->updateHeroSlide($args[0]);
+            });
+        },
+        // Team Members
+        '/^team-members\/(\d+)$/' => function($args, $data) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->updateTeamMember($args[0]);
+            });
+        },
     ],
     'DELETE' => [
         // Products
@@ -458,6 +523,20 @@ $routes = [
         '/^salaries\/(\d+)$/' => function($args) { SalaryController::deleteSalary($args[0]); },
         // Investments
         '/^investments\/(\d+)$/' => function($args) { InvestmentController::deleteInvestment($args[0]); },
+        // Hero Slides
+        '/^hero-slides\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->deleteHeroSlide($args[0]);
+            });
+        },
+        // Team Members
+        '/^team-members\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->deleteTeamMember($args[0]);
+            });
+        },
     ]
 ];
 

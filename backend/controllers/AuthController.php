@@ -297,4 +297,11 @@ class AuthController {
             Auth::jsonError('Failed to create shop and administrator.', 500);
         }
     }
+
+    public static function requireAuth($callback) {
+        Auth::authenticate();
+        if (is_callable($callback)) {
+            $callback();
+        }
+    }
 }

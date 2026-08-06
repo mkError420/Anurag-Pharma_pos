@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
+import Home from './components/Home';
+import AboutUs from './components/AboutUs';
+import ContactUs from './components/ContactUs';
+import TeamMembers from './components/TeamMembers';
+import HeroSlides from './components/HeroSlides';
 import DashboardLayout from './components/DashboardLayout';
 import Dashboard from './components/Dashboard';
 import Checkout from './components/Checkout';
@@ -51,6 +56,7 @@ export default function App() {
   const [loading, setLoading] = useState(true); // checking stored token on startup
   const [suspendedMessage, setSuspendedMessage] = useState(''); // shop suspended message
   const [currentPath, setCurrentPath] = useState('/checkout');
+  const [publicPage, setPublicPage] = useState('home'); // home, about, contact
   const [lowStockAlerts, setLowStockAlerts] = useState([]);
   const [expiryAlerts, setExpiryAlerts] = useState([]);
   const [heldBillsCount, setHeldBillsCount] = useState(0);
@@ -235,6 +241,8 @@ export default function App() {
         case '/total-revenue': return <TotalRevenue />;
         case '/investment': return <InvestmentPage />;
         case '/attendance': return <ManageStaff />;
+        case '/team-members': return <TeamMembers />;
+        case '/hero-slides': return <HeroSlides />;
         case '/settings': return <Settings />;
         default: return <Dashboard />;
       }
@@ -302,7 +310,7 @@ export default function App() {
     );
   }
 
-  // Not logged in — show Login page (with optional suspension message)
+  // Not logged in — show public pages (with optional suspension message)
   if (!user) {
     return (
       <>
@@ -325,7 +333,9 @@ export default function App() {
             </div>
           </div>
         )}
-        <Login onLoginSuccess={handleLoginSuccess} />
+        {publicPage === 'home' && <Home onNavigate={setPublicPage} onLoginSuccess={handleLoginSuccess} />}
+        {publicPage === 'about' && <AboutUs onNavigate={setPublicPage} />}
+        {publicPage === 'contact' && <ContactUs onNavigate={setPublicPage} />}
       </>
     );
   }
