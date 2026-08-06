@@ -3,9 +3,14 @@
 ## Database Setup
 
 The database configuration is already set up in `backend/config/db.php` with your InfinityFree credentials:
-- Host: sql107.infinityfree.com
-- User: if0_42333746
-- Database: if0_42333746_mk_pos
+- Host: sql309.infinityfree.com
+- User: if0_42451104
+- Password: I8Kw8aZkldJO
+- Database: if0_42451104_codexxa_pos
+
+## Live Site URL
+
+Your live site will be accessible at: https://codexaa.xo.je/
 
 ## File Upload Structure
 
@@ -103,14 +108,22 @@ If you still encounter issues with "Create Purchase Order":
 ## API Configuration
 
 The frontend automatically detects the API URL:
-- Local development: `http://localhost:5000/api`
+- Local development: `http://localhost:3000/backend/api`
 - Production: Uses the current domain + `/backend/api`
+
+For your live site at https://codexaa.xo.je/, the API will be accessible at:
+https://codexaa.xo.je/backend/api
 
 No manual configuration needed for the live site.
 
 ## Important Notes
 
-- The database credentials are hardcoded in `backend/config/db.php` for your InfinityFree account
+- The database credentials are hardcoded in `backend/config/db.php` for your InfinityFree account:
+  - Host: sql309.infinityfree.com
+  - User: if0_42451104
+  - Password: I8Kw8aZkldJO
+  - Database: if0_42451104_codexxa_pos
 - Do not upload `.env` files to the server (they are protected by .htaccess anyway)
 - Always upload the built `frontend/dist` folder, not the source files
 - The system will automatically create missing database tables and columns on first run
+- Your live site URL: https://codexaa.xo.je/

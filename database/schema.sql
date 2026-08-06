@@ -1,8 +1,6 @@
 -- MySQL Database DDL for Web-Based Multi-Tenant POS System
 -- Core Design: Single Database with 'shop_id' tenant isolation.
-
-CREATE DATABASE IF NOT EXISTS `multitenant_pos`;
-USE `multitenant_pos`;
+-- Note: This file assumes you are already in your target database
 
 -- -----------------------------------------------------
 -- Table `shops` (Tenants)
