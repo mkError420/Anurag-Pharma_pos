@@ -67,15 +67,80 @@ class SaleController {
                 $subtotal = $unitPrice * $quantity;
                 $calculatedTotal += $subtotal;
 
+                // Consume from inventory batches using FIFO by expiry date
+                $remainingQty = $quantity;
+                $batchesConsumed = [];
+                
+                // Get active batches for this product, ordered by expiry date (earliest first)
+                $batchStmt = DB::query(
+                    'SELECT id, quantity, cost_price, expiry_date 
+                     FROM inventory_batches 
+                     WHERE product_id = ? AND shop_id = ? AND status = ? AND quantity > 0 
+                     ORDER BY 
+                        CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END,
+                        expiry_date ASC,
+                        received_date ASC',
+                    [$productId, $shopId, 'active']
+                );
+                $batches = $batchStmt->fetchAll();
+
+                if (empty($batches)) {
+                    throw new \Exception("No active inventory batches found for product \"{$product['name']}\".");
+                }
+
+                foreach ($batches as $batch) {
+                    if ($remainingQty <= 0) break;
+
+                    $batchQty = (int)$batch['quantity'];
+                    $qtyToConsume = min($batchQty, $remainingQty);
+                    
+                    // Deduct from batch
+                    $newBatchQty = $batchQty - $qtyToConsume;
+                    DB::query(
+                        'UPDATE inventory_batches SET quantity = ? WHERE id = ?',
+                        [$newBatchQty, $batch['id']]
+                    );
+
+                    // Mark batch as depleted if quantity is 0
+                    if ($newBatchQty <= 0) {
+                        DB::query(
+                            'UPDATE inventory_batches SET status = ? WHERE id = ?',
+                            ['depleted', $batch['id']]
+                        );
+                    }
+
+                    $batchesConsumed[] = [
+                        'batch_id' => $batch['id'],
+                        'quantity' => $qtyToConsume,
+                        'cost_price' => (float)$batch['cost_price']
+                    ];
+
+                    $remainingQty -= $qtyToConsume;
+                }
+
+                if ($remainingQty > 0) {
+                    throw new \Exception("Insufficient stock in inventory batches for product \"{$product['name']}\".");
+                }
+
+                // Calculate weighted average cost price from consumed batches
+                $totalCost = 0;
+                $totalQty = 0;
+                foreach ($batchesConsumed as $consumed) {
+                    $totalCost += $consumed['cost_price'] * $consumed['quantity'];
+                    $totalQty += $consumed['quantity'];
+                }
+                $avgCostPrice = $totalQty > 0 ? $totalCost / $totalQty : (float)$product['cost_price'];
+
                 $validatedItems[] = [
                     'product_id' => $productId,
                     'quantity' => $quantity,
                     'unit_price' => $unitPrice,
-                    'cost_price' => (float)$product['cost_price'],
-                    'subtotal' => $subtotal
+                    'cost_price' => $avgCostPrice,
+                    'subtotal' => $subtotal,
+                    'batches_consumed' => $batchesConsumed
                 ];
 
-                // Deduct stock quantity
+                // Deduct stock quantity from product (aggregate)
                 $newStock = (float)$product['stock_quantity'] - $quantity;
                 DB::query(
                     'UPDATE products SET stock_quantity = ? WHERE id = ? AND shop_id = ?',
@@ -230,12 +295,15 @@ class SaleController {
                 }
             }
 
-            // Save line items
+            // Save line items with batch tracking
             foreach ($validatedItems as $item) {
+                // Get the first batch consumed for tracking (primary batch)
+                $primaryBatchId = !empty($item['batches_consumed']) ? $item['batches_consumed'][0]['batch_id'] : null;
+                
                 DB::query(
-                    'INSERT INTO sale_items (shop_id, sale_id, product_id, quantity, unit_price, cost_price, subtotal) 
-                     VALUES (?, ?, ?, ?, ?, ?, ?)',
-                    [$shopId, $saleId, $item['product_id'], $item['quantity'], $item['unit_price'], $item['cost_price'], $item['subtotal']]
+                    'INSERT INTO sale_items (shop_id, sale_id, product_id, inventory_batch_id, quantity, unit_price, cost_price, subtotal) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [$shopId, $saleId, $item['product_id'], $primaryBatchId, $item['quantity'], $item['unit_price'], $item['cost_price'], $item['subtotal']]
                 );
             }
 

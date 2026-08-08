@@ -431,19 +431,20 @@ class SupplierController {
         }
     }
 
-    private static function processAndInsertPoItems($poId, $shopId, $supplierId, $items) {
+    private static function processAndInsertPoItems($poId, $shopId, $supplierId, $items, $status = 'draft') {
         $normalizedItems = [];
         foreach ($items as $item) {
             $qty = isset($item['quantity']) ? (int)$item['quantity'] : (isset($item['quantity_ordered']) ? (int)$item['quantity_ordered'] : 0);
             $costPrice = isset($item['cost_price']) ? (float)$item['cost_price'] : (isset($item['unit_price']) ? (float)$item['unit_price'] : 0.00);
             $sellingPrice = isset($item['selling_price']) ? (float)$item['selling_price'] : 0.00;
-            $productId = isset($item['product_id']) ? (int)$item['product_id'] : null;
+            $productId = isset($item['product_id']) && $item['product_id'] ? (int)$item['product_id'] : null;
             $isNew = isset($item['is_new']) ? (bool)$item['is_new'] : false;
             $name = $item['name'] ?? '';
             $sku = $item['sku'] ?? '';
             $unit = $item['unit'] ?? 'piece';
             $lowStock = $item['low_stock_threshold'] ?? 10;
             $category = $item['category'] ?? null;
+            $expiryDate = !empty($item['expiry_date']) ? $item['expiry_date'] : null;
 
             $normalizedItems[] = [
                 'product_id' => $productId,
@@ -455,7 +456,8 @@ class SupplierController {
                 'sku' => $sku,
                 'unit' => $unit,
                 'low_stock_threshold' => $lowStock,
-                'category' => $category
+                'category' => $category,
+                'expiry_date' => $expiryDate
             ];
         }
 
@@ -464,96 +466,139 @@ class SupplierController {
             $totalAmount += $item['quantity'] * $item['cost_price'];
         }
 
+        // Check if expiry_date column exists on purchase_order_items (once, outside the loop)
+        try {
+            $colCheck = DB::query("SHOW COLUMNS FROM purchase_order_items LIKE 'expiry_date'");
+            $hasExpiryCol = (bool)$colCheck->fetch();
+        } catch (\Exception $e) {
+            $hasExpiryCol = false;
+        }
+
         foreach ($normalizedItems as $item) {
             $productId = $item['product_id'];
-            
+            $resolvedExpiry = !empty($item['expiry_date']) ? date('Y-m-d', strtotime($item['expiry_date'])) : null;
+
             if (empty($productId) || $item['is_new']) {
-                // Check if product with this SKU already exists
-                $stmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ?', [$shopId, $item['sku']]);
+                // Auto-generate SKU if empty
+                $sku = !empty($item['sku']) ? $item['sku'] : ('SKU-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $item['name']), 0, 3)) . '-' . rand(100, 999));
+
+                // Look for matching product (same SKU + same expiry)
+                if ($resolvedExpiry) {
+                    $stmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ? AND expiry_date = ? LIMIT 1', [$shopId, $sku, $resolvedExpiry]);
+                } else {
+                    $stmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ? AND (expiry_date IS NULL OR expiry_date = \'\') LIMIT 1', [$shopId, $sku]);
+                }
                 $existingProd = $stmt->fetch();
-                
+
                 if ($existingProd) {
                     $productId = (int)$existingProd['id'];
-                    // Update supplier_id and category of the existing product to match
-                    if (!empty($item['category'])) {
-                        DB::query('UPDATE products SET category = ?, supplier_id = ? WHERE id = ? AND shop_id = ?', [
-                            $item['category'],
-                            $supplierId,
-                            $productId,
-                            $shopId
-                        ]);
-                    } else {
-                        DB::query('UPDATE products SET supplier_id = ? WHERE id = ? AND shop_id = ?', [
-                            $supplierId,
-                            $productId,
-                            $shopId
-                        ]);
-                    }
+                    DB::query('UPDATE products SET supplier_id = ?, category = COALESCE(?, category) WHERE id = ? AND shop_id = ?', [
+                        $supplierId, !empty($item['category']) ? $item['category'] : null, $productId, $shopId
+                    ]);
                 } else {
-                    // Create the new product in the database with stock_quantity = 0
+                    // Ensure final SKU is unique
+                    $skuCheck = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ?', [$shopId, $sku]);
+                    if ($skuCheck->fetch()) {
+                        $suffix = $resolvedExpiry ? date('ymd', strtotime($resolvedExpiry)) : rand(100, 999);
+                        $sku = $sku . '-' . $suffix;
+                    }
                     DB::query(
-                        'INSERT INTO products (shop_id, name, sku, price, cost_price, stock_quantity, low_stock_threshold, supplier_id, unit, category) 
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        'INSERT INTO products (shop_id, name, sku, price, cost_price, stock_quantity, low_stock_threshold, expiry_date, supplier_id, unit, category)
+                         VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)',
                         [
-                            $shopId,
-                            $item['name'],
-                            $item['sku'],
+                            $shopId, $item['name'], $sku,
                             $item['selling_price'] > 0 ? $item['selling_price'] : $item['cost_price'],
-                            $item['cost_price'],
-                            0,
-                            (int)$item['low_stock_threshold'],
-                            $supplierId,
-                            $item['unit'],
+                            $item['cost_price'], (int)$item['low_stock_threshold'],
+                            $resolvedExpiry, $supplierId, $item['unit'],
                             !empty($item['category']) ? $item['category'] : null
                         ]
                     );
                     $productId = (int)DB::lastInsertId();
                 }
             } else {
-                // It's an existing product (selected in the PO dropdown). We should also update its category and supplier if provided.
-              /*   if (!empty($item['category'])) {
-                    DB::query('UPDATE products SET category = ?, supplier_id = ? WHERE id = ? AND shop_id = ?', [
-                        $item['category'],
-                        $supplierId,
-                        $productId,
-                        $shopId
-                    ]);
-                } else {
-                    DB::query('UPDATE products SET supplier_id = ? WHERE id = ? AND shop_id = ?', [
-                        $supplierId,
-                        $productId,
-                        $shopId
-                    ]); */
-            // It's an existing product. Update its SKU, category, and supplier if provided.
-                $updateFields = [];
-                $updateParams = [];
+                // Existing product selected from inventory
+                $baseProdStmt = DB::query('SELECT * FROM products WHERE id = ? AND shop_id = ?', [$productId, $shopId]);
+                $baseProd = $baseProdStmt->fetch();
 
-                if (!empty($item['sku'])) {
-                    // Check if the new SKU is already taken by another product in the same shop
-                    $stmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ? AND id != ?', [$shopId, $item['sku'], $productId]);
-                    if ($stmt->fetch()) {
-                        throw new \Exception("SKU '{$item['sku']}' is already in use by another product.");
+                if ($baseProd && $resolvedExpiry !== null) {
+                    $baseExpiry = !empty($baseProd['expiry_date']) ? date('Y-m-d', strtotime($baseProd['expiry_date'])) : null;
+
+                    if ($baseExpiry !== $resolvedExpiry) {
+                        // Different expiry — find or create a distinct product entry
+                        $matchStmt = DB::query(
+                            'SELECT id FROM products WHERE shop_id = ? AND (sku = ? OR name = ?) AND expiry_date = ? LIMIT 1',
+                            [$shopId, $baseProd['sku'], $baseProd['name'], $resolvedExpiry]
+                        );
+                        $matchProd = $matchStmt->fetch();
+
+                        if ($matchProd) {
+                            $productId = (int)$matchProd['id'];
+                        } else {
+                            $newSku = $baseProd['sku'] . '-' . date('ymd', strtotime($resolvedExpiry));
+                            $skuCheck = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ?', [$shopId, $newSku]);
+                            if ($skuCheck->fetch()) {
+                                $newSku = $baseProd['sku'] . '-' . rand(1000, 9999);
+                            }
+                            DB::query(
+                                'INSERT INTO products (shop_id, name, sku, price, cost_price, stock_quantity, low_stock_threshold, expiry_date, supplier_id, unit, category)
+                                 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)',
+                                [
+                                    $shopId, $baseProd['name'], $newSku,
+                                    $item['selling_price'] > 0 ? $item['selling_price'] : (float)$baseProd['price'],
+                                    $item['cost_price'], (int)$baseProd['low_stock_threshold'],
+                                    $resolvedExpiry, $supplierId, $baseProd['unit'], $baseProd['category']
+                                ]
+                            );
+                            $productId = (int)DB::lastInsertId();
+                        }
+                    } else {
+                        // Same expiry — update metadata only
+                        DB::query('UPDATE products SET supplier_id = ?, category = COALESCE(?, category) WHERE id = ? AND shop_id = ?', [
+                            $supplierId, !empty($item['category']) ? $item['category'] : null, $productId, $shopId
+                        ]);
                     }
-                    $updateFields[] = 'sku = ?';
-                    $updateParams[] = $item['sku'];
+                } else {
+                    // No incoming expiry — just update supplier/category
+                    DB::query('UPDATE products SET supplier_id = ?, category = COALESCE(?, category) WHERE id = ? AND shop_id = ?', [
+                        $supplierId, !empty($item['category']) ? $item['category'] : null, $productId, $shopId
+                    ]);
                 }
-
-                $updateFields[] = 'category = ?';
-                $updateParams[] = !empty($item['category']) ? $item['category'] : null;
-                $updateFields[] = 'supplier_id = ?';
-                $updateParams[] = $supplierId;
-
-                $updateParams[] = $productId;
-                $updateParams[] = $shopId;
-                DB::query('UPDATE products SET ' . implode(', ', $updateFields) . ' WHERE id = ? AND shop_id = ?', $updateParams);
             }
 
             $subtotal = $item['quantity'] * $item['cost_price'];
-            DB::query(
-                'INSERT INTO purchase_order_items (purchase_order_id, shop_id, product_id, quantity_ordered, cost_price, selling_price, subtotal) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [$poId, $shopId, $productId, $item['quantity'], $item['cost_price'], $item['selling_price'], $subtotal]
-            );
+            if ($hasExpiryCol) {
+                DB::query(
+                    'INSERT INTO purchase_order_items (purchase_order_id, shop_id, product_id, quantity_ordered, cost_price, selling_price, subtotal, expiry_date)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    [$poId, $shopId, $productId, $item['quantity'], $item['cost_price'], $item['selling_price'], $subtotal, $resolvedExpiry]
+                );
+            } else {
+                DB::query(
+                    'INSERT INTO purchase_order_items (purchase_order_id, shop_id, product_id, quantity_ordered, cost_price, selling_price, subtotal)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    [$poId, $shopId, $productId, $item['quantity'], $item['cost_price'], $item['selling_price'], $subtotal]
+                );
+            }
+
+            // If creating as received, immediately credit stock + write inventory batch
+            if ($status === 'received') {
+                DB::query(
+                    'UPDATE products SET stock_quantity = stock_quantity + ?, cost_price = ?, price = ? WHERE id = ? AND shop_id = ?',
+                    [
+                        $item['quantity'], $item['cost_price'],
+                        $item['selling_price'] > 0 ? $item['selling_price'] : $item['cost_price'],
+                        $productId, $shopId
+                    ]
+                );
+                $batchNumber = 'BATCH-' . strtoupper(substr(md5(uniqid((string)$productId, true)), 0, 8)) . '-' . date('ymd');
+                try {
+                    DB::query(
+                        'INSERT INTO inventory_batches (shop_id, product_id, batch_number, quantity, cost_price, expiry_date, received_date, status)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, \'active\')',
+                        [$shopId, $productId, $batchNumber, $item['quantity'], $item['cost_price'], $resolvedExpiry, date('Y-m-d')]
+                    );
+                } catch (\Exception $e) { /* inventory_batches may not exist */ }
+            }
         }
 
         return $totalAmount;
@@ -592,8 +637,17 @@ class SupplierController {
             );
             $poId = DB::lastInsertId();
 
+            // Ensure expiry_date column exists on purchase_order_items
+            try {
+                $colCheck = DB::query("SHOW COLUMNS FROM purchase_order_items LIKE 'expiry_date'");
+                if (!$colCheck->fetch()) {
+                    DB::query("ALTER TABLE purchase_order_items ADD COLUMN expiry_date DATE NULL DEFAULT NULL");
+                }
+            } catch (\Exception $e) { /* skip */ }
+
             // Insert items and calculate total amount
-            $totalAmount = self::processAndInsertPoItems($poId, $shopId, $supplierId, $items);
+            $totalAmount = self::processAndInsertPoItems($poId, $shopId, $supplierId, $items, $status);
+
 
             // Calculate paid & due amounts based on payment basis
             if ($paymentBasis === 'credit') {
@@ -887,7 +941,7 @@ class SupplierController {
             } else {
                 // For ordered POs, use the original delete and re-insert logic
                 DB::query('DELETE FROM purchase_order_items WHERE purchase_order_id = ? AND shop_id = ?', [$poId, $shopId]);
-                $totalAmount = self::processAndInsertPoItems($poId, $shopId, $supplierId, $items);
+                $totalAmount = self::processAndInsertPoItems($poId, $shopId, $supplierId, $items, $poStatus);
             }
 
             if ($paymentBasis === 'credit') {
@@ -1071,22 +1125,89 @@ class SupplierController {
                 }
 
                 foreach ($items as $item) {
-                    $productId = (int)$item['product_id'];
+                    $originalProductId = (int)$item['product_id'];
                     $qtyReceived = (int)$item['quantity_received'];
                     $costPrice = (float)$item['cost_price'];
                     $sellingPrice = isset($item['selling_price']) ? (float)$item['selling_price'] : 0.00;
                     $expiryDate = !empty($item['expiry_date']) ? $item['expiry_date'] : null;
 
-                    // Update PO Item quantity received
+                    // Fetch base product info
+                    $baseProdStmt = DB::query('SELECT * FROM products WHERE id = ? AND shop_id = ?', [$originalProductId, $shopId]);
+                    $baseProd = $baseProdStmt->fetch();
+
+                    $targetProductId = $originalProductId;
+
+                    if ($baseProd) {
+                        $baseExpiry = !empty($baseProd['expiry_date']) ? date('Y-m-d', strtotime($baseProd['expiry_date'])) : null;
+                        $newExpiry = $expiryDate ? date('Y-m-d', strtotime($expiryDate)) : null;
+
+                        // Check if base product's expiry matches the incoming expiry
+                        if ($baseExpiry !== $newExpiry && $newExpiry !== null) {
+                            // Search if a product with the same SKU / name AND matching expiry date already exists
+                            $matchingProdStmt = DB::query(
+                                'SELECT id FROM products WHERE shop_id = ? AND (sku = ? OR name = ?) AND expiry_date = ? LIMIT 1',
+                                [$shopId, $baseProd['sku'], $baseProd['name'], $newExpiry]
+                            );
+                            $matchingProd = $matchingProdStmt->fetch();
+
+                            if ($matchingProd) {
+                                // Product for this specific expiry already exists
+                                $targetProductId = (int)$matchingProd['id'];
+                            } else {
+                                // Create a new product entry in Inventory Catalog for this distinct Expiry Date shipment
+                                $newSku = $baseProd['sku'] . '-EXP-' . date('ymd', strtotime($newExpiry));
+                                // Check if generated SKU already exists
+                                $checkSkuStmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ?', [$shopId, $newSku]);
+                                if ($checkSkuStmt->fetch()) {
+                                    $newSku = $baseProd['sku'] . '-' . rand(100, 999);
+                                }
+
+                                DB::query(
+                                    'INSERT INTO products (shop_id, name, sku, price, cost_price, stock_quantity, low_stock_threshold, expiry_date, supplier_id, unit, category) 
+                                     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)',
+                                    [
+                                        $shopId,
+                                        $baseProd['name'],
+                                        $newSku,
+                                        $sellingPrice > 0 ? $sellingPrice : (float)$baseProd['price'],
+                                        $costPrice,
+                                        (int)$baseProd['low_stock_threshold'],
+                                        $newExpiry,
+                                        $po['supplier_id'],
+                                        $baseProd['unit'],
+                                        $baseProd['category']
+                                    ]
+                                );
+                                $targetProductId = (int)DB::lastInsertId();
+                            }
+                        }
+                    }
+
+                    // Update PO Item quantity received & target product ID
                     DB::query(
                         'UPDATE purchase_order_items 
-                         SET quantity_received = ?, cost_price = ?, selling_price = ?, expiry_date = ?
-                         WHERE purchase_order_id = ? AND product_id = ? AND shop_id = ?',
-                        [$qtyReceived, $costPrice, $sellingPrice, $expiryDate, $poId, $productId, $shopId]
+                         SET product_id = ?, quantity_received = ?, cost_price = ?, selling_price = ?, expiry_date = ?
+                         WHERE purchase_order_id = ? AND (product_id = ? OR product_id = ?) AND shop_id = ?',
+                        [$targetProductId, $qtyReceived, $costPrice, $sellingPrice, $expiryDate, $poId, $originalProductId, $targetProductId, $shopId]
                     );
 
-                    // Fetch current cost price for log
-                    $pStmt = DB::query('SELECT cost_price FROM products WHERE id = ? AND shop_id = ?', [$productId, $shopId]);
+                    // Get PO item ID for batch tracking
+                    $poiStmt = DB::query(
+                        'SELECT id FROM purchase_order_items WHERE purchase_order_id = ? AND product_id = ? AND shop_id = ?',
+                        [$poId, $targetProductId, $shopId]
+                    );
+                    $poi = $poiStmt->fetch();
+
+                    // Create inventory batch for this purchase
+                    $batchNumber = 'BATCH-' . strtoupper(uniqid());
+                    DB::query(
+                        'INSERT INTO inventory_batches (shop_id, product_id, purchase_order_item_id, batch_number, quantity, cost_price, expiry_date, received_date)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
+                        [$shopId, $targetProductId, $poi ? $poi['id'] : null, $batchNumber, $qtyReceived, $costPrice, $expiryDate]
+                    );
+
+                    // Fetch target product cost price for log
+                    $pStmt = DB::query('SELECT cost_price FROM products WHERE id = ? AND shop_id = ?', [$targetProductId, $shopId]);
                     $prod = $pStmt->fetch();
 
                     if ($prod) {
@@ -1096,15 +1217,15 @@ class SupplierController {
                         DB::query(
                             'INSERT INTO cost_price_logs (shop_id, product_id, supplier_id, old_cost_price, new_cost_price, reason)
                              VALUES (?, ?, ?, ?, ?, ?)',
-                            [$shopId, $productId, $po['supplier_id'], $oldCost, $costPrice, "PO Received #$poId"]
+                            [$shopId, $targetProductId, $po['supplier_id'], $oldCost, $costPrice, "PO Received #$poId"]
                         );
 
-                        // Update product stock and cost/selling prices
+                        // Update target product stock and prices
                         DB::query(
                             'UPDATE products 
-                             SET stock_quantity = stock_quantity + ?, cost_price = ?, price = ?, expiry_date = ? 
+                             SET stock_quantity = stock_quantity + ?, cost_price = ?, price = ? 
                              WHERE id = ? AND shop_id = ?',
-                            [$qtyReceived, $costPrice, $sellingPrice > 0 ? $sellingPrice : $costPrice, $expiryDate, $productId, $shopId]
+                            [$qtyReceived, $costPrice, $sellingPrice > 0 ? $sellingPrice : (float)$baseProd['price'], $targetProductId, $shopId]
                         );
                     }
                 }

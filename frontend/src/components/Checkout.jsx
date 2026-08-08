@@ -1407,6 +1407,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
                         <th className="p-3 pl-4">Product Name</th>
                         <th className="p-3 text-right">Price</th>
+                        <th className="p-3 text-center">Expiry</th>
                         <th className="p-3 text-center">Stock</th>
                         <th className="p-3 text-center">Actions</th>
                       </tr>
@@ -1417,31 +1418,59 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                         const remainingQty = product.stock_quantity - (inCartItem ? inCartItem.quantity : 0);
                         const isOutOfStock = remainingQty <= 0;
 
-                        // Check if product is expired
+                        // Expiry status calculation
                         let isExpired = false;
+                        let expiryBadge = null;
                         if (product.expiry_date) {
                           const today = new Date();
                           today.setHours(0, 0, 0, 0);
-                          const expiryDate = new Date(product.expiry_date);
-                          isExpired = expiryDate < today;
+                          const expiry = new Date(product.expiry_date);
+                          expiry.setHours(0, 0, 0, 0);
+                          isExpired = expiry.getTime() < today.getTime();
+                          const diffTime = expiry.getTime() - today.getTime();
+                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                          if (isExpired) {
+                            expiryBadge = (
+                              <span className="bg-rose-100 text-rose-700 border border-rose-200 px-2 py-0.5 rounded text-[11px] font-extrabold inline-flex items-center shadow-2xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 mr-1 animate-pulse"></span>
+                                Expired ({expiry.toLocaleDateString()})
+                              </span>
+                            );
+                          } else if (diffDays <= 30) {
+                            expiryBadge = (
+                              <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[11px] font-bold inline-flex items-center">
+                                Expiring ({expiry.toLocaleDateString()})
+                              </span>
+                            );
+                          } else {
+                            expiryBadge = (
+                              <span className="text-slate-600 text-xs font-medium">
+                                {expiry.toLocaleDateString()}
+                              </span>
+                            );
+                          }
+                        } else {
+                          expiryBadge = <span className="text-slate-400 text-xs">N/A</span>;
                         }
 
                         const isDisabled = isOutOfStock || isExpired;
 
                         return (
-                          <tr key={product.id} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''} ${isExpired ? 'bg-red-50' : ''}`}>
+                          <tr key={product.id} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''} ${isExpired ? 'bg-rose-50/60' : ''}`}>
                             <td
                               className={`p-3 pl-4 font-semibold transition-colors ${isDisabled ? 'text-slate-400 cursor-not-allowed' : 'text-slate-800 cursor-pointer hover:text-indigo-600'}`}
                               onClick={() => !isDisabled && addToCart(product)}
                               title={isExpired ? `Expired on ${product.expiry_date}` : (isOutOfStock ? 'Out of stock' : 'Click to add to cart')}
                             >
                               {product.name}
-                              {isExpired && <span className="ml-2 text-xs text-red-600 font-bold">(Expired)</span>}
+                              {isExpired && <span className="ml-2 text-xs text-rose-600 font-bold">(Expired)</span>}
                             </td>
                             <td className="p-3 text-right font-extrabold text-slate-700">৳{parseFloat(product.price).toFixed(3)}</td>
+                            <td className="p-3 text-center">{expiryBadge}</td>
                             <td className="p-3 text-center">
                               <span className={`px-2 py-0.5 rounded text-xs font-bold ${isExpired
-                                ? 'bg-red-50 text-red-600 border border-red-100'
+                                ? 'bg-rose-100 text-rose-700 border border-rose-200'
                                 : remainingQty <= product.low_stock_threshold
                                 ? 'bg-rose-50 text-rose-600 border border-rose-100'
                                 : 'bg-emerald-50 text-emerald-600 border border-emerald-100'

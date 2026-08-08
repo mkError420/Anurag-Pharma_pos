@@ -112,59 +112,52 @@ export default function Suppliers() {
 
   // Add product to PO cart
   const addToPoCart = () => {
-    if (!poFormData.supplier_id) {
-      triggerAlert('error', 'Please select a supplier first.');
+    if (!poFormData.name || !poFormData.name.trim()) {
+      triggerAlert('error', 'Product Name is required.');
+      return;
+    }
+    if (!poFormData.cost_price || parseFloat(poFormData.cost_price) < 0) {
+      triggerAlert('error', 'Please enter a valid Cost Price.');
+      return;
+    }
+    const qty = parseFloat(poFormData.quantity_ordered);
+    if (isNaN(qty) || qty <= 0) {
+      triggerAlert('error', 'Please enter a valid Quantity.');
       return;
     }
 
-    if (parseFloat(poFormData.quantity_ordered) < 0) {
-      triggerAlert('error', 'Quantity cannot be negative.');
-      return;
+    // Auto-generate SKU if left empty
+    let finalSku = poFormData.sku ? poFormData.sku.trim() : '';
+    if (!finalSku) {
+      finalSku = 'SKU-' + poFormData.name.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + Math.floor(100 + Math.random() * 900);
     }
 
-    if (poFormData.is_new && (!poFormData.name || !poFormData.sku)) {
-      triggerAlert('error', 'Product name and SKU are required.');
-      return;
-    }
-
-    if (!poFormData.is_new && !poFormData.product_id) {
-      triggerAlert('error', 'Please select a product.');
-      return;
-    }
-
-    const cartItem = poFormData.is_new ? {
-      is_new: true,
-      name: poFormData.name,
-      sku: poFormData.sku,
+    const newItem = {
+      product_id: poFormData.product_id ? parseInt(poFormData.product_id) : null,
+      is_new: poFormData.is_new || !poFormData.product_id,
+      name: poFormData.name.trim(),
+      sku: finalSku,
       category: poFormData.category || '',
-      quantity_ordered: parseFloat(poFormData.quantity_ordered) || 0,
-      cost_price: parseFloat(poFormData.cost_price || 0),
+      cost_price: parseFloat(poFormData.cost_price),
       selling_price: parseFloat(poFormData.selling_price || 0),
-      unit: poFormData.unit
-    } : {
-      product_id: parseInt(poFormData.product_id),
-      name: poFormData.name || productSearch.split(' (')[0],
-      sku: poFormData.sku || productSearch.match(/\(([^)]+)\)/)?.[1] || '',
-      category: poFormData.category || '',
-      quantity_ordered: parseFloat(poFormData.quantity_ordered) || 0,
-      cost_price: parseFloat(poFormData.cost_price || 0),
-      selling_price: parseFloat(poFormData.selling_price || 0),
-      unit: poFormData.unit
+      quantity_ordered: qty,
+      expiry_date: poFormData.expiry_date || null,
+      unit: poFormData.unit || 'piece',
+      low_stock_threshold: parseInt(poFormData.low_stock_threshold || 10)
     };
 
-    // If editing an existing cart item, update it instead of adding new
     if (editingCartItemIndex !== null) {
       const updatedCart = [...poCart];
-      updatedCart[editingCartItemIndex] = cartItem;
+      updatedCart[editingCartItemIndex] = newItem;
       setPoCart(updatedCart);
       setEditingCartItemIndex(null);
       triggerAlert('success', 'Product updated in cart!');
     } else {
-      setPoCart([...poCart, cartItem]);
+      setPoCart(prev => [...prev, newItem]);
       triggerAlert('success', 'Product added to cart!');
     }
 
-    // Reset product form fields
+    // Reset item form fields
     setProductSearch('');
     setPoFormData(prev => ({
       ...prev,
@@ -176,30 +169,16 @@ export default function Suppliers() {
       cost_price: '',
       selling_price: '',
       quantity_ordered: 1,
+      expiry_date: '',
       unit: 'piece'
     }));
   };
 
   // Remove product from PO cart
   const removeFromPoCart = (index) => {
-    setPoCart(poCart.filter((_, i) => i !== index));
-    // If removing the item being edited, cancel edit mode
+    setPoCart(prev => prev.filter((_, i) => i !== index));
     if (editingCartItemIndex === index) {
-      setEditingCartItemIndex(null);
-      // Reset form
-      setProductSearch('');
-      setPoFormData(prev => ({
-        ...prev,
-        product_id: '',
-        is_new: false,
-        name: '',
-        sku: '',
-        category: '',
-        cost_price: '',
-        selling_price: '',
-        quantity_ordered: 1,
-        unit: 'piece'
-      }));
+      cancelEditCartItem();
     }
   };
 
@@ -207,8 +186,8 @@ export default function Suppliers() {
   const editCartItem = (index) => {
     const item = poCart[index];
     setEditingCartItemIndex(index);
+    setProductSearch(item.name || '');
 
-    // Populate form with cart item data
     setPoFormData(prev => ({
       ...prev,
       product_id: item.product_id ? String(item.product_id) : '',
@@ -219,16 +198,9 @@ export default function Suppliers() {
       cost_price: String(item.cost_price || ''),
       selling_price: String(item.selling_price || ''),
       quantity_ordered: item.quantity_ordered || 1,
+      expiry_date: item.expiry_date || '',
       unit: item.unit || 'piece'
     }));
-
-    // Set product search if it's an existing product
-    if (item.product_id) {
-      const product = productsList.find(p => p.id === item.product_id);
-      if (product) {
-        setProductSearch(`${product.name} (${product.sku})`);
-      }
-    }
   };
 
   // Cancel editing cart item
@@ -245,6 +217,7 @@ export default function Suppliers() {
       cost_price: '',
       selling_price: '',
       quantity_ordered: 1,
+      expiry_date: '',
       unit: 'piece'
     }));
   };
@@ -662,6 +635,7 @@ export default function Suppliers() {
       cost_price: '',
       selling_price: '',
       quantity_ordered: 1,
+      expiry_date: '',
       unit: 'piece',
       low_stock_threshold: '10',
       payment_basis: 'cash',
@@ -670,6 +644,8 @@ export default function Suppliers() {
     });
     setShowAddPoModal(true);
   };
+
+
 
   const handlePoProductChange = (productId) => {
     if (productId === 'new_product') {
@@ -3807,7 +3783,7 @@ export default function Suppliers() {
                           setProductSearchFocusedIndex(-1);
                         } else if (productSearchFocusedIndex > 0 && suggestions[productSearchFocusedIndex - 1]) {
                           const p = suggestions[productSearchFocusedIndex - 1];
-                          setProductSearch(`${p.name} (${p.sku})`);
+                          setProductSearch(p.name);
                           handlePoProductChange(String(p.id));
                           setShowProductSuggestions(false);
                           setProductSearchFocusedIndex(-1);
@@ -3843,7 +3819,7 @@ export default function Suppliers() {
                         <div
                           key={p.id}
                           onClick={() => {
-                            setProductSearch(`${p.name} (${p.sku})`);
+                            setProductSearch(p.name);
                             handlePoProductChange(String(p.id));
                             setShowProductSuggestions(false);
                           }}
@@ -3877,13 +3853,12 @@ export default function Suppliers() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">SKU / Code *</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">SKU / Code (Optional)</label>
                 <input
                   type="text"
                   value={poFormData.sku}
                   onChange={(e) => setPoFormData({ ...poFormData, sku: e.target.value })}
-                  required
-                  placeholder="SKU Code"
+                  placeholder="Auto-generated if empty"
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold font-mono"
                 />
               </div>
@@ -3906,7 +3881,7 @@ export default function Suppliers() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cost Price (৳) *</label>
                 <input
@@ -3941,6 +3916,15 @@ export default function Suppliers() {
                   onChange={(e) => setPoFormData({ ...poFormData, quantity_ordered: e.target.value })}
                   placeholder="0"
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Expiry Date</label>
+                <input
+                  type="date"
+                  value={poFormData.expiry_date || ''}
+                  onChange={(e) => setPoFormData({ ...poFormData, expiry_date: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-medium"
                 />
               </div>
               <div>
@@ -4042,10 +4026,11 @@ export default function Suppliers() {
                       <div className="flex-1">
                         <div className="font-semibold text-slate-800">
                           {item.name} {item.category && <span className="ml-1.5 px-1.5 py-0.25 bg-indigo-50 text-indigo-700 rounded text-[10px] font-bold border border-indigo-100">{item.category}</span>}
+                          {item.expiry_date && <span className="ml-1.5 px-1.5 py-0.25 bg-amber-50 text-amber-700 rounded text-[10px] font-bold border border-amber-100">Exp: {item.expiry_date}</span>}
                           {editingCartItemIndex === index && <span className="ml-1.5 px-1.5 py-0.25 bg-amber-50 text-amber-700 rounded text-[10px] font-bold border border-amber-100">Editing</span>}
                         </div>
                         <div className="text-slate-600 mt-1.5 flex items-center gap-2">
-                          <span className="font-bold text-slate-700">{item.sku}</span>
+                          <span className="font-bold text-slate-700">{item.sku || 'Auto SKU'}</span>
                           <span>•</span>
                           <div className="flex items-center border border-slate-200 rounded">
                             <button
@@ -4144,35 +4129,17 @@ export default function Suppliers() {
                 >
                   Cancel
                 </button>
-                {isEditPoMode && selectedPo?.status === 'received' ? (
-                  <button
-                    type="button"
-                    onClick={(e) => handlePoSubmit(e, 'received')}
-                    disabled={!isAdmin}
-                    className="w-full sm:w-auto px-5 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-sm font-semibold transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Update Received Order
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={(e) => handlePoSubmit(e, 'draft')}
-                      disabled={isEditPoMode && !isAdmin}
-                      className="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isEditPoMode ? 'Save Draft' : 'Draft'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => handlePoSubmit(e, 'ordered')}
-                      disabled={isEditPoMode && !isAdmin}
-                      className="w-full sm:w-auto px-5 py-2 bg-slate-600 hover:bg-yellow-700 text-white rounded-xl text-sm font-semibold transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isEditPoMode ? 'Update Order' : 'Place Order'}
-                    </button>
-                  </>
-                )}
+                <button
+                  type="button"
+                  onClick={(e) => handlePoSubmit(e, 'received')}
+                  disabled={isEditPoMode && !isAdmin}
+                  className="w-full sm:w-auto px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition-colors shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>{isEditPoMode ? 'Confirm & Update Order' : 'Confirm Order'}</span>
+                </button>
               </div>
             </div>
           </form>

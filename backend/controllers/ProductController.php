@@ -121,6 +121,315 @@ class ProductController {
         }
     }
 
+    public static function getProductBatches($productId) {
+        Auth::authenticate();
+        Auth::enforceTenant();
+
+        $shopId = Auth::$shopId;
+
+        try {
+            // Verify product belongs to shop
+            $stmt = DB::query('SELECT id FROM products WHERE id = ? AND shop_id = ?', [$productId, $shopId]);
+            if (!$stmt->fetch()) {
+                Auth::jsonError('Product not found or access denied.', 404);
+            }
+
+            // Fetch all batches for this product (simplified query without joins)
+            $stmt = DB::query(
+                'SELECT id, shop_id, product_id, purchase_order_item_id, batch_number, quantity, cost_price, expiry_date, received_date, status, created_at, updated_at
+                 FROM inventory_batches
+                 WHERE product_id = ? AND shop_id = ?
+                 ORDER BY 
+                    CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END,
+                    expiry_date ASC,
+                    received_date DESC',
+                [$productId, $shopId]
+            );
+            $batches = $stmt->fetchAll();
+
+            foreach ($batches as &$batch) {
+                $batch['id'] = (int)$batch['id'];
+                $batch['product_id'] = (int)$batch['product_id'];
+                $batch['quantity'] = (int)$batch['quantity'];
+                $batch['cost_price'] = (float)$batch['cost_price'];
+                $batch['purchase_order_item_id'] = $batch['purchase_order_item_id'] !== null ? (int)$batch['purchase_order_item_id'] : null;
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode($batches);
+
+        } catch (\Exception $e) {
+            error_log('Fetch product batches error: ' . $e->getMessage());
+            Auth::jsonError('Server error retrieving product batches: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public static function getProductBatch($productId, $batchId) {
+        Auth::authenticate();
+        Auth::enforceTenant();
+
+        $shopId = Auth::$shopId;
+
+        try {
+            $stmt = DB::query(
+                'SELECT ib.*, s.name as supplier_name
+                 FROM inventory_batches ib
+                 LEFT JOIN suppliers s ON ib.supplier_id = s.id
+                 WHERE ib.id = ? AND ib.product_id = ? AND ib.shop_id = ?',
+                [(int)$batchId, (int)$productId, $shopId]
+            );
+            $batch = $stmt->fetch();
+
+            if (!$batch) {
+                Auth::jsonError('Batch not found.', 404);
+            }
+
+            $batch['id'] = (int)$batch['id'];
+            $batch['product_id'] = (int)$batch['product_id'];
+            $batch['quantity'] = (int)$batch['quantity'];
+            $batch['cost_price'] = (float)$batch['cost_price'];
+
+            header('Content-Type: application/json');
+            echo json_encode($batch);
+        } catch (\Exception $e) {
+            error_log('Get product batch error: ' . $e->getMessage());
+            Auth::jsonError('Server error retrieving batch.', 500);
+        }
+    }
+
+    public static function createProductBatch($productId, $requestData) {
+        Auth::authenticate();
+        Auth::enforceTenant();
+        Auth::authorize(['shop_admin']);
+
+        $shopId = Auth::$shopId;
+        $quantity = isset($requestData['quantity']) ? (int)$requestData['quantity'] : 0;
+        $cost_price = isset($requestData['cost_price']) ? (float)$requestData['cost_price'] : null;
+        $expiry_date = !empty($requestData['expiry_date']) ? $requestData['expiry_date'] : null;
+        $received_date = !empty($requestData['received_date']) ? $requestData['received_date'] : date('Y-m-d');
+        $notes = $requestData['notes'] ?? null;
+        $supplier_id = !empty($requestData['supplier_id']) ? (int)$requestData['supplier_id'] : null;
+
+        if ($quantity <= 0) {
+            Auth::jsonError('Quantity must be greater than zero.', 400);
+        }
+        if ($cost_price === null || $cost_price < 0) {
+            Auth::jsonError('A valid cost price is required.', 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Verify product belongs to shop
+            $stmt = DB::query('SELECT id FROM products WHERE id = ? AND shop_id = ? FOR UPDATE', [(int)$productId, $shopId]);
+            if (!$stmt->fetch()) {
+                DB::rollBack();
+                Auth::jsonError('Product not found or access denied.', 404);
+            }
+
+            // Generate unique batch number
+            $batchNumber = 'BT-' . strtoupper(substr(md5(uniqid((string)$productId, true)), 0, 8)) . '-' . date('ymd');
+
+            // Check for column existence (supplier_id, notes may or may not exist)
+            $hasSupplierCol = false;
+            $hasNotesCol = false;
+            try {
+                $col1 = DB::query("SHOW COLUMNS FROM inventory_batches LIKE 'supplier_id'");
+                $hasSupplierCol = (bool)$col1->fetch();
+            } catch (\Exception $e) {}
+            try {
+                $col2 = DB::query("SHOW COLUMNS FROM inventory_batches LIKE 'notes'");
+                $hasNotesCol = (bool)$col2->fetch();
+            } catch (\Exception $e) {}
+
+            if ($hasSupplierCol && $hasNotesCol) {
+                DB::query(
+                    'INSERT INTO inventory_batches (shop_id, product_id, batch_number, quantity, cost_price, expiry_date, received_date, status, supplier_id, notes)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, \'active\', ?, ?)',
+                    [$shopId, (int)$productId, $batchNumber, $quantity, $cost_price, $expiry_date, $received_date, $supplier_id, $notes]
+                );
+            } elseif ($hasSupplierCol) {
+                DB::query(
+                    'INSERT INTO inventory_batches (shop_id, product_id, batch_number, quantity, cost_price, expiry_date, received_date, status, supplier_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, \'active\', ?)',
+                    [$shopId, (int)$productId, $batchNumber, $quantity, $cost_price, $expiry_date, $received_date, $supplier_id]
+                );
+            } else {
+                DB::query(
+                    'INSERT INTO inventory_batches (shop_id, product_id, batch_number, quantity, cost_price, expiry_date, received_date, status)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, \'active\')',
+                    [$shopId, (int)$productId, $batchNumber, $quantity, $cost_price, $expiry_date, $received_date]
+                );
+            }
+
+            $newBatchId = DB::lastInsertId();
+
+            // Add quantity to product's total stock_quantity
+            DB::query(
+                'UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ? AND shop_id = ?',
+                [$quantity, (int)$productId, $shopId]
+            );
+
+            DB::commit();
+
+            header('Content-Type: application/json');
+            http_response_code(201);
+            echo json_encode([
+                'message' => 'Batch created successfully. Stock quantity updated.',
+                'batch_id' => (int)$newBatchId,
+                'batch_number' => $batchNumber
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            error_log('Create product batch error: ' . $e->getMessage());
+            Auth::jsonError('Server error creating batch: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public static function updateProductBatch($productId, $batchId, $requestData) {
+        Auth::authenticate();
+        Auth::enforceTenant();
+        Auth::authorize(['shop_admin']);
+
+        $shopId = Auth::$shopId;
+
+        try {
+            DB::beginTransaction();
+
+            // Verify batch belongs to this product and shop
+            $stmt = DB::query(
+                'SELECT ib.id, ib.quantity FROM inventory_batches ib WHERE ib.id = ? AND ib.product_id = ? AND ib.shop_id = ? FOR UPDATE',
+                [(int)$batchId, (int)$productId, $shopId]
+            );
+            $existingBatch = $stmt->fetch();
+
+            if (!$existingBatch) {
+                DB::rollBack();
+                Auth::jsonError('Batch not found or access denied.', 404);
+            }
+
+            $oldQuantity = (int)$existingBatch['quantity'];
+            $newQuantity = isset($requestData['quantity']) ? (int)$requestData['quantity'] : $oldQuantity;
+            $qtyDiff = $newQuantity - $oldQuantity;
+
+            $updateFields = [];
+            $params = [];
+
+            if (isset($requestData['quantity'])) {
+                if ($newQuantity < 0) {
+                    DB::rollBack();
+                    Auth::jsonError('Quantity cannot be negative.', 400);
+                }
+                $updateFields[] = '`quantity` = ?';
+                $params[] = $newQuantity;
+            }
+            if (isset($requestData['cost_price'])) {
+                $updateFields[] = '`cost_price` = ?';
+                $params[] = (float)$requestData['cost_price'];
+            }
+            if (array_key_exists('expiry_date', $requestData)) {
+                $updateFields[] = '`expiry_date` = ?';
+                $params[] = !empty($requestData['expiry_date']) ? $requestData['expiry_date'] : null;
+            }
+            if (isset($requestData['received_date'])) {
+                $updateFields[] = '`received_date` = ?';
+                $params[] = $requestData['received_date'];
+            }
+            if (isset($requestData['status'])) {
+                $updateFields[] = '`status` = ?';
+                $params[] = $requestData['status'];
+            }
+
+            if (!empty($updateFields)) {
+                $params[] = (int)$batchId;
+                $params[] = $shopId;
+                DB::query(
+                    'UPDATE inventory_batches SET ' . implode(', ', $updateFields) . ' WHERE id = ? AND shop_id = ?',
+                    $params
+                );
+            }
+
+            // Adjust product stock_quantity if quantity changed
+            if ($qtyDiff !== 0) {
+                DB::query(
+                    'UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ? AND shop_id = ?',
+                    [$qtyDiff, (int)$productId, $shopId]
+                );
+            }
+
+            DB::commit();
+
+            header('Content-Type: application/json');
+            echo json_encode(['message' => 'Batch updated successfully.']);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            error_log('Update product batch error: ' . $e->getMessage());
+            Auth::jsonError('Server error updating batch.', 500);
+        }
+    }
+
+    public static function deleteProductBatch($productId, $batchId) {
+        Auth::authenticate();
+        Auth::enforceTenant();
+        Auth::authorize(['shop_admin']);
+
+        $shopId = Auth::$shopId;
+
+        try {
+            DB::beginTransaction();
+
+            // Verify batch belongs to this product and shop
+            $stmt = DB::query(
+                'SELECT id, quantity FROM inventory_batches WHERE id = ? AND product_id = ? AND shop_id = ? FOR UPDATE',
+                [(int)$batchId, (int)$productId, $shopId]
+            );
+            $batch = $stmt->fetch();
+
+            if (!$batch) {
+                DB::rollBack();
+                Auth::jsonError('Batch not found or access denied.', 404);
+            }
+
+            $batchQty = (int)$batch['quantity'];
+
+            // Check if batch was linked to any sale_items
+            $saleCheck = false;
+            try {
+                $stmt2 = DB::query('SELECT COUNT(*) as cnt FROM sale_items WHERE inventory_batch_id = ?', [(int)$batchId]);
+                $row = $stmt2->fetch();
+                $saleCheck = ((int)$row['cnt']) > 0;
+            } catch (\Exception $e2) {
+                // column may not exist - OK
+            }
+
+            if ($saleCheck) {
+                DB::rollBack();
+                Auth::jsonError('Cannot delete this batch. It is linked to existing sale records.', 400);
+            }
+
+            // Deduct batch quantity from product stock
+            DB::query(
+                'UPDATE products SET stock_quantity = GREATEST(stock_quantity - ?, 0) WHERE id = ? AND shop_id = ?',
+                [$batchQty, (int)$productId, $shopId]
+            );
+
+            // Delete the batch
+            DB::query('DELETE FROM inventory_batches WHERE id = ? AND shop_id = ?', [(int)$batchId, $shopId]);
+
+            DB::commit();
+
+            header('Content-Type: application/json');
+            echo json_encode(['message' => 'Batch deleted successfully. Stock quantity adjusted.']);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            error_log('Delete product batch error: ' . $e->getMessage());
+            Auth::jsonError('Server error deleting batch.', 500);
+        }
+    }
+
     public static function createProduct($requestData) {
         Auth::authenticate();
         Auth::enforceTenant();

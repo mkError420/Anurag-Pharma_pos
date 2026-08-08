@@ -63,9 +63,19 @@ export default function Inventory() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCsvUploadModal, setShowCsvUploadModal] = useState(false);
+  const [showBatchesModal, setShowBatchesModal] = useState(false);
   const [currentProduct, setCurrentProduct] = useState(null);
   const [csvFile, setCsvFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [batchesData, setBatchesData] = useState(null);
+  const [batchesLoading, setBatchesLoading] = useState(false);
+  const [batchesError, setBatchesError] = useState(null);
+  const [showAddBatchForm, setShowAddBatchForm] = useState(false);
+  const [batchFormData, setBatchFormData] = useState({ quantity: '', cost_price: '', expiry_date: '', received_date: new Date().toISOString().split('T')[0], notes: '', supplier_id: '' });
+  const [batchFormSubmitting, setBatchFormSubmitting] = useState(false);
+  const [editingBatchId, setEditingBatchId] = useState(null);
+  const [editBatchData, setEditBatchData] = useState({});
+  const [batchAlert, setBatchAlert] = useState(null);
 
   // Sale Details Modal state for Detailed Ledger Ref ID click
   const [showSaleDetailsModal, setShowSaleDetailsModal] = useState(false);
@@ -107,6 +117,149 @@ export default function Inventory() {
     setTimeout(() => {
       document.body.classList.remove('print-mode-thermal');
     }, 500);
+  };
+
+  const handleViewBatches = async (product) => {
+    setShowBatchesModal(true);
+    setBatchesLoading(true);
+    setBatchesError(null);
+    setBatchesData(null);
+    setShowAddBatchForm(false);
+    setEditingBatchId(null);
+    setBatchAlert(null);
+    setCurrentProduct(product);
+    setBatchFormData({
+      quantity: '',
+      cost_price: product.cost_price || '',
+      expiry_date: '',
+      received_date: new Date().toISOString().split('T')[0],
+      notes: '',
+      supplier_id: product.supplier_id || ''
+    });
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/products/${product.id}/batches`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        const errRes = await response.json().catch(() => ({}));
+        throw new Error(errRes.error || 'Failed to retrieve product batches.');
+      }
+      const data = await response.json();
+      setBatchesData(data);
+    } catch (err) {
+      setBatchesError(err.message);
+    } finally {
+      setBatchesLoading(false);
+    }
+  };
+
+  const triggerBatchAlert = (type, message) => {
+    setBatchAlert({ type, message });
+    setTimeout(() => setBatchAlert(null), 4000);
+  };
+
+  const handleCreateBatchSubmit = async (e) => {
+    e.preventDefault();
+    if (!currentProduct) return;
+    if (!batchFormData.quantity || parseFloat(batchFormData.quantity) <= 0) {
+      triggerBatchAlert('error', 'Please enter a valid quantity.');
+      return;
+    }
+    if (batchFormData.cost_price === '' || parseFloat(batchFormData.cost_price) < 0) {
+      triggerBatchAlert('error', 'Please enter a valid cost price.');
+      return;
+    }
+
+    setBatchFormSubmitting(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/products/${currentProduct.id}/batches`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          quantity: parseInt(batchFormData.quantity),
+          cost_price: parseFloat(batchFormData.cost_price),
+          expiry_date: batchFormData.expiry_date || null,
+          received_date: batchFormData.received_date || null,
+          notes: batchFormData.notes || null,
+          supplier_id: batchFormData.supplier_id ? parseInt(batchFormData.supplier_id) : null
+        })
+      });
+
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Failed to create batch.');
+
+      triggerBatchAlert('success', resData.message || 'Batch created successfully!');
+      setShowAddBatchForm(false);
+      setBatchFormData({
+        quantity: '',
+        cost_price: currentProduct.cost_price || '',
+        expiry_date: '',
+        received_date: new Date().toISOString().split('T')[0],
+        notes: '',
+        supplier_id: currentProduct.supplier_id || ''
+      });
+
+      // Refresh product list and batches
+      fetchProducts();
+      handleViewBatches(currentProduct);
+    } catch (err) {
+      triggerBatchAlert('error', err.message);
+    } finally {
+      setBatchFormSubmitting(false);
+    }
+  };
+
+  const handleDeleteBatch = async (batchId) => {
+    if (!window.confirm('Are you sure you want to delete this batch? The batch stock will be deducted from product total stock.')) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/products/${currentProduct.id}/batches/${batchId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Failed to delete batch.');
+
+      triggerBatchAlert('success', 'Batch deleted successfully!');
+      fetchProducts();
+      handleViewBatches(currentProduct);
+    } catch (err) {
+      triggerBatchAlert('error', err.message);
+    }
+  };
+
+  const handleSaveEditBatch = async (batchId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/products/${currentProduct.id}/batches/${batchId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          quantity: parseInt(editBatchData.quantity),
+          cost_price: parseFloat(editBatchData.cost_price),
+          expiry_date: editBatchData.expiry_date || null,
+          received_date: editBatchData.received_date || null
+        })
+      });
+
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Failed to update batch.');
+
+      triggerBatchAlert('success', 'Batch updated successfully!');
+      setEditingBatchId(null);
+      fetchProducts();
+      handleViewBatches(currentProduct);
+    } catch (err) {
+      triggerBatchAlert('error', err.message);
+    }
   };
 
   // Form states
@@ -544,6 +697,18 @@ export default function Inventory() {
                   <span className="sm:hidden">{showStockDistribution ? 'Hide' : 'Show'}</span>
                 </button>
               </>
+            )}
+            {!isSuperAdmin && (
+              <button
+                onClick={() => { resetForm(); setShowAddModal(true); }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="hidden sm:inline">Add Product</span>
+                <span className="sm:hidden">Add</span>
+              </button>
             )}
             <button
               onClick={exportToCSV}
@@ -1450,6 +1615,403 @@ export default function Inventory() {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* --- BATCHES MODAL --- */}
+          {showBatchesModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+              <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                
+                {/* Modal Header */}
+                <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                      <span>Inventory Batches</span>
+                      <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2.5 py-0.5 rounded-full border border-indigo-100">
+                        {currentProduct?.name} ({currentProduct?.sku})
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-500">Track stock lots received at different times with individual expiry dates</p>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    {!isSuperAdmin && (
+                      <button
+                        onClick={() => setShowAddBatchForm(!showAddBatchForm)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-3.5 rounded-xl text-xs shadow-xs transition-colors flex items-center space-x-1.5"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={showAddBatchForm ? "M6 18L18 6M6 6l12 12" : "M12 4v16m8-8H4"} />
+                        </svg>
+                        <span>{showAddBatchForm ? 'Cancel' : '+ Receive New Batch'}</span>
+                      </button>
+                    )}
+                    <button onClick={() => setShowBatchesModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Batch Modal Alert Banner */}
+                {batchAlert && (
+                  <div className={`mt-3 p-3 rounded-xl text-xs font-semibold flex items-center justify-between ${batchAlert.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+                    <span>{batchAlert.message}</span>
+                    <button onClick={() => setBatchAlert(null)} className="text-slate-400 hover:text-slate-600">&times;</button>
+                  </div>
+                )}
+
+                {/* Add Batch Form Slide-down */}
+                {showAddBatchForm && (
+                  <form onSubmit={handleCreateBatchSubmit} className="mt-4 p-4 bg-slate-50 border border-indigo-100 rounded-2xl space-y-3 animate-fadeIn">
+                    <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Receive New Batch / Shipment
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Quantity Received *</label>
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          value={batchFormData.quantity}
+                          onChange={(e) => setBatchFormData({ ...batchFormData, quantity: e.target.value })}
+                          placeholder="e.g. 50"
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none bg-white font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Cost Price (৳) *</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          required
+                          value={batchFormData.cost_price}
+                          onChange={(e) => setBatchFormData({ ...batchFormData, cost_price: e.target.value })}
+                          placeholder="0.00"
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none bg-white font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Expiry Date</label>
+                        <input
+                          type="date"
+                          value={batchFormData.expiry_date}
+                          onChange={(e) => setBatchFormData({ ...batchFormData, expiry_date: e.target.value })}
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Received Date</label>
+                        <input
+                          type="date"
+                          value={batchFormData.received_date}
+                          onChange={(e) => setBatchFormData({ ...batchFormData, received_date: e.target.value })}
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Supplier (Optional)</label>
+                        <select
+                          value={batchFormData.supplier_id}
+                          onChange={(e) => setBatchFormData({ ...batchFormData, supplier_id: e.target.value })}
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
+                        >
+                          <option value="">-- Same as product supplier --</option>
+                          {suppliers.map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Notes / Lot Info (Optional)</label>
+                        <input
+                          type="text"
+                          value={batchFormData.notes}
+                          onChange={(e) => setBatchFormData({ ...batchFormData, notes: e.target.value })}
+                          placeholder="e.g. Received from Supplier X via PO #102"
+                          className="w-full border border-slate-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end space-x-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddBatchForm(false)}
+                        className="px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold hover:bg-slate-100"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={batchFormSubmitting}
+                        className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow disabled:opacity-50 flex items-center space-x-1"
+                      >
+                        {batchFormSubmitting ? (
+                          <span>Saving...</span>
+                        ) : (
+                          <>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>Save Batch & Add Stock</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Batch Metrics Bar */}
+                {batchesData && batchesData.length > 0 && (
+                  <div className="grid grid-cols-4 gap-3 mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase">Total Batches</div>
+                      <div className="text-base font-extrabold text-slate-800">{batchesData.length}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase">Active Stock</div>
+                      <div className="text-base font-extrabold text-emerald-600">
+                        {batchesData.reduce((sum, b) => sum + (b.status === 'active' ? b.quantity : 0), 0)} {currentProduct?.unit || 'pcs'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase">Expired Batches</div>
+                      <div className="text-base font-extrabold text-rose-600">
+                        {batchesData.filter(b => b.expiry_date && new Date(b.expiry_date) < new Date()).length}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase">Total Product Stock</div>
+                      <div className="text-base font-extrabold text-indigo-600">
+                        {currentProduct?.stock_quantity} {currentProduct?.unit || 'pcs'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Batches Table List */}
+                <div className="mt-4 overflow-y-auto flex-1">
+                  {batchesLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                    </div>
+                  ) : batchesError ? (
+                    <div className="bg-rose-50 border border-rose-200 rounded-lg p-4 text-rose-700 text-sm">
+                      {batchesError}
+                    </div>
+                  ) : batchesData && batchesData.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            <th className="px-4 py-3 text-left">Batch Code</th>
+                            <th className="px-4 py-3 text-center">Qty</th>
+                            <th className="px-4 py-3 text-center">Cost Price</th>
+                            <th className="px-4 py-3 text-left">Expiry Date</th>
+                            <th className="px-4 py-3 text-left">Received</th>
+                            <th className="px-4 py-3 text-center">Status</th>
+                            {!isSuperAdmin && <th className="px-4 py-3 text-center">Actions</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {batchesData.map((batch) => {
+                            const isEditing = editingBatchId === batch.id;
+                            const today = new Date();
+                            today.setHours(0,0,0,0);
+                            const expDate = batch.expiry_date ? new Date(batch.expiry_date) : null;
+                            if (expDate) expDate.setHours(0,0,0,0);
+                            
+                            const isExpired = expDate && expDate.getTime() < today.getTime();
+                            const diffDays = expDate ? Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                            const isExpiringSoon = diffDays !== null && diffDays >= 0 && diffDays <= 30;
+                            const isDepleted = batch.quantity <= 0 || batch.status === 'depleted';
+                            
+                            let statusBadge;
+                            if (isDepleted) {
+                              statusBadge = (
+                                <span className="bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded text-xs font-semibold">
+                                  Depleted
+                                </span>
+                              );
+                            } else if (isExpired) {
+                              statusBadge = (
+                                <span className="bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded text-xs font-bold inline-flex items-center">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1 animate-pulse"></span>
+                                  Expired
+                                </span>
+                              );
+                            } else if (isExpiringSoon) {
+                              statusBadge = (
+                                <span className="bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded text-xs font-bold inline-flex items-center">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1"></span>
+                                  In {diffDays}d
+                                </span>
+                              );
+                            } else {
+                              statusBadge = (
+                                <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded text-xs font-semibold">
+                                  Active
+                                </span>
+                              );
+                            }
+
+                            return (
+                              <tr key={batch.id} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="px-4 py-3">
+                                  <div className="font-mono text-xs font-bold text-slate-800">{batch.batch_number}</div>
+                                  {batch.po_received_date && (
+                                    <div className="text-[10px] text-slate-400">PO Ref #{batch.purchase_order_item_id}</div>
+                                  )}
+                                </td>
+                                
+                                {/* Quantity */}
+                                <td className="px-4 py-3 text-center">
+                                  {isEditing ? (
+                                    <input
+                                      type="number"
+                                      value={editBatchData.quantity}
+                                      onChange={(e) => setEditBatchData({ ...editBatchData, quantity: e.target.value })}
+                                      className="w-16 border border-slate-300 rounded p-1 text-xs text-center font-bold"
+                                    />
+                                  ) : (
+                                    <span className="font-extrabold text-slate-800">{batch.quantity}</span>
+                                  )}
+                                </td>
+
+                                {/* Cost Price */}
+                                <td className="px-4 py-3 text-center text-slate-600 font-semibold">
+                                  {isEditing ? (
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={editBatchData.cost_price}
+                                      onChange={(e) => setEditBatchData({ ...editBatchData, cost_price: e.target.value })}
+                                      className="w-20 border border-slate-300 rounded p-1 text-xs text-center"
+                                    />
+                                  ) : (
+                                    `৳${batch.cost_price.toFixed(2)}`
+                                  )}
+                                </td>
+
+                                {/* Expiry Date */}
+                                <td className="px-4 py-3">
+                                  {isEditing ? (
+                                    <input
+                                      type="date"
+                                      value={editBatchData.expiry_date || ''}
+                                      onChange={(e) => setEditBatchData({ ...editBatchData, expiry_date: e.target.value })}
+                                      className="border border-slate-300 rounded p-1 text-xs"
+                                    />
+                                  ) : batch.expiry_date ? (
+                                    <span className={`font-medium ${isExpired ? 'text-rose-600 font-bold' : isExpiringSoon ? 'text-amber-600 font-semibold' : 'text-slate-700'}`}>
+                                      {new Date(batch.expiry_date).toLocaleDateString()}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">No Expiry</span>
+                                  )}
+                                </td>
+
+                                {/* Received Date */}
+                                <td className="px-4 py-3 text-slate-500 text-xs">
+                                  {batch.received_date ? new Date(batch.received_date).toLocaleDateString() : '-'}
+                                </td>
+
+                                {/* Status */}
+                                <td className="px-4 py-3 text-center">{statusBadge}</td>
+
+                                {/* Actions */}
+                                {!isSuperAdmin && (
+                                  <td className="px-4 py-3 text-center space-x-1.5">
+                                    {isEditing ? (
+                                      <>
+                                        <button
+                                          onClick={() => handleSaveEditBatch(batch.id)}
+                                          className="text-emerald-600 hover:text-emerald-800 text-xs font-bold px-2 py-0.5 border border-emerald-200 rounded hover:bg-emerald-50"
+                                        >
+                                          Save
+                                        </button>
+                                        <button
+                                          onClick={() => setEditingBatchId(null)}
+                                          className="text-slate-400 hover:text-slate-600 text-xs font-semibold px-2 py-0.5 border border-slate-200 rounded"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={() => {
+                                            setEditingBatchId(batch.id);
+                                            setEditBatchData({
+                                              quantity: batch.quantity,
+                                              cost_price: batch.cost_price,
+                                              expiry_date: batch.expiry_date ? batch.expiry_date.split('T')[0] : '',
+                                              received_date: batch.received_date ? batch.received_date.split('T')[0] : ''
+                                            });
+                                          }}
+                                          className="text-indigo-600 hover:text-indigo-900 text-xs font-semibold hover:bg-indigo-50 px-2 py-0.5 border border-indigo-100 rounded transition-colors"
+                                          title="Edit batch quantity / expiry"
+                                        >
+                                          Edit
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteBatch(batch.id)}
+                                          className="text-rose-600 hover:text-rose-800 text-xs font-semibold hover:bg-rose-50 px-2 py-0.5 border border-rose-100 rounded transition-colors"
+                                          title="Delete batch"
+                                        >
+                                          Delete
+                                        </button>
+                                      </>
+                                    )}
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                      <svg className="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                      </svg>
+                      <p className="text-sm font-semibold text-slate-600 mb-1">No batches recorded yet</p>
+                      <p className="text-xs text-slate-400 mb-3">Receive your first batch shipment to track expiry dates independently.</p>
+                      {!isSuperAdmin && (
+                        <button
+                          onClick={() => setShowAddBatchForm(true)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-1.5 px-3.5 rounded-lg shadow-xs transition-colors"
+                        >
+                          + Add First Batch
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="pt-4 border-t border-slate-100 flex justify-end">
+                  <button
+                    onClick={() => setShowBatchesModal(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+
               </div>
             </div>
           )}

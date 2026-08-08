@@ -274,6 +274,8 @@ $routes = [
         // Products
         '/^products$/' => function() { ProductController::listProducts(); },
         '/^products\/(\d+)\/stock-sales-history$/' => function($args) { ProductController::getProductStockSalesHistory($args[0]); },
+        '/^products\/(\d+)\/batches$/' => function($args) { ProductController::getProductBatches($args[0]); },
+        '/^products\/(\d+)\/batches\/(\d+)$/' => function($args) { ProductController::getProductBatch($args[0], $args[1]); },
         '/^products\/(\d+)$/' => function($args) { ProductController::getProduct($args[0]); },
         // Customers
         '/^customers$/' => function() { CustomerController::listCustomers(); },
@@ -372,6 +374,7 @@ $routes = [
         '/^products$/' => function($args, $data) { ProductController::createProduct($data); },
         '/^products\/bulk-delete$/' => function($args, $data) { ProductController::bulkDeleteProducts($data); },
         '/^products\/bulk-upload$/' => function($args, $data) { ProductController::bulkUploadProducts(); },
+        '/^products\/(\d+)\/batches$/' => function($args, $data) { ProductController::createProductBatch($args[0], $data); },
         // Customers
         '/^customers$/' => function($args, $data) { CustomerController::createCustomer($data); },
         '/^customers\/bulk-upload$/' => function($args, $data) { CustomerController::bulkUpload(); },
@@ -432,6 +435,7 @@ $routes = [
         '/^auth\/me$/' => function($args, $data) { AuthController::updateMe($data); },
         // Products
         '/^products\/(\d+)$/' => function($args, $data) { ProductController::updateProduct($args[0], $data); },
+        '/^products\/(\d+)\/batches\/(\d+)$/' => function($args, $data) { ProductController::updateProductBatch($args[0], $args[1], $data); },
         // Customers
         '/^customers\/(\d+)$/' => function($args, $data) { CustomerController::updateCustomer($args[0], $data); },
         // Sales
@@ -488,6 +492,7 @@ $routes = [
     'DELETE' => [
         // Products
         '/^products\/(\d+)$/' => function($args) { ProductController::deleteProduct($args[0]); },
+        '/^products\/(\d+)\/batches\/(\d+)$/' => function($args) { ProductController::deleteProductBatch($args[0], $args[1]); },
         // Customers
         '/^customers\/(\d+)$/' => function($args) { CustomerController::deleteCustomer($args[0]); },
         // Suppliers
