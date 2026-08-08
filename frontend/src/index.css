@@ -180,6 +180,42 @@
     display: block !important;
     visibility: visible !important;
   }
+
+  /* Change Return Slip mode */
+  body.print-mode-change #receipt-print-area,
+  body.print-mode-change #history-print-area {
+    display: none !important;
+  }
+
+  body.print-mode-change #change-return-print-area {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    height: auto !important;
+    background: white !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.4 !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  body.print-mode-change #change-return-print-area * {
+    visibility: visible !important;
+    color: #000 !important;
+  }
+
+  /* Hide change-only in thermal/regular modes */
+  body.print-mode-thermal #change-return-print-area,
+  body:not(.print-mode-thermal):not(.print-mode-change) #change-return-print-area {
+    display: none !important;
+  }
 }
 
 /* --- BARCODE SCANNER LASER STYLES --- */

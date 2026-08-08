@@ -633,6 +633,8 @@ export default function ManualOrders() {
       const sale = await response.json();
 
       // Format receipt object
+      const paidAmt = parseFloat(sale.paid_amount);
+      const finalAmt = parseFloat(sale.final_amount);
       const formattedReceipt = {
         sale_id: sale.id,
         created_at: new Date(sale.created_at).toLocaleString(),
@@ -648,9 +650,10 @@ export default function ManualOrders() {
         subtotal: parseFloat(sale.total_amount),
         discount: parseFloat(sale.discount),
         tax: parseFloat(sale.tax),
-        final_amount: parseFloat(sale.final_amount),
-        paid_amount: parseFloat(sale.paid_amount),
+        final_amount: finalAmt,
+        paid_amount: paidAmt,
         due_amount: parseFloat(sale.due_amount),
+        change_amount: Math.max(0, paidAmt - finalAmt),
         items: sale.items
       };
 
@@ -1268,6 +1271,7 @@ export default function ManualOrders() {
                   <th className="pb-2 text-right">Total Final</th>
                   <th className="pb-2 text-right">Paid</th>
                   <th className="pb-2 text-right">Due</th>
+                  <th className="pb-2 text-right">Change Return</th>
                   <th className="pb-2 text-center">Actions</th>
                 </tr>
               </thead>
@@ -1285,7 +1289,9 @@ export default function ManualOrders() {
                     </td>
                   </tr>
                 ) : (
-                  filteredSalesHistory.slice((currentSalesPage - 1) * 15, currentSalesPage * 15).map((sale) => (
+                  filteredSalesHistory.slice((currentSalesPage - 1) * 15, currentSalesPage * 15).map((sale) => {
+                    const changeReturn = Math.max(0, parseFloat(sale.paid_amount) - parseFloat(sale.final_amount));
+                    return (
                     <tr key={sale.id} className="hover:bg-slate-50/40">
                       <td className="py-2.5 pr-2 font-semibold text-indigo-600">#{sale.id}</td>
                       <td className="py-2.5 pr-2 text-[10px] text-slate-400">{new Date(sale.created_at).toLocaleDateString()}</td>
@@ -1309,6 +1315,16 @@ export default function ManualOrders() {
                           <span className="text-emerald-500 font-medium">৳0.00</span>
                         )}
                       </td>
+                      <td className="py-2.5 pr-2 text-right">
+                        {changeReturn > 0 ? (
+                          <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-700 font-bold text-[10px] px-1.5 py-0.5 rounded">
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                            ৳{changeReturn.toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 text-[10px]">—</span>
+                        )}
+                      </td>
                       <td className="py-2.5 text-center">
                         <button
                           onClick={() => loadInvoiceDetails(sale.id)}
@@ -1318,7 +1334,8 @@ export default function ManualOrders() {
                         </button>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -2267,7 +2284,7 @@ export default function ManualOrders() {
             </div>
 
             <div className="mt-4 flex-1 overflow-y-auto min-h-0 space-y-4 pr-1">
-              <div className="flex justify-center space-x-3 bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <div className="flex flex-wrap justify-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
                 <button
                   onClick={() => handlePrintReceipt('thermal')}
                   className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2 px-4 rounded-xl text-xs shadow-sm flex items-center space-x-1.5"
@@ -2275,7 +2292,7 @@ export default function ManualOrders() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                   </svg>
-                  <span>Print 80mm Thermal Receipt</span>
+                  <span>Print 80mm Thermal</span>
                 </button>
                 <button
                   onClick={() => handlePrintReceipt('regular')}
@@ -2286,6 +2303,17 @@ export default function ManualOrders() {
                   </svg>
                   <span>Print A4 Invoice</span>
                 </button>
+                {receipt.change_amount > 0 && (
+                  <button
+                    onClick={() => handlePrintReceipt('change')}
+                    className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-semibold py-2 px-4 rounded-xl text-xs shadow-sm flex items-center space-x-1.5"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                    </svg>
+                    <span>Print Change Return Slip</span>
+                  </button>
+                )}
               </div>
 
               {/* Receipt Preview Area inside modal */}
@@ -2343,6 +2371,10 @@ export default function ManualOrders() {
                       <span>৳{receipt.tax.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between border-t border-slate-200 pt-2 font-bold text-slate-900 text-sm">
+                      <span>Bill Total:</span>
+                      <span>৳{receipt.final_amount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-emerald-700">
                       <span>Total Paid:</span>
                       <span>৳{receipt.paid_amount.toFixed(2)}</span>
                     </div>
@@ -2350,6 +2382,15 @@ export default function ManualOrders() {
                       <div className="flex justify-between font-bold text-rose-600">
                         <span>Outstanding Due:</span>
                         <span>৳{receipt.due_amount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {receipt.change_amount > 0 && (
+                      <div className="flex justify-between font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+                        <span className="flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                          Change Return:
+                        </span>
+                        <span>৳{receipt.change_amount.toFixed(2)}</span>
                       </div>
                     )}
                   </div>
@@ -2433,7 +2474,11 @@ export default function ManualOrders() {
                 <span>Tax ({shopDetails.tax_rate}%):</span>
                 <span>৳{receipt.tax.toFixed(2)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '3px', marginTop: '3px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '3px', marginTop: '3px' }}>
+                <span>Bill Total:</span>
+                <span>৳{receipt.final_amount.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', paddingTop: '2px' }}>
                 <span>Total Paid:</span>
                 <span>৳{receipt.paid_amount.toFixed(2)}</span>
               </div>
@@ -2441,6 +2486,12 @@ export default function ManualOrders() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold', color: '#ef4444', borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
                   <span>Outstanding Due:</span>
                   <span>৳{receipt.due_amount.toFixed(2)}</span>
+                </div>
+              )}
+              {receipt.change_amount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold', color: '#92400e', borderTop: '1px dashed #000', paddingTop: '3px', marginTop: '3px', backgroundColor: '#fef3c7', padding: '4px' }}>
+                  <span>&#8592; Change Return:</span>
+                  <span>৳{receipt.change_amount.toFixed(2)}</span>
                 </div>
               )}
             </div>
@@ -2523,7 +2574,11 @@ export default function ManualOrders() {
                   <span>Tax ({shopDetails.tax_rate}%):</span>
                   <span>৳{receipt.tax.toFixed(2)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold', borderTop: '2px solid #cbd5e1', paddingTop: '8px', color: '#1e293b' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '15px', fontWeight: 'bold', borderTop: '2px solid #cbd5e1', paddingTop: '8px', color: '#1e293b' }}>
+                  <span>Bill Total:</span>
+                  <span>৳{receipt.final_amount.toFixed(2)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold', paddingTop: '4px', marginTop: '4px' }}>
                   <span>Total Paid:</span>
                   <span style={{ color: '#10b981' }}>৳{receipt.paid_amount.toFixed(2)}</span>
                 </div>
@@ -2533,12 +2588,61 @@ export default function ManualOrders() {
                     <span>৳{receipt.due_amount.toFixed(2)}</span>
                   </div>
                 )}
+                {receipt.change_amount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold', borderTop: '2px solid #fbbf24', paddingTop: '8px', marginTop: '8px', color: '#92400e', backgroundColor: '#fef3c7', padding: '10px', borderRadius: '6px' }}>
+                    <span>&#8592; Change Return to Customer:</span>
+                    <span>৳{receipt.change_amount.toFixed(2)}</span>
+                  </div>
+                )}
               </div>
             </div>
 
             <div style={{ borderTop: '2px solid #e2e8f0', marginTop: '40px', paddingTop: '16px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
               <p style={{ margin: '0 0 4px 0' }}>Thank you for doing business with us!</p>
               <p style={{ margin: '0', fontWeight: '600' }}>Powered by Multi-Tenant POS System</p>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* --- CHANGE RETURN SLIP PRINT PORTAL --- */}
+      {receipt && receipt.change_amount > 0 && createPortal(
+        <div id="change-return-print-area" className="change-only" style={{ display: 'none' }}>
+          <div style={{ fontFamily: 'monospace', fontSize: '11px', width: '72mm', margin: '0 auto', padding: '8px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '1px dashed #000', paddingBottom: '8px' }}>
+              <h2 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 2px 0' }}>{receipt.shop_name}</h2>
+              {receipt.shop_phone && <p style={{ margin: '0 0 4px 0', fontSize: '9px' }}>Tel: {receipt.shop_phone}</p>}
+              <p style={{ margin: '4px 0 0 0', fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.05em' }}>*** CHANGE RETURN SLIP ***</p>
+            </div>
+
+            <div style={{ fontSize: '9px', lineHeight: '1.5', borderBottom: '1px dashed #000', paddingBottom: '6px', marginBottom: '6px' }}>
+              <div><strong>Invoice #:</strong> {receipt.sale_id}</div>
+              <div><strong>Date:</strong> {receipt.created_at}</div>
+              <div><strong>Customer:</strong> {receipt.customer_name}</div>
+              {receipt.customer_phone && <div><strong>Phone:</strong> {receipt.customer_phone}</div>}
+              <div><strong>Cashier:</strong> {receipt.staff_name}</div>
+            </div>
+
+            <div style={{ fontSize: '9px', lineHeight: '1.6', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Bill Total:</span>
+                <span>৳{receipt.final_amount.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Total Paid:</span>
+                <span>৳{receipt.paid_amount.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'center', border: '2px solid #000', padding: '8px', marginBottom: '8px', backgroundColor: '#fffbeb' }}>
+              <p style={{ margin: '0 0 4px 0', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}>Change Return to Customer</p>
+              <p style={{ margin: '0', fontSize: '22px', fontWeight: 'bold' }}>৳{receipt.change_amount.toFixed(2)}</p>
+            </div>
+
+            <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '8px' }}>
+              <p style={{ margin: '0' }}>Payment: {receipt.payment_method.toUpperCase()}</p>
+              <p style={{ margin: '4px 0 0 0', fontWeight: 'bold' }}>*** Thank You ***</p>
             </div>
           </div>
         </div>,
