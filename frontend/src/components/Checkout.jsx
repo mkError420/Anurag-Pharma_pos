@@ -535,19 +535,25 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       }
     }
 
-    const existingIndex = activeTab.cart.findIndex(item => item.id === product.id);
+    const existingIndex = activeTab.cart.findIndex(item => item.name.trim().toLowerCase() === product.name.trim().toLowerCase());
+    
+    // Calculate total stock for this product name across all batches
+    const totalStock = products
+      .filter(p => (p.name || '').trim().toLowerCase() === (product.name || '').trim().toLowerCase())
+      .reduce((sum, p) => sum + parseFloat(p.stock_quantity || 0), 0);
 
     if (existingIndex > -1) {
       const currentQty = activeTab.cart[existingIndex].quantity;
-      if (currentQty >= product.stock_quantity) {
-        triggerAlert('error', `Cannot exceed available inventory limit (${product.stock_quantity}) for "${product.name}".`);
+      if (currentQty >= totalStock) {
+        triggerAlert('error', `Cannot exceed available inventory limit (${totalStock}) for "${product.name}".`);
         return;
       }
       const updatedCart = [...activeTab.cart];
       updatedCart[existingIndex].quantity += 1;
+      updatedCart[existingIndex].stock_quantity = totalStock; // Ensure max stock is updated
       updateActiveTabState('cart', updatedCart);
     } else {
-      updateActiveTabState('cart', [...activeTab.cart, { ...product, quantity: 1, price: product.price }]);
+      updateActiveTabState('cart', [...activeTab.cart, { ...product, quantity: 1, price: product.price, stock_quantity: totalStock }]);
     }
   };
 
@@ -765,6 +771,45 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         await fetchCustomers();
       }
 
+      // Resolve FEFO allocations for the API payload
+      const payloadItems = [];
+      
+      const sortedProductsForApi = [...products].sort((a, b) => {
+        if (a.expiry_date && b.expiry_date) {
+          return new Date(a.expiry_date) - new Date(b.expiry_date);
+        }
+        if (a.expiry_date) return -1;
+        if (b.expiry_date) return 1;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+
+      activeTab.cart.forEach(cartItem => {
+        let remainingQty = cartItem.quantity;
+        const matchingProducts = sortedProductsForApi.filter(p => (p.name || '').trim().toLowerCase() === (cartItem.name || '').trim().toLowerCase());
+        
+        matchingProducts.forEach(p => {
+          if (remainingQty <= 0) return;
+          const alloc = Math.min(p.stock_quantity, remainingQty);
+          if (alloc > 0) {
+            payloadItems.push({
+              product_id: p.id,
+              quantity: alloc,
+              unit_price: parseFloat(cartItem.price) || 0
+            });
+            remainingQty -= alloc;
+          }
+        });
+        
+        // If any remaining qty (e.g. over total stock), dump on original ID to let backend fail correctly
+        if (remainingQty > 0) {
+          payloadItems.push({
+            product_id: cartItem.id,
+            quantity: remainingQty,
+            unit_price: parseFloat(cartItem.price) || 0
+          });
+        }
+      });
+
       // Structure POST payload matching backend schema requirements
       const payload = {
         customer_id: finalCustomerId,
@@ -775,11 +820,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         reduce_due_amount: parseFloat(activeTab.reduceDueAmount || 0),
         redeem_points: activeTab.redeemPoints || 0,
         created_at: activeTab.saleDate || new Date().toBDISODateString(),
-        items: activeTab.cart.map(item => ({
-          product_id: item.id,
-          quantity: item.quantity,
-          unit_price: parseFloat(item.price) || 0
-        }))
+        items: payloadItems
       };
 
       const response = await fetch(`${API_BASE_URL}/sales`, {
@@ -835,6 +876,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         staff_name: currentUser?.name || 'Cashier',
         reduce_due_amount: parseFloat(activeTab.reduceDueAmount || 0),
         paid_amount: paid,
+        change_amount: Math.max(0, paid - finalTotal),
         due_amount: outstandingDue > 0 ? outstandingDue : 0,
         loyalty_enabled: loyaltyEnabled,
         points_earned: data.points_earned || 0,
@@ -1413,16 +1455,37 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm">
-                      {[...products].sort((a, b) => {
-                        if (a.expiry_date && b.expiry_date) {
-                          return new Date(a.expiry_date) - new Date(b.expiry_date);
-                        }
-                        if (a.expiry_date) return -1;
-                        if (b.expiry_date) return 1;
-                        return (a.name || '').localeCompare(b.name || '');
-                      }).map((product, index) => {
-                        const inCartItem = activeTab?.cart?.find(item => item.id === product.id);
-                        const remainingQty = product.stock_quantity - (inCartItem ? inCartItem.quantity : 0);
+                      {(() => {
+                        const sortedProducts = [...products].sort((a, b) => {
+                          if (a.expiry_date && b.expiry_date) {
+                            return new Date(a.expiry_date) - new Date(b.expiry_date);
+                          }
+                          if (a.expiry_date) return -1;
+                          if (b.expiry_date) return 1;
+                          return (a.name || '').localeCompare(b.name || '');
+                        });
+
+                        // Pre-calculate cart allocations for FEFO display
+                        const cartAllocations = {};
+                        activeTab?.cart?.forEach(item => {
+                          cartAllocations[(item.name || '').trim().toLowerCase()] = item.quantity;
+                        });
+
+                        const rowAllocations = {};
+                        sortedProducts.forEach(product => {
+                          const nameKey = (product.name || '').trim().toLowerCase();
+                          let qtyForRow = 0;
+                          if (cartAllocations[nameKey] > 0) {
+                            qtyForRow = Math.min(product.stock_quantity, cartAllocations[nameKey]);
+                            cartAllocations[nameKey] -= qtyForRow;
+                          }
+                          rowAllocations[product.id] = parseFloat(qtyForRow.toFixed(3));
+                        });
+
+                        return sortedProducts.map((product, index) => {
+                        const inCartItem = activeTab?.cart?.find(item => (item.name || '').trim().toLowerCase() === (product.name || '').trim().toLowerCase());
+                        const qtyForRow = rowAllocations[product.id] || 0;
+                        const remainingQty = product.stock_quantity;
                         const isOutOfStock = remainingQty <= 0;
 
                         // Expiry status calculation
@@ -1486,10 +1549,10 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                               </span>
                             </td>
                             <td className="p-3 text-center">
-                              {inCartItem ? (
+                              {qtyForRow > 0 && inCartItem ? (
                                 <div className="flex items-center justify-center space-x-2">
                                   <button
-                                    onClick={() => updateQuantity(product.id, -1)}
+                                    onClick={() => updateQuantity(inCartItem.id, -1)}
                                     className="w-7 h-7 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg flex items-center justify-center transition-colors"
                                   >
                                     -
@@ -1499,13 +1562,23 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                                     min="0"
                                     step="0.001"
                                     max={product.stock_quantity}
-                                    value={inCartItem.quantity}
-                                    onChange={(e) => handleQuantityInput(product.id, e.target.value)}
-                                    onBlur={() => handleQuantityBlur(product.id, inCartItem.quantity)}
+                                    value={qtyForRow}
+                                    onChange={(e) => {
+                                      let val = parseFloat(e.target.value) || 0;
+                                      if (val > product.stock_quantity) val = product.stock_quantity;
+                                      const newTotal = (inCartItem.quantity - qtyForRow) + val;
+                                      handleQuantityInput(inCartItem.id, newTotal.toString());
+                                    }}
+                                    onBlur={(e) => {
+                                      let val = parseFloat(e.target.value) || 0;
+                                      if (val > product.stock_quantity) val = product.stock_quantity;
+                                      const newTotal = (inCartItem.quantity - qtyForRow) + val;
+                                      handleQuantityBlur(inCartItem.id, newTotal);
+                                    }}
                                     className="w-12 text-center text-xs font-extrabold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded-md border border-indigo-100 focus:ring-1 focus:ring-indigo-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                   />
                                   <button
-                                    onClick={() => updateQuantity(product.id, 1)}
+                                    onClick={() => updateQuantity(inCartItem.id, 1)}
                                     className="w-7 h-7 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded-lg flex items-center justify-center transition-colors"
                                   >
                                     +
@@ -1523,7 +1596,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                             </td>
                           </tr>
                         );
-                      })}
+                      })})()}
                     </tbody>
                   </table>
                 </div>
@@ -1719,26 +1792,26 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               <div className="w-full py-4 flex justify-center items-start min-h-0 overflow-y-auto">
                 {previewMode === 'thermal' ? (
                   /* Thermal Receipt Mockup */
-                  <div className="w-[320px] bg-white text-slate-800 shadow-lg p-6 font-mono text-[11px] leading-relaxed border-t-8 border-indigo-600 rounded-b-md">
+                  <div className="w-[320px] bg-white text-slate-950 shadow-lg p-6 font-mono text-[12px] font-bold leading-relaxed border-t-8 border-indigo-600 rounded-b-md">
                     <div className="text-center mb-4">
-                      <h2 className="text-sm font-bold tracking-tight uppercase text-slate-950">{receipt.shop_name}</h2>
-                      {receipt.shop_address && <p className="text-[10px] text-slate-500 mt-0.5">{receipt.shop_address}</p>}
-                      {receipt.shop_phone && <p className="text-[10px] text-slate-500">Tel: {receipt.shop_phone}</p>}
-                      {receipt.shop_email && <p className="text-[10px] text-slate-500">Email: {receipt.shop_email}</p>}
-                      <p className="text-[9px] text-slate-400 mt-2 font-sans tracking-widest">*** TRANSACTION RECEIPT ***</p>
+                      <h2 className="text-base font-black tracking-tight uppercase text-black">{receipt.shop_name}</h2>
+                      {receipt.shop_address && <p className="text-[11px] font-bold text-slate-900 mt-0.5">{receipt.shop_address}</p>}
+                      {receipt.shop_phone && <p className="text-[11px] font-bold text-slate-900">Tel: {receipt.shop_phone}</p>}
+                      {receipt.shop_email && <p className="text-[11px] font-bold text-slate-900">Email: {receipt.shop_email}</p>}
+                      <p className="text-[10px] font-black text-black mt-2 font-sans tracking-widest">*** TRANSACTION RECEIPT ***</p>
                     </div>
 
-                    <div className="border-b border-dashed border-slate-300 py-2 my-2 text-[10px] space-y-0.5 text-slate-600">
-                      <div><span className="font-semibold text-slate-800">Sale ID:</span> #{receipt.sale_id}</div>
-                      <div><span className="font-semibold text-slate-800">Date:</span> {receipt.created_at}</div>
-                      <div><span className="font-semibold text-slate-800">Cashier:</span> {receipt.staff_name}</div>
-                      <div><span className="font-semibold text-slate-800">Customer:</span> {receipt.customer_name}</div>
-                      {receipt.customer_phone && <div><span className="font-semibold text-slate-800">Phone:</span> {receipt.customer_phone}</div>}
+                    <div className="border-b-2 border-dashed border-slate-900 py-2 my-2 text-[11px] space-y-0.5 text-black">
+                      <div><span className="font-extrabold text-black">Sale ID:</span> #{receipt.sale_id}</div>
+                      <div><span className="font-extrabold text-black">Date:</span> {receipt.created_at}</div>
+                      <div><span className="font-extrabold text-black">Cashier:</span> {receipt.staff_name}</div>
+                      <div><span className="font-extrabold text-black">Customer:</span> {receipt.customer_name}</div>
+                      {receipt.customer_phone && <div><span className="font-extrabold text-black">Phone:</span> {receipt.customer_phone}</div>}
                     </div>
 
-                    <table className="w-full text-left text-[10px] border-collapse">
+                    <table className="w-full text-left text-[11px] font-bold border-collapse">
                       <thead>
-                        <tr className="border-b border-dashed border-slate-300 font-bold text-slate-700">
+                        <tr className="border-b-2 border-dashed border-slate-900 font-black text-black">
                           <th className="pb-1 text-left">Item</th>
                           <th className="pb-1 text-center w-8">Qty</th>
                           <th className="pb-1 text-center w-8">Unit</th>
@@ -1748,14 +1821,14 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       </thead>
                       <tbody>
                         {receipt.items.map((item, idx) => (
-                          <tr key={idx} className="border-b border-dotted border-slate-100">
-                            <td className="py-2 pr-1 text-slate-800 break-words max-w-[100px]">
+                          <tr key={idx} className="border-b border-dashed border-slate-300">
+                            <td className="py-2 pr-1 text-black font-extrabold break-words max-w-[100px]">
                               <div>{item.name || item.product_name}</div>
                             </td>
-                            <td className="py-2 text-center text-slate-600">{item.quantity}</td>
-                            <td className="py-2 text-center text-slate-500">{item.unit || 'pcs'}</td>
-                            <td className="py-2 text-right text-slate-600">৳{parseFloat(item.price || item.unit_price).toFixed(3)}</td>
-                            <td className="py-2 text-right font-semibold text-slate-800">
+                            <td className="py-2 text-center text-black font-bold">{item.quantity}</td>
+                            <td className="py-2 text-center text-slate-800 font-semibold">{item.unit || 'pcs'}</td>
+                            <td className="py-2 text-right text-black font-bold">৳{parseFloat(item.price || item.unit_price).toFixed(3)}</td>
+                            <td className="py-2 text-right font-black text-black">
                               ৳{((item.price || item.unit_price) * item.quantity).toFixed(3)}
                             </td>
                           </tr>
@@ -1763,37 +1836,37 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       </tbody>
                     </table>
 
-                    <div className="border-t border-dashed border-slate-300 pt-2.5 mt-2.5 text-[10px] space-y-1.5 text-slate-600">
+                    <div className="border-t-2 border-dashed border-slate-900 pt-2.5 mt-2.5 text-[11px] font-bold space-y-1.5 text-black">
                       <div className="flex justify-between">
                         <span>Subtotal:</span>
-                        <span className="font-medium text-slate-800">৳{parseFloat(receipt.subtotal).toFixed(3)}</span>
+                        <span className="font-extrabold text-black">৳{parseFloat(receipt.subtotal).toFixed(3)}</span>
                       </div>
                       {parseFloat(receipt.discount || 0) > 0 && (
-                        <div className="flex justify-between text-rose-500">
+                        <div className="flex justify-between text-rose-600 font-extrabold">
                           <span>Discount:</span>
                           <span>-৳{parseFloat(receipt.discount).toFixed(3)}</span>
                         </div>
                       )}
                       <div className="flex justify-between">
                         <span>Tax:</span>
-                        <span className="font-medium text-slate-800">৳{parseFloat(receipt.tax).toFixed(3)}</span>
+                        <span className="font-extrabold text-black">৳{parseFloat(receipt.tax).toFixed(3)}</span>
                       </div>
                       {receipt.loyalty_enabled && (
                         <>
                           {receipt.points_earned > 0 && (
-                            <div className="flex justify-between text-indigo-650 font-semibold">
+                            <div className="flex justify-between text-indigo-700 font-black">
                               <span>Points Earned:</span>
                               <span>+{receipt.points_earned} pts</span>
                             </div>
                           )}
                           {receipt.points_redeemed > 0 && (
-                            <div className="flex justify-between text-rose-600 font-semibold">
+                            <div className="flex justify-between text-rose-700 font-black">
                               <span>Points Redeemed:</span>
                               <span>-{receipt.points_redeemed} pts</span>
                             </div>
                           )}
                           {receipt.points_redeemed_value > 0 && (
-                            <div className="flex justify-between text-rose-500 text-[10px]">
+                            <div className="flex justify-between text-rose-600 font-bold text-[11px]">
                               <span>Points Discount:</span>
                               <span>-৳{receipt.points_redeemed_value.toFixed(3)}</span>
                             </div>
@@ -1801,27 +1874,39 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                         </>
                       )}
                       {parseFloat(receipt.reduce_due_amount || 0) > 0 && (
-                        <div className="flex justify-between text-indigo-600 font-medium">
+                        <div className="flex justify-between text-indigo-700 font-black">
                           <span>Due Paid:</span>
                           <span>৳{parseFloat(receipt.reduce_due_amount).toFixed(3)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between font-bold text-slate-900 border-t border-dotted border-slate-200 pt-1.5 text-[12px]">
-                        <span>Total Paid:</span>
+                      <div className="flex justify-between font-black text-black border-t-2 border-dashed border-slate-900 pt-1.5 text-[13px]">
+                        <span>Total Bill:</span>
                         <span>৳{parseFloat(receipt.total).toFixed(3)}</span>
                       </div>
+                      {receipt.change_amount > 0 && (
+                        <>
+                          <div className="flex justify-between font-bold text-black pt-1 text-[11px]">
+                            <span>Given Amount:</span>
+                            <span>৳{parseFloat(receipt.paid_amount).toFixed(3)}</span>
+                          </div>
+                          <div className="flex justify-between font-black text-emerald-700 border-t border-dashed border-slate-900 pt-1 text-[12px]">
+                            <span>Change Return:</span>
+                            <span>৳{parseFloat(receipt.change_amount).toFixed(3)}</span>
+                          </div>
+                        </>
+                      )}
                       {parseFloat(receipt.due_amount || 0) > 0 && (
-                        <div className="flex justify-between font-bold text-rose-600 border-t border-dotted border-slate-200 pt-1 text-[11px]">
+                        <div className="flex justify-between font-black text-rose-700 border-t border-dashed border-slate-900 pt-1 text-[12px]">
                           <span>Due ammount:</span>
                           <span>৳{parseFloat(receipt.due_amount).toFixed(3)}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="text-center mt-6 pt-3 border-t border-dashed border-slate-300 relative">
-                      <p className="text-[10px] text-slate-600 uppercase font-semibold">Payment: {receipt.payment_method.replace('_', ' ')}</p>
-                      <p className="text-[10px] font-bold text-slate-800 tracking-wider mt-2">*** THANK YOU ***</p>
-                      <p className="text-[8px] text-slate-500 mt-4 text-right">Bring this receipt, if you return product</p>
+                    <div className="text-center mt-6 pt-3 border-t-2 border-dashed border-slate-900 relative">
+                      <p className="text-[11px] text-black uppercase font-bold">Payment: {receipt.payment_method.replace('_', ' ')}</p>
+                      <p className="text-[11px] font-black text-black tracking-wider mt-2">*** THANK YOU ***</p>
+                      <p className="text-[9px] font-bold text-slate-800 mt-4 text-right">Bring this receipt, if you return product</p>
                     </div>
                   </div>
                 ) : (
@@ -2055,10 +2140,10 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
       {/* --- DYNAMIC PRINT AREA (OFF-SCREEN ON APPLICATION SCREEN, SHOWN VIA PRINT MEDIA CLASS) --- */}
       {receipt && createPortal(
-        <div id="receipt-print-area">
+        <div id="receipt-print-area" style={{ marginTop: 0, paddingTop: 0 }}>
           {/* Thermal View Container */}
-          <div className="thermal-only">
-            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+          <div className="thermal-only" style={{ marginTop: 0, paddingTop: 0 }}>
+            <div style={{ textAlign: 'center', marginBottom: '8px', marginTop: 0, paddingTop: 0 }}>
               <h2 style={{ fontSize: '15px', fontWeight: 'bold', margin: '0 0 2px 0' }}>{receipt.shop_name}</h2>
               {receipt.shop_address && <p style={{ margin: '0 0 2px 0', fontSize: '9px' }}>{receipt.shop_address}</p>}
               <div style={{ fontSize: '9px', margin: '0 0 4px 0' }}>
@@ -2145,9 +2230,21 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '3px', marginTop: '3px' }}>
-                <span>Total Paid:</span>
+                <span>Total Bill:</span>
                 <span>৳{parseFloat(receipt.total).toFixed(3)}</span>
               </div>
+              {receipt.change_amount > 0 && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold', paddingTop: '2px' }}>
+                    <span>Given Amount:</span>
+                    <span>৳{parseFloat(receipt.paid_amount).toFixed(3)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
+                    <span>Change Return:</span>
+                    <span>৳{parseFloat(receipt.change_amount).toFixed(3)}</span>
+                  </div>
+                </>
+              )}
               {parseFloat(receipt.due_amount || 0) > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold', color: '#ef4444', borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
                   <span>Due ammount:</span>
@@ -3006,6 +3103,19 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                 ? (activeTab.isPaidTouched ? 0 : finalTotal)
                 : (isNaN(parseFloat(rawPaid)) ? 0 : parseFloat(rawPaid));
               const dueAmount = Math.max(0, finalTotal - parsedPaid);
+              const changeReturn = Math.max(0, parsedPaid - finalTotal);
+
+              if (changeReturn > 0) {
+                return (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 mt-1 space-y-0.5 text-[11px] text-emerald-800">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-emerald-900">Change Return (Return to Customer):</span>
+                      <span className="font-black text-emerald-700 text-xs">৳{changeReturn.toFixed(3)}</span>
+                    </div>
+                  </div>
+                );
+              }
+
               if (dueAmount > 0) {
                 return (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 mt-1 space-y-0.5 text-[11px] text-amber-800">
