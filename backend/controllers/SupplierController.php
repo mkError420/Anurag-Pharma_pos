@@ -482,14 +482,14 @@ class SupplierController {
                 // Auto-generate SKU if empty
                 $sku = !empty($item['sku']) ? $item['sku'] : ('SKU-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $item['name']), 0, 3)) . '-' . rand(100, 999));
 
-                // Look for matching product by SKU in this shop
-                $stmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ? LIMIT 1', [$shopId, $sku]);
+                // Look for matching product by SKU & Expiry Date in this shop
+                $stmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ? AND (expiry_date = ? OR (expiry_date IS NULL AND ? IS NULL)) LIMIT 1', [$shopId, $sku, $resolvedExpiry, $resolvedExpiry]);
                 $existingProd = $stmt->fetch();
 
                 if ($existingProd) {
                     $productId = (int)$existingProd['id'];
-                    DB::query('UPDATE products SET supplier_id = ?, category = COALESCE(?, category), expiry_date = COALESCE(?, expiry_date) WHERE id = ? AND shop_id = ?', [
-                        $supplierId, !empty($item['category']) ? $item['category'] : null, $resolvedExpiry, $productId, $shopId
+                    DB::query('UPDATE products SET supplier_id = ?, category = COALESCE(?, category) WHERE id = ? AND shop_id = ?', [
+                        $supplierId, !empty($item['category']) ? $item['category'] : null, $productId, $shopId
                     ]);
                 } else {
                     DB::query(
@@ -506,10 +506,57 @@ class SupplierController {
                     $productId = (int)DB::lastInsertId();
                 }
             } else {
-                // Existing product selected from inventory — update directly under its existing SKU
-                DB::query('UPDATE products SET supplier_id = ?, category = COALESCE(?, category), expiry_date = COALESCE(?, expiry_date) WHERE id = ? AND shop_id = ?', [
-                    $supplierId, !empty($item['category']) ? $item['category'] : null, $resolvedExpiry, $productId, $shopId
-                ]);
+                // Existing product selected from inventory — check if user specified a new distinct Expiry Date
+                $baseProdStmt = DB::query('SELECT * FROM products WHERE id = ? AND shop_id = ?', [$productId, $shopId]);
+                $baseProd = $baseProdStmt->fetch();
+
+                if ($baseProd) {
+                    $baseExpiry = !empty($baseProd['expiry_date']) ? date('Y-m-d', strtotime($baseProd['expiry_date'])) : null;
+                    if ($resolvedExpiry !== null && $resolvedExpiry !== $baseExpiry) {
+                        // Check if a batch product already exists with this SKU/Name + Expiry Date
+                        $matchingProdStmt = DB::query(
+                            'SELECT id FROM products WHERE shop_id = ? AND (sku = ? OR name = ?) AND expiry_date = ? LIMIT 1',
+                            [$shopId, $baseProd['sku'], $baseProd['name'], $resolvedExpiry]
+                        );
+                        $matchingProd = $matchingProdStmt->fetch();
+
+                        if ($matchingProd) {
+                            $productId = (int)$matchingProd['id'];
+                            DB::query('UPDATE products SET supplier_id = ?, category = COALESCE(?, category) WHERE id = ? AND shop_id = ?', [
+                                $supplierId, !empty($item['category']) ? $item['category'] : null, $productId, $shopId
+                            ]);
+                        } else {
+                            $newSku = $baseProd['sku'] . '-EXP-' . date('ymd', strtotime($resolvedExpiry));
+                            $checkSkuStmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ?', [$shopId, $newSku]);
+                            if ($checkSkuStmt->fetch()) {
+                                $newSku = $baseProd['sku'] . '-' . rand(100, 999);
+                            }
+
+                            DB::query(
+                                'INSERT INTO products (shop_id, name, sku, price, cost_price, stock_quantity, low_stock_threshold, expiry_date, supplier_id, unit, category)
+                                 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)',
+                                [
+                                    $shopId,
+                                    $baseProd['name'],
+                                    $newSku,
+                                    $item['selling_price'] > 0 ? $item['selling_price'] : (float)$baseProd['price'],
+                                    $item['cost_price'],
+                                    (int)$baseProd['low_stock_threshold'],
+                                    $resolvedExpiry,
+                                    $supplierId,
+                                    $baseProd['unit'],
+                                    !empty($item['category']) ? $item['category'] : $baseProd['category']
+                                ]
+                            );
+                            $productId = (int)DB::lastInsertId();
+                        }
+                    } else {
+                        // Expiry dates match or resolvedExpiry is null, update base product supplier/category
+                        DB::query('UPDATE products SET supplier_id = ?, category = COALESCE(?, category) WHERE id = ? AND shop_id = ?', [
+                            $supplierId, !empty($item['category']) ? $item['category'] : null, $productId, $shopId
+                        ]);
+                    }
+                }
             }
 
             $subtotal = $item['quantity'] * $item['cost_price'];

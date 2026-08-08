@@ -104,9 +104,41 @@ export default function DashboardLayout({
               ))}
             </div>
             
-            {/* Stock Alerts Bell Notification */}
             {user.role !== 'super_admin' && (() => {
-              const totalAlerts = lowStockItems.length + expiryItems.length;
+              // Group low stock items by name
+              const uniqueLowStockItems = [];
+              const lowStockMap = new Map();
+              (lowStockItems || []).forEach(item => {
+                const nameKey = (item.name || '').trim().toLowerCase();
+                if (!lowStockMap.has(nameKey)) {
+                  const clonedItem = { ...item, total_stock_quantity: parseFloat(item.stock_quantity || 0) };
+                  lowStockMap.set(nameKey, clonedItem);
+                  uniqueLowStockItems.push(clonedItem);
+                } else {
+                  lowStockMap.get(nameKey).total_stock_quantity += parseFloat(item.stock_quantity || 0);
+                }
+              });
+
+              // Group expiry items by name, keeping the earliest expiry date
+              const uniqueExpiryItems = [];
+              const expiryMap = new Map();
+              (expiryItems || []).forEach(item => {
+                if (!item.expiry_date) return;
+                const nameKey = (item.name || '').trim().toLowerCase();
+                if (!expiryMap.has(nameKey)) {
+                  expiryMap.set(nameKey, item);
+                  uniqueExpiryItems.push(item);
+                } else {
+                  const existing = expiryMap.get(nameKey);
+                  if (new Date(item.expiry_date) < new Date(existing.expiry_date)) {
+                    expiryMap.set(nameKey, item);
+                    const index = uniqueExpiryItems.findIndex(i => (i.name || '').trim().toLowerCase() === nameKey);
+                    uniqueExpiryItems[index] = item;
+                  }
+                }
+              });
+
+              const totalAlerts = uniqueLowStockItems.length + uniqueExpiryItems.length;
               return (
                 <div className="relative">
                   <button
@@ -149,7 +181,7 @@ export default function DashboardLayout({
                         ) : (
                           <>
                             {/* Low Stock Items */}
-                            {lowStockItems.map((item) => (
+                            {uniqueLowStockItems.map((item) => (
                               <div key={`low-${item.id}`} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                                 <div className="flex justify-between items-start">
                                   <h4 className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate pr-2">
@@ -160,13 +192,13 @@ export default function DashboardLayout({
                                   </span>
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                  Qty: {item.stock_quantity} (Below threshold {item.low_stock_threshold}).
+                                  Qty: {item.total_stock_quantity} (Below threshold {item.low_stock_threshold}).
                                 </p>
                               </div>
                             ))}
 
                             {/* Expiring/Expired Items */}
-                            {expiryItems.map((item) => {
+                            {uniqueExpiryItems.map((item) => {
                               const today = new Date();
                               today.setHours(0, 0, 0, 0);
                               const expiry = new Date(item.expiry_date);

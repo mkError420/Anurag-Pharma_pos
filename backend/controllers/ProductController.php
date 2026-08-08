@@ -36,11 +36,11 @@ class ProductController {
             $alertConditions = [];
 
             if ($low_stock === 'true') {
-                $alertConditions[] = "p.stock_quantity <= p.low_stock_threshold";
+                $alertConditions[] = "(SELECT SUM(p2.stock_quantity) FROM products p2 WHERE TRIM(LOWER(p2.name)) = TRIM(LOWER(p.name)) AND p2.shop_id = p.shop_id) <= p.low_stock_threshold";
             }
 
             if ($expiring === 'true') {
-                $alertConditions[] = "(p.expiry_date IS NOT NULL AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY))";
+                $alertConditions[] = "(p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0)";
             }
 
             if (!empty($alertConditions)) {
