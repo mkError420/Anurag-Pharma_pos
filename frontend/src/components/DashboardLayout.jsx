@@ -153,7 +153,7 @@ export default function DashboardLayout({
                               <div key={`low-${item.id}`} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                                 <div className="flex justify-between items-start">
                                   <h4 className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate pr-2">
-                                    {item.name}
+                                    {item.name} <span className="text-xs font-mono text-slate-400 font-normal">({item.sku})</span>
                                   </h4>
                                   <span className="text-[10px] text-rose-500 font-bold bg-rose-50 px-1.5 py-0.5 rounded shrink-0 uppercase border border-rose-100">
                                     Low Stock
@@ -178,7 +178,7 @@ export default function DashboardLayout({
                                 <div key={`exp-${item.id}`} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                                   <div className="flex justify-between items-start">
                                     <h4 className="text-sm font-medium text-slate-800 truncate pr-2">
-                                      {item.name}
+                                      {item.name} <span className="text-xs font-mono text-slate-400 font-normal">({item.sku})</span>
                                     </h4>
                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase border ${
                                       isExpired 

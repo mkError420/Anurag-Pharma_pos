@@ -51,7 +51,8 @@ class ProductController {
             if ($latest !== null) {
                 $sql .= " ORDER BY p.created_at DESC, p.id DESC LIMIT " . (int)$latest;
             } else {
-                $sql .= " ORDER BY p.name ASC";
+                // Priority: Items expiring earliest come first, items with no expiry date come after
+                $sql .= " ORDER BY CASE WHEN p.expiry_date IS NOT NULL AND p.expiry_date != '' THEN 0 ELSE 1 END ASC, p.expiry_date ASC, p.name ASC";
             }
 
             $stmt = DB::query($sql, $params);

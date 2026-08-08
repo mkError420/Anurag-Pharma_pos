@@ -1413,7 +1413,14 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm">
-                      {products.map((product, index) => {
+                      {[...products].sort((a, b) => {
+                        if (a.expiry_date && b.expiry_date) {
+                          return new Date(a.expiry_date) - new Date(b.expiry_date);
+                        }
+                        if (a.expiry_date) return -1;
+                        if (b.expiry_date) return 1;
+                        return (a.name || '').localeCompare(b.name || '');
+                      }).map((product, index) => {
                         const inCartItem = activeTab?.cart?.find(item => item.id === product.id);
                         const remainingQty = product.stock_quantity - (inCartItem ? inCartItem.quantity : 0);
                         const isOutOfStock = remainingQty <= 0;
