@@ -101,7 +101,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                   <span className="text-white font-bold text-sm">POS</span>
                 </div>
               )}
-              <span className="text-gray-900 font-bold text-2xl">POS System</span>
+              <span className="text-gray-900 font-bold text-2xl">Codexxaa-Solutions</span>
             </div>
 
             {/* Desktop Navigation Links */}

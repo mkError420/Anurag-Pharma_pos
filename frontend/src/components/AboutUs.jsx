@@ -180,38 +180,98 @@ export default function AboutUs({ onNavigate, publicPage }) {
               <p>No team members to display at this time.</p>
             </div>
           ) : (
-            <div className="grid md:grid-cols-4 gap-8">
-              {teamMembers.map((member) => (
-                <div key={member.id} className="text-center p-6 border border-gray-200 bg-white">
-                  {member.image_url ? (
-                    <img
-                      src={member.image_url}
-                      alt={member.name}
-                      className="w-24 h-24 rounded-full object-cover mx-auto mb-4 border-4 border-gray-100"
-                    />
-                  ) : (
-                    <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 border-4 border-gray-100">
-                      <span className="text-gray-600 font-bold text-2xl">{member.name.charAt(0)}</span>
+            <div>
+              {/* Founders/CEO Row */}
+              {(() => {
+                const founders = teamMembers.filter(member => 
+                  member.role.toLowerCase().includes('founder') || 
+                  member.role.toLowerCase().includes('ceo') ||
+                  member.role.toLowerCase().includes('co-founder')
+                );
+                return founders.length > 0 ? (
+                  <div className="mb-12">
+                    <div className="flex justify-center">
+                      {founders.map((member) => (
+                        <div key={member.id} className="text-center p-6 border border-gray-200 bg-white shadow-lg mx-4">
+                          {member.image_url ? (
+                            <img
+                              src={member.image_url}
+                              alt={member.name}
+                              className="w-32 h-32 rounded-full object-cover mx-auto mb-4 border-4 border-gray-100"
+                            />
+                          ) : (
+                            <div className="w-32 h-32 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 border-4 border-gray-100">
+                              <span className="text-gray-600 font-bold text-3xl">{member.name.charAt(0)}</span>
+                            </div>
+                          )}
+                          <h3 className="text-gray-900 font-serif font-bold text-xl mb-2">{member.name}</h3>
+                          <p className="text-gray-800 text-sm font-semibold italic">{member.role}</p>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                  <h3 className="text-gray-900 font-serif font-bold text-lg mb-2">{member.name}</h3>
-                  <p className="text-gray-600 text-sm italic">{member.role}</p>
-                </div>
-              ))}
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Other Team Members Row */}
+              {(() => {
+                const otherMembers = teamMembers.filter(member => 
+                  !member.role.toLowerCase().includes('founder') && 
+                  !member.role.toLowerCase().includes('ceo') &&
+                  !member.role.toLowerCase().includes('co-founder')
+                );
+                return otherMembers.length > 0 ? (
+                  <div>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                      {otherMembers.map((member) => (
+                        <div key={member.id} className="text-center p-6 border border-gray-200 bg-white">
+                          {member.image_url ? (
+                            <img
+                              src={member.image_url}
+                              alt={member.name}
+                              className="w-24 h-24 rounded-full object-cover mx-auto mb-4 border-4 border-gray-100"
+                            />
+                          ) : (
+                            <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 border-4 border-gray-100">
+                              <span className="text-gray-600 font-bold text-2xl">{member.name.charAt(0)}</span>
+                            </div>
+                          )}
+                          <h3 className="text-gray-900 font-serif font-bold text-lg mb-2">{member.name}</h3>
+                          <p className="text-gray-600 text-sm italic">{member.role}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
             </div>
           )}
         </div>
 
         {/* Classic Quote Section */}
-        <div className="max-w-4xl mx-auto text-center mb-24">
-          <div className="border-t-2 border-b-2 border-gray-200 py-12 px-8">
-            <svg className="w-12 h-12 text-gray-300 mx-auto mb-6" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-9.57 1.413 0 2.286.146 3.676.647.326.134.526.46.526.825v3.478c0 .365-.197.693-.526.825-1.39-.58-2.263-.647-3.676-.647-5.252 0-5.704 3.731-9.57 8.983-9.57v7.391H21V21h-6.983zM8.017 21v-7.391c0-5.704 3.731-9.57 8.983-9.57 1.413 0 2.286.146 3.676.647.326.134.526.46.526.825v3.478c0 .365-.197.693-.526.825-1.39-.58-2.263-.647-3.676-.647-5.252 0-5.704 3.731-9.57 8.983-9.57v7.391H21V21H8.017z"/>
-            </svg>
-            <p className="text-2xl font-serif text-gray-700 italic leading-relaxed mb-6">
-              Success is not just about making sales. It's about building relationships, understanding needs, and delivering solutions that truly make a difference in our customers' businesses.
-            </p>
-            <p className="text-gray-500 font-semibold">— Our Founding Philosophy</p>
+        <div className="max-w-6xl mx-auto mb-24">
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Founding Philosophy */}
+            <div className="text-center border-t-2 border-b-2 border-gray-200 py-12 px-8">
+              <svg className="w-12 h-12 text-gray-300 mx-auto mb-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-9.57 1.413 0 2.286.146 3.676.647.326.134.526.46.526.825v3.478c0 .365-.197.693-.526.825-1.39-.58-2.263-.647-3.676-.647-5.252 0-5.704 3.731-9.57 8.983-9.57v7.391H21V21h-6.983zM8.017 21v-7.391c0-5.704 3.731-9.57 8.983-9.57 1.413 0 2.286.146 3.676.647.326.134.526.46.526.825v3.478c0 .365-.197.693-.526.825-1.39-.58-2.263-.647-3.676-.647-5.252 0-5.704 3.731-9.57 8.983-9.57v7.391H21V21H8.017z"/>
+              </svg>
+              <p className="text-xl font-serif text-gray-700 italic leading-relaxed mb-6">
+                Success is not just about making sales. It's about building relationships, understanding needs, and delivering solutions that truly make a difference in our customers' businesses.
+              </p>
+              <p className="text-gray-500 font-semibold">— Our Founding Philosophy</p>
+            </div>
+
+            {/* CEO Philosophy */}
+            <div className="text-center border-t-2 border-b-2 border-gray-200 py-12 px-8">
+              <svg className="w-12 h-12 text-gray-300 mx-auto mb-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-9.57 1.413 0 2.286.146 3.676.647.326.134.526.46.526.825v3.478c0 .365-.197.693-.526.825-1.39-.58-2.263-.647-3.676-.647-5.252 0-5.704 3.731-9.57 8.983-9.57v7.391H21V21h-6.983zM8.017 21v-7.391c0-5.704 3.731-9.57 8.983-9.57 1.413 0 2.286.146 3.676.647.326.134.526.46.526.825v3.478c0 .365-.197.693-.526.825-1.39-.58-2.263-.647-3.676-.647-5.252 0-5.704 3.731-9.57 8.983-9.57v7.391H21V21H8.017z"/>
+              </svg>
+              <p className="text-xl font-serif text-gray-700 italic leading-relaxed mb-6">
+                Innovation is not just about technology—it's about people. We believe in empowering our team to think creatively, take ownership, and push boundaries to create solutions that exceed expectations.
+              </p>
+              <p className="text-gray-500 font-semibold">— CEO Philosophy</p>
+            </div>
           </div>
         </div>
 

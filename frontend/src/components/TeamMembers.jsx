@@ -123,7 +123,9 @@ export default function TeamMembers() {
         const jsonData = {
           name: formData.name,
           role: formData.role,
-          bio: formData.bio
+          bio: formData.bio,
+          // Keep existing image URL if editing and no new image
+          image_url: editingMember?.image_url || null
         };
 
         response = await fetch(url, {

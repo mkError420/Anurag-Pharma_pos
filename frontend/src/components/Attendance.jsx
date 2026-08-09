@@ -11,11 +11,37 @@ export default function Attendance({ onNavigate, user }) {
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteAction, setNoteAction] = useState(null); // 'check-in' or 'check-out'
   const [noteText, setNoteText] = useState('');
+  const [selectedShop, setSelectedShop] = useState(null);
+  const [shops, setShops] = useState([]);
 
   const triggerAlert = (type, message) => {
     setAlert({ type, message });
     setTimeout(() => setAlert(null), 4000);
   };
+
+  const fetchShops = async () => {
+    if (user?.role !== 'super_admin') return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/shops`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setShops(Array.isArray(data) ? data : []);
+        if (data.length > 0) {
+          setSelectedShop(data[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching shops:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchShops();
+  }, [user]);
 
   const calculateWorkingHours = (checkIn, checkOut) => {
     if (!checkIn || !checkOut) return '-';
@@ -42,7 +68,10 @@ export default function Attendance({ onNavigate, user }) {
   const fetchTodayAttendance = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/attendance/today`, {
+      // Add shop_id parameter for super admin
+      const shopId = user?.role === 'super_admin' ? (selectedShop ? `?shop_id=${selectedShop}` : '') : (user?.shop_id ? `?shop_id=${user.shop_id}` : '');
+      
+      const response = await fetch(`${API_BASE_URL}/attendance/today${shopId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -62,7 +91,10 @@ export default function Attendance({ onNavigate, user }) {
       const startDate = new Date().toISOString().split('T')[0].slice(0, 7) + '-01';
       const endDate = new Date().toISOString().split('T')[0];
       
-      const response = await fetch(`${API_BASE_URL}/attendance/my?start_date=${startDate}&end_date=${endDate}&archived=${archived}`, {
+      // Add shop_id parameter for super admin
+      const shopId = user?.role === 'super_admin' ? (selectedShop ? `&shop_id=${selectedShop}` : '') : (user?.shop_id ? `&shop_id=${user.shop_id}` : '');
+      
+      const response = await fetch(`${API_BASE_URL}/attendance/my?start_date=${startDate}&end_date=${endDate}&archived=${archived}${shopId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to fetch attendance records.');
@@ -78,7 +110,7 @@ export default function Attendance({ onNavigate, user }) {
   useEffect(() => {
     fetchTodayAttendance();
     fetchMyAttendance();
-  }, [activeTab]);
+  }, [activeTab, user, selectedShop]);
 
   const handleCheckIn = () => {
     setNoteAction('check-in');
@@ -98,18 +130,25 @@ export default function Attendance({ onNavigate, user }) {
     
     try {
       const token = localStorage.getItem('token');
+      const requestData = {
+        date: new Date().toISOString().split('T')[0],
+        check_in_time: timeString,
+        status: 'present',
+        notes: noteText || null
+      };
+      
+      // Add shop_id for super admin
+      if (user?.role === 'super_admin' && selectedShop) {
+        requestData.shop_id = selectedShop;
+      }
+      
       const response = await fetch(`${API_BASE_URL}/attendance`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          date: new Date().toISOString().split('T')[0],
-          check_in_time: timeString,
-          status: 'present',
-          notes: noteText || null
-        })
+        body: JSON.stringify(requestData)
       });
 
       const resData = await response.json();
@@ -136,17 +175,24 @@ export default function Attendance({ onNavigate, user }) {
 
     try {
       const token = localStorage.getItem('token');
+      const requestData = {
+        date: pendingCheckIn.date,
+        check_out_time: timeString,
+        notes: noteText || null
+      };
+      
+      // Add shop_id for super admin
+      if (user?.role === 'super_admin' && selectedShop) {
+        requestData.shop_id = selectedShop;
+      }
+      
       const response = await fetch(`${API_BASE_URL}/attendance`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          date: pendingCheckIn.date,
-          check_out_time: timeString,
-          notes: noteText || null
-        })
+        body: JSON.stringify(requestData)
       });
 
       const resData = await response.json();
@@ -165,7 +211,10 @@ export default function Attendance({ onNavigate, user }) {
   const handleDelete = async (attendanceId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/attendance/${attendanceId}`, {
+      // Add shop_id parameter for super admin
+      const shopId = user?.role === 'super_admin' ? (selectedShop ? `?shop_id=${selectedShop}` : '') : '';
+      
+      const response = await fetch(`${API_BASE_URL}/attendance/${attendanceId}${shopId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -213,6 +262,22 @@ export default function Attendance({ onNavigate, user }) {
           <h2 className="text-2xl font-bold text-slate-800">Attendance Management</h2>
           <p className="text-sm text-slate-500">Mark your daily attendance and view history</p>
         </div>
+        
+        {/* Shop Selector for Super Admin */}
+        {user?.role === 'super_admin' && (
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-slate-700">Select Shop:</label>
+            <select
+              value={selectedShop || ''}
+              onChange={(e) => setSelectedShop(Number(e.target.value))}
+              className="px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              {shops.map(shop => (
+                <option key={shop.id} value={shop.id}>{shop.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Today's Attendance Card */}

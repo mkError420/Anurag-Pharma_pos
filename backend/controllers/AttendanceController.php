@@ -10,11 +10,20 @@ class AttendanceController {
 
     public static function createAttendance($requestData) {
         Auth::authenticate();
-        Auth::authorize(['shop_staff', 'shop_admin']);
+        Auth::authorize(['shop_staff', 'shop_admin', 'super_admin']);
         
         $currentUserId = Auth::$user['id'];
         $currentUserRole = Auth::$user['role'];
         $shopId = Auth::$user['shop_id'];
+        
+        // Super admin needs to provide shop_id
+        if ($currentUserRole === 'super_admin') {
+            if (isset($requestData['shop_id'])) {
+                $shopId = (int)$requestData['shop_id'];
+            } else {
+                Auth::jsonError('Super admin must provide shop_id.', 400);
+            }
+        }
         
         if ($shopId === null) {
             Auth::jsonError('Attendance can only be marked by shop users.', 403);
@@ -22,6 +31,7 @@ class AttendanceController {
         
         // Shop admins can create attendance for other staff in their shop
         // Shop staff can only create their own attendance
+        // Super admin can create attendance for any user in the specified shop
         $targetUserId = $requestData['user_id'] ?? $currentUserId;
         
         if ($currentUserRole === 'shop_staff' && $targetUserId != $currentUserId) {
@@ -82,11 +92,20 @@ class AttendanceController {
 
     public static function updateAttendance($requestData) {
         Auth::authenticate();
-        Auth::authorize(['shop_staff', 'shop_admin']);
+        Auth::authorize(['shop_staff', 'shop_admin', 'super_admin']);
         
         $currentUserId = Auth::$user['id'];
         $currentUserRole = Auth::$user['role'];
         $shopId = Auth::$user['shop_id'];
+        
+        // Super admin needs to provide shop_id
+        if ($currentUserRole === 'super_admin') {
+            if (isset($requestData['shop_id'])) {
+                $shopId = (int)$requestData['shop_id'];
+            } else {
+                Auth::jsonError('Super admin must provide shop_id.', 400);
+            }
+        }
         
         if ($shopId === null) {
             Auth::jsonError('Attendance can only be updated by shop users.', 403);
@@ -94,6 +113,7 @@ class AttendanceController {
         
         // Shop admins can update attendance for any staff in their shop
         // Shop staff can only update their own attendance
+        // Super admin can update attendance for any user in the specified shop
         $targetUserId = $requestData['user_id'] ?? $currentUserId;
         
         if ($currentUserRole === 'shop_staff' && $targetUserId != $currentUserId) {
@@ -279,10 +299,22 @@ class AttendanceController {
 
     public static function getMyAttendance() {
         Auth::authenticate();
-        Auth::authorize(['shop_staff', 'shop_admin']);
+        Auth::authorize(['shop_staff', 'shop_admin', 'super_admin']);
         
         $userId = Auth::$user['id'];
         $shopId = Auth::$user['shop_id'];
+        
+        // Super admins don't have shop_id, so they need to provide it via query param
+        if (Auth::$user['role'] === 'super_admin') {
+            if (isset($_GET['shop_id'])) {
+                $shopId = (int)$_GET['shop_id'];
+            } else {
+                // For super admins without shop_id, return empty or error
+                header('Content-Type: application/json');
+                echo json_encode([]);
+                return;
+            }
+        }
         
         if ($shopId === null) {
             Auth::jsonError('Shop staff must have a shop_id.', 403);
@@ -325,10 +357,22 @@ class AttendanceController {
 
     public static function getTodayAttendance() {
         Auth::authenticate();
-        Auth::authorize(['shop_staff', 'shop_admin']);
+        Auth::authorize(['shop_staff', 'shop_admin', 'super_admin']);
         
         $userId = Auth::$user['id'];
         $shopId = Auth::$user['shop_id'];
+        
+        // Super admins don't have shop_id, so they need to provide it via query param
+        if (Auth::$user['role'] === 'super_admin') {
+            if (isset($_GET['shop_id'])) {
+                $shopId = (int)$_GET['shop_id'];
+            } else {
+                // For super admins without shop_id, return empty
+                header('Content-Type: application/json');
+                echo json_encode([]);
+                return;
+            }
+        }
         
         if ($shopId === null) {
             Auth::jsonError('Shop users must have a shop_id.', 403);
@@ -363,8 +407,12 @@ class AttendanceController {
         $shopId = Auth::$user['shop_id'];
         
         // Super admin can filter by shop_id from query param
-        if (Auth::$user['role'] === 'super_admin' && isset($_GET['shop_id'])) {
-            $shopId = (int)$_GET['shop_id'];
+        if (Auth::$user['role'] === 'super_admin') {
+            if (isset($_GET['shop_id'])) {
+                $shopId = (int)$_GET['shop_id'];
+            } else {
+                Auth::jsonError('Super admin must provide shop_id.', 400);
+            }
         }
         
         if ($shopId === null) {

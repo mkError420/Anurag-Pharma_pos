@@ -556,26 +556,29 @@ class WebsiteContentController {
                 $rawInput = file_get_contents('php://input');
                 $postData = json_decode($rawInput, true) ?? [];
                 $fileData = [];
+                
+                // Handle image_url from JSON request
+                $imageUrl = $postData['image_url'] ?? '';
             } else {
                 // FormData request
                 $postData = $_POST;
                 $fileData = $_FILES;
-            }
-            
-            // Handle file upload
-            $imageUrl = '';
-            if (isset($fileData['image']) && $fileData['image']['error'] === UPLOAD_ERR_OK) {
-                $uploadDir = '../uploads/team/';
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0755, true);
-                }
                 
-                $fileExtension = pathinfo($fileData['image']['name'], PATHINFO_EXTENSION);
-                $fileName = time() . '_' . uniqid() . '.' . $fileExtension;
-                $uploadPath = $uploadDir . $fileName;
-                
-                if (move_uploaded_file($fileData['image']['tmp_name'], $uploadPath)) {
-                    $imageUrl = 'uploads/team/' . $fileName;
+                // Handle file upload
+                $imageUrl = '';
+                if (isset($fileData['image']) && $fileData['image']['error'] === UPLOAD_ERR_OK) {
+                    $uploadDir = '../uploads/team/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    
+                    $fileExtension = pathinfo($fileData['image']['name'], PATHINFO_EXTENSION);
+                    $fileName = time() . '_' . uniqid() . '.' . $fileExtension;
+                    $uploadPath = $uploadDir . $fileName;
+                    
+                    if (move_uploaded_file($fileData['image']['tmp_name'], $uploadPath)) {
+                        $imageUrl = 'uploads/team/' . $fileName;
+                    }
                 }
             }
 
@@ -587,7 +590,17 @@ class WebsiteContentController {
             if (empty($name) || empty($role)) {
                 http_response_code(400);
                 header('Content-Type: application/json');
-                echo json_encode(['error' => 'Name and role are required']);
+                echo json_encode([
+                    'error' => 'Name and role are required',
+                    'debug' => [
+                        'received_post' => $postData,
+                        'received_files' => isset($fileData['image']) ? 'image present' : 'no image',
+                        'name_value' => $name,
+                        'role_value' => $role,
+                        'name_empty' => empty($name),
+                        'role_empty' => empty($role)
+                    ]
+                ]);
                 return;
             }
 
@@ -643,29 +656,34 @@ class WebsiteContentController {
                 $rawInput = file_get_contents('php://input');
                 $postData = json_decode($rawInput, true) ?? [];
                 $fileData = [];
+                
+                // Handle image_url from JSON request
+                if (isset($postData['image_url'])) {
+                    $imageUrl = $postData['image_url'];
+                }
             } else {
                 // FormData request (POST only, since we use JSON for PUT now)
                 $postData = $_POST;
                 $fileData = $_FILES;
-            }
-            
-            // Handle file upload if new image provided
-            if (isset($fileData['image']) && $fileData['image']['error'] === UPLOAD_ERR_OK) {
-                $uploadDir = '../uploads/team/';
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0755, true);
-                }
                 
-                $fileExtension = pathinfo($fileData['image']['name'], PATHINFO_EXTENSION);
-                $fileName = time() . '_' . uniqid() . '.' . $fileExtension;
-                $uploadPath = $uploadDir . $fileName;
-                
-                if (move_uploaded_file($fileData['image']['tmp_name'], $uploadPath)) {
-                    // Delete old image if exists
-                    if (!empty($existingMember['image_url']) && file_exists('../' . $existingMember['image_url'])) {
-                        unlink('../' . $existingMember['image_url']);
+                // Handle file upload if new image provided
+                if (isset($fileData['image']) && $fileData['image']['error'] === UPLOAD_ERR_OK) {
+                    $uploadDir = '../uploads/team/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
                     }
-                    $imageUrl = 'uploads/team/' . $fileName;
+                    
+                    $fileExtension = pathinfo($fileData['image']['name'], PATHINFO_EXTENSION);
+                    $fileName = time() . '_' . uniqid() . '.' . $fileExtension;
+                    $uploadPath = $uploadDir . $fileName;
+                    
+                    if (move_uploaded_file($fileData['image']['tmp_name'], $uploadPath)) {
+                        // Delete old image if exists
+                        if (!empty($existingMember['image_url']) && file_exists('../' . $existingMember['image_url'])) {
+                            unlink('../' . $existingMember['image_url']);
+                        }
+                        $imageUrl = 'uploads/team/' . $fileName;
+                    }
                 }
             }
 
@@ -681,17 +699,7 @@ class WebsiteContentController {
             if (empty($name) || empty($role)) {
                 http_response_code(400);
                 header('Content-Type: application/json');
-                echo json_encode([
-                    'error' => 'Name and role are required',
-                    'debug' => [
-                        'received_post' => $_POST,
-                        'received_files' => isset($_FILES['image']) ? 'image present' : 'no image',
-                        'name_value' => $name,
-                        'role_value' => $role,
-                        'name_empty' => empty($name),
-                        'role_empty' => empty($role)
-                    ]
-                ]);
+                echo json_encode(['error' => 'Name and role are required']);
                 return;
             }
 
