@@ -185,6 +185,32 @@ class DB {
                 $pdo->exec("ALTER TABLE `purchase_order_items` ADD COLUMN `expiry_date` DATE NULL");
             }
 
+            // Create contact_information table if not exists
+            if (!$tableExists('contact_information')) {
+                $pdo->exec("
+                    CREATE TABLE `contact_information` (
+                        `id` INT AUTO_INCREMENT PRIMARY KEY,
+                        `email_addresses` JSON NULL,
+                        `phone_numbers` JSON NULL,
+                        `address` TEXT NULL,
+                        `business_hours` JSON NULL,
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                ");
+                
+                // Insert default contact information
+                $pdo->exec("
+                    INSERT INTO `contact_information` (`email_addresses`, `phone_numbers`, `address`, `business_hours`)
+                    VALUES (
+                        '[\"support@possystem.com\", \"info@possystem.com\"]',
+                        '[\"+1 (555) 123-4567\", \"+1 (555) 987-6543\"]',
+                        '123 Business Ave, Suite 100\nSan Francisco, CA 94102',
+                        '{\"monday_friday\": \"9:00 AM - 6:00 PM\", \"saturday\": \"10:00 AM - 4:00 PM\", \"sunday\": \"Closed\"}'
+                    )
+                ");
+            }
+
             // Check if quantity_ordered column exists on purchase_order_items table (handle column name mismatch)
             if ($tableExists('purchase_order_items') && $columnExists('purchase_order_items', 'quantity') && !$columnExists('purchase_order_items', 'quantity_ordered')) {
                 $pdo->exec("ALTER TABLE `purchase_order_items` CHANGE COLUMN `quantity` `quantity_ordered` INT NOT NULL");
@@ -512,6 +538,36 @@ class DB {
                     CONSTRAINT `fk_investments_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE RESTRICT
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
+
+            // Create contact_messages table if not exists
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `contact_messages` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `name` VARCHAR(255) NOT NULL,
+                    `phone` VARCHAR(50) NOT NULL,
+                    `message` TEXT NOT NULL,
+                    `status` ENUM('new', 'read', 'replied') NOT NULL DEFAULT 'new',
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            // Migrate email column to phone column if contact_messages table exists with email column
+            if ($tableExists('contact_messages') && $columnExists('contact_messages', 'email') && !$columnExists('contact_messages', 'phone')) {
+                $pdo->exec("ALTER TABLE `contact_messages` ADD COLUMN `phone` VARCHAR(50) NULL AFTER `name`");
+                $pdo->exec("UPDATE `contact_messages` SET `phone` = `email` WHERE `phone` IS NULL");
+                $pdo->exec("ALTER TABLE `contact_messages` DROP COLUMN `email`");
+                $pdo->exec("ALTER TABLE `contact_messages` MODIFY COLUMN `phone` VARCHAR(50) NOT NULL");
+            }
+
+            // Remove subject column if it exists in contact_messages table
+            if ($tableExists('contact_messages') && $columnExists('contact_messages', 'subject')) {
+                try {
+                    $pdo->exec("ALTER TABLE `contact_messages` DROP COLUMN `subject`");
+                } catch (\Exception $e) {
+                    // Column might not exist or other error, ignore
+                }
+            }
 
         } catch (\PDOException $e) {
             error_log("Migration error: " . $e->getMessage());

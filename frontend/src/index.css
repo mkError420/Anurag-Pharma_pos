@@ -248,5 +248,30 @@
   z-index: 5;
 }
 
+/* --- NEWS TICKER ANIMATION --- */
+@keyframes ticker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker 8s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* Faster speed on mobile devices */
+@media (max-width: 768px) {
+  .animate-ticker {
+    animation: ticker 5s linear infinite;
+  }
+}
+
 
 

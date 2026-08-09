@@ -5,6 +5,8 @@ import AboutUs from './components/AboutUs';
 import ContactUs from './components/ContactUs';
 import TeamMembers from './components/TeamMembers';
 import HeroSlides from './components/HeroSlides';
+import ContactInformation from './components/ContactInformation';
+import ContactMessages from './components/ContactMessages';
 import DashboardLayout from './components/DashboardLayout';
 import Dashboard from './components/Dashboard';
 import Checkout from './components/Checkout';
@@ -62,6 +64,7 @@ export default function App() {
   const [heldBillsCount, setHeldBillsCount] = useState(0);
   const [resumedHeldBill, setResumedHeldBill] = useState(null);
   const [logoColor, setLogoColor] = useState('#C4A484'); // Default light brown color
+  const [newContactMessagesCount, setNewContactMessagesCount] = useState(0);
 
   // On mount: verify existing token against the backend
   useEffect(() => {
@@ -200,6 +203,15 @@ export default function App() {
             const heldData = await heldResponse.json();
             setHeldBillsCount(heldData.filter(bill => bill.status === 'held').length);
           }
+        } else {
+          // For super_admin, fetch new contact messages count
+          const contactMessagesResponse = await fetch(`${API_BASE_URL}/contact-messages`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (contactMessagesResponse.ok) {
+            const messages = await contactMessagesResponse.json();
+            setNewContactMessagesCount(messages.filter(msg => msg.status === 'new').length);
+          }
         }
       } catch (e) {
         console.error('Session detail load failed:', e);
@@ -222,6 +234,7 @@ export default function App() {
     setUser(null);
     setLowStockAlerts([]);
     setExpiryAlerts([]);
+    setNewContactMessagesCount(0);
     setSuspendedMessage('');
   };
 
@@ -243,6 +256,8 @@ export default function App() {
         case '/attendance': return <ManageStaff />;
         case '/team-members': return <TeamMembers />;
         case '/hero-slides': return <HeroSlides />;
+        case '/contact-information': return <ContactInformation />;
+        case '/contact-messages': return <ContactMessages />;
         case '/settings': return <Settings />;
         default: return <Dashboard />;
       }
@@ -347,6 +362,7 @@ export default function App() {
       lowStockItems={lowStockAlerts}
       expiryItems={expiryAlerts}
       heldBillsCount={heldBillsCount}
+      newContactMessagesCount={newContactMessagesCount}
       currentPath={currentPath}
       onNavigate={(path) => setCurrentPath(path)}
       onLogout={handleLogout}

@@ -9,6 +9,111 @@ class WebsiteContentController {
     }
 
     // ============================================
+    // CONTACT INFORMATION CRUD OPERATIONS
+    // ============================================
+
+    public function getContactInformation() {
+        try {
+            $stmt = $this->db->query("SELECT * FROM contact_information LIMIT 1");
+            $contactInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$contactInfo) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Contact information not found']);
+                return;
+            }
+            
+            // Parse JSON fields
+            $contactInfo['email_addresses'] = json_decode($contactInfo['email_addresses'], true) ?? [];
+            $contactInfo['phone_numbers'] = json_decode($contactInfo['phone_numbers'], true) ?? [];
+            $businessHours = json_decode($contactInfo['business_hours'], true) ?? [];
+            
+            // Ensure business hours has the new structure
+            if (!isset($businessHours['saturday_thursday'])) {
+                $businessHours['saturday_thursday'] = $businessHours['monday_friday'] ?? '';
+            }
+            if (!isset($businessHours['friday'])) {
+                $businessHours['friday'] = $businessHours['sunday'] ?? '';
+            }
+            
+            // Remove old fields if they exist
+            unset($businessHours['monday_friday'], $businessHours['saturday'], $businessHours['sunday']);
+            
+            $contactInfo['business_hours'] = $businessHours;
+            
+            header('Content-Type: application/json');
+            echo json_encode($contactInfo);
+        } catch (PDOException $e) {
+            error_log('Get contact information error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to fetch contact information']);
+        }
+    }
+
+    public function updateContactInformation() {
+        try {
+            // Get the first contact information record
+            $stmt = $this->db->query("SELECT id FROM contact_information LIMIT 1");
+            $contactInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$contactInfo) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Contact information not found']);
+                return;
+            }
+            
+            $id = $contactInfo['id'];
+            
+            // Get JSON input
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            $emailAddresses = json_encode($input['email_addresses'] ?? []);
+            $phoneNumbers = json_encode($input['phone_numbers'] ?? []);
+            $address = $input['address'] ?? '';
+            
+            // Handle business hours with new structure
+            $businessHours = $input['business_hours'] ?? [];
+            
+            // Ensure new structure exists
+            if (!isset($businessHours['saturday_thursday'])) {
+                $businessHours['saturday_thursday'] = $businessHours['monday_friday'] ?? '';
+            }
+            if (!isset($businessHours['friday'])) {
+                $businessHours['friday'] = $businessHours['sunday'] ?? '';
+            }
+            
+            // Remove old fields
+            unset($businessHours['monday_friday'], $businessHours['saturday'], $businessHours['sunday']);
+            
+            $businessHoursJson = json_encode($businessHours);
+            
+            $stmt = $this->db->prepare("
+                UPDATE contact_information 
+                SET email_addresses = ?, phone_numbers = ?, address = ?, business_hours = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$emailAddresses, $phoneNumbers, $address, $businessHoursJson, $id]);
+            
+            header('Content-Type: application/json');
+            echo json_encode([
+                'id' => (int)$id,
+                'email_addresses' => json_decode($emailAddresses, true),
+                'phone_numbers' => json_decode($phoneNumbers, true),
+                'address' => $address,
+                'business_hours' => $businessHours
+            ]);
+        } catch (PDOException $e) {
+            error_log('Update contact information error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to update contact information']);
+        }
+    }
+
+    // ============================================
     // HERO SLIDES CRUD OPERATIONS
     // ============================================
 
@@ -234,6 +339,155 @@ class WebsiteContentController {
             http_response_code(500);
             header('Content-Type: application/json');
             echo json_encode(['error' => 'Failed to delete hero slide']);
+        }
+    }
+
+    // ============================================
+    // CONTACT MESSAGES CRUD OPERATIONS
+    // ============================================
+
+    public function getAllContactMessages() {
+        try {
+            $stmt = $this->db->query("
+                SELECT id, name, phone, message, status, created_at 
+                FROM contact_messages 
+                ORDER BY created_at DESC
+            ");
+            $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            header('Content-Type: application/json');
+            echo json_encode($messages);
+        } catch (PDOException $e) {
+            error_log('Get all contact messages error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to fetch contact messages']);
+        }
+    }
+
+    public function getContactMessageById($id) {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT id, name, phone, message, status, created_at 
+                FROM contact_messages 
+                WHERE id = ?
+            ");
+            $stmt->execute([$id]);
+            $message = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$message) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Contact message not found']);
+                return;
+            }
+            
+            header('Content-Type: application/json');
+            echo json_encode($message);
+        } catch (PDOException $e) {
+            error_log('Get contact message error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to fetch contact message']);
+        }
+    }
+
+    public function createContactMessage() {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            $name = $input['name'] ?? '';
+            $phone = $input['phone'] ?? '';
+            $message = $input['message'] ?? '';
+            
+            if (empty($name) || empty($phone) || empty($message)) {
+                http_response_code(400);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'All fields are required']);
+                return;
+            }
+            
+            $stmt = $this->db->prepare("
+                INSERT INTO contact_messages (name, phone, message, status)
+                VALUES (?, ?, ?, 'new')
+            ");
+            $stmt->execute([$name, $phone, $message]);
+            
+            http_response_code(201);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'id' => $this->db->lastInsertId(),
+                'name' => $name,
+                'phone' => $phone,
+                'message' => $message,
+                'status' => 'new'
+            ]);
+        } catch (PDOException $e) {
+            error_log('Create contact message error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to create contact message']);
+        }
+    }
+
+    public function updateContactMessageStatus($id) {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+            $status = $input['status'] ?? 'read';
+            
+            if (!in_array($status, ['new', 'read', 'replied'])) {
+                http_response_code(400);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Invalid status']);
+                return;
+            }
+            
+            $stmt = $this->db->prepare("
+                UPDATE contact_messages 
+                SET status = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$status, $id]);
+            
+            if ($stmt->rowCount() === 0) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Contact message not found']);
+                return;
+            }
+            
+            header('Content-Type: application/json');
+            echo json_encode([
+                'id' => (int)$id,
+                'status' => $status
+            ]);
+        } catch (PDOException $e) {
+            error_log('Update contact message status error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to update contact message status']);
+        }
+    }
+
+    public function deleteContactMessage($id) {
+        try {
+            $stmt = $this->db->prepare("DELETE FROM contact_messages WHERE id = ?");
+            $stmt->execute([$id]);
+            
+            if ($stmt->rowCount() === 0) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Contact message not found']);
+                return;
+            }
+            
+            header('Content-Type: application/json');
+            echo json_encode(['message' => 'Contact message deleted successfully']);
+        } catch (PDOException $e) {
+            error_log('Delete contact message error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to delete contact message']);
         }
     }
 

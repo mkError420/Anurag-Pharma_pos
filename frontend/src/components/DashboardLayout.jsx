@@ -10,6 +10,7 @@ export default function DashboardLayout({
   onNavigate,
   onLogout = () => console.log('Logged out'),
   heldBillsCount = 0,
+  newContactMessagesCount = 0,
   logoColor = '#C4A484'
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -55,6 +56,7 @@ export default function DashboardLayout({
         currentPath={currentPath}
         onNavigate={onNavigate}
         heldBillsCount={heldBillsCount}
+        newContactMessagesCount={newContactMessagesCount}
       />
 
       {/* 2. Main Page Framework */}
@@ -248,6 +250,68 @@ export default function DashboardLayout({
                 </div>
               );
             })()}
+
+            {/* Contact Messages Notification for Super Admin */}
+            {user.role === 'super_admin' && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowNotifications(!showNotifications);
+                    setShowProfileDropdown(false);
+                  }}
+                  className={`relative p-2 text-slate-500 dark:text-slate-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none ${
+                    newContactMessagesCount > 0 ? 'text-blue-500 hover:text-blue-600' : ''
+                  }`}
+                  title="Contact Messages"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  {newContactMessagesCount > 0 && (
+                    <span className="absolute top-1.5 right-1.5 flex h-3.5 w-3.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-blue-500 text-[10px] font-bold text-white items-center justify-center">
+                        {newContactMessagesCount}
+                      </span>
+                    </span>
+                  )}
+                </button>
+
+                {/* Contact Messages Dropdown */}
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <div className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                      <span>Contact Messages</span>
+                      <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                        {newContactMessagesCount} New
+                      </span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
+                      {newContactMessagesCount === 0 ? (
+                        <div className="p-4 text-center text-slate-400 dark:text-slate-500 text-sm">
+                          No new messages
+                        </div>
+                      ) : (
+                        <div className="p-4 text-center text-slate-600 dark:text-slate-300 text-sm">
+                          {newContactMessagesCount} new message{newContactMessagesCount !== 1 ? 's' : ''} waiting for your attention
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-2 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700 text-center">
+                      <button
+                        onClick={() => {
+                          if (onNavigate) onNavigate('/contact-messages');
+                          setShowNotifications(false);
+                        }}
+                        className="w-full text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 py-1"
+                      >
+                        View All Messages
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Profile Dropdown Component */}
             <div className="relative">

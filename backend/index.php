@@ -175,6 +175,11 @@ $routes = [
             $controller = new WebsiteContentController();
             $controller->getAllTeamMembers();
         },
+        // Public Contact Information Endpoint (no authentication required)
+        '/^public\/contact-information$/' => function() {
+            $controller = new WebsiteContentController();
+            $controller->getContactInformation();
+        },
         // Diagnostics
         '/^diagnostic$/' => function() {
             header('Content-Type: text/plain');
@@ -359,6 +364,26 @@ $routes = [
                 $controller->getAllTeamMembers();
             });
         },
+        // Contact Information (authenticated)
+        '/^contact-information$/' => function() {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->getContactInformation();
+            });
+        },
+        // Contact Messages (authenticated)
+        '/^contact-messages$/' => function() {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->getAllContactMessages();
+            });
+        },
+        '/^contact-messages\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->getContactMessageById($args[0]);
+            });
+        },
         '/^team-members\/(\d+)$/' => function($args) {
             AuthController::requireAuth(function() use ($args) {
                 $controller = new WebsiteContentController();
@@ -429,6 +454,11 @@ $routes = [
                 $controller->createTeamMember();
             });
         },
+        // Public Contact Message Submission (no authentication required)
+        '/^public\/contact-messages$/' => function($args, $data) {
+            $controller = new WebsiteContentController();
+            $controller->createContactMessage();
+        },
     ],
     'PUT' => [
         // Auth
@@ -488,6 +518,20 @@ $routes = [
                 $controller->updateTeamMember($args[0]);
             });
         },
+        // Contact Information
+        '/^contact-information$/' => function($args, $data) {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->updateContactInformation();
+            });
+        },
+        // Contact Messages
+        '/^contact-messages\/(\d+)$/' => function($args, $data) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->updateContactMessageStatus($args[0]);
+            });
+        },
     ],
     'DELETE' => [
         // Products
@@ -533,6 +577,13 @@ $routes = [
             AuthController::requireAuth(function() use ($args) {
                 $controller = new WebsiteContentController();
                 $controller->deleteHeroSlide($args[0]);
+            });
+        },
+        // Contact Messages
+        '/^contact-messages\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->deleteContactMessage($args[0]);
             });
         },
         // Team Members
