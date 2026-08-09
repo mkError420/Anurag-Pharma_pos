@@ -33,6 +33,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
   });
   const [search, setSearch] = useState('');
   const [searchFocusedIndex, setSearchFocusedIndex] = useState(-1);
+  const [customerFocusedIndex, setCustomerFocusedIndex] = useState(-1);
   const [currentUser, setCurrentUser] = useState(null);
   const [taxRate, setTaxRate] = useState(0.10); // Dynamic Tax Rate (default 10%)
 
@@ -137,7 +138,13 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
       if (!response.ok) throw new Error('Failed to fetch products.');
       const data = await response.json();
-      setProducts(data);
+      // Sort: in-stock products first, out-of-stock (≤ 0) pushed to the bottom
+      const sorted = [...data].sort((a, b) => {
+        const aOut = parseFloat(a.stock_quantity || 0) <= 0 ? 1 : 0;
+        const bOut = parseFloat(b.stock_quantity || 0) <= 0 ? 1 : 0;
+        return aOut - bOut; // stable: preserves original server order within each group
+      });
+      setProducts(sorted);
     } catch (err) {
       triggerAlert('error', err.message);
     } finally {
@@ -790,25 +797,26 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       }
     }
 
-    const existingIndex = activeTab.cart.findIndex(item => item.name.trim().toLowerCase() === product.name.trim().toLowerCase());
+    // Match by product ID — each unique product gets its own cart row
+    const existingIndex = activeTab.cart.findIndex(item => item.id === product.id);
 
-    // Calculate total stock for this product name across all batches
-    const totalStock = products
-      .filter(p => (p.name || '').trim().toLowerCase() === (product.name || '').trim().toLowerCase())
-      .reduce((sum, p) => sum + parseFloat(p.stock_quantity || 0), 0);
+    // Individual product's own stock limit
+    const stockLimit = parseFloat(product.stock_quantity || 0);
 
     if (existingIndex > -1) {
       const currentQty = activeTab.cart[existingIndex].quantity;
-      if (currentQty >= totalStock) {
-        triggerAlert('error', `Cannot exceed available inventory limit (${totalStock}) for "${product.name}".`);
+      if (currentQty >= stockLimit) {
+        triggerAlert('error', `Cannot exceed available stock (${stockLimit}) for "${product.name}".`);
         return;
       }
       const updatedCart = [...activeTab.cart];
-      updatedCart[existingIndex].quantity += 1;
-      updatedCart[existingIndex].stock_quantity = totalStock; // Ensure max stock is updated
+      updatedCart[existingIndex] = { ...updatedCart[existingIndex], quantity: updatedCart[existingIndex].quantity + 1 };
       updateActiveTabState('cart', updatedCart);
     } else {
-      updateActiveTabState('cart', [...activeTab.cart, { ...product, quantity: 1, price: product.price, stock_quantity: totalStock }]);
+      updateActiveTabState('cart', [
+        ...activeTab.cart,
+        { ...product, quantity: 1, price: product.price, stock_quantity: stockLimit },
+      ]);
     }
   };
 
@@ -1713,6 +1721,11 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                     <tbody className="divide-y divide-slate-100 text-sm">
                       {(() => {
                         const sortedProducts = [...products].sort((a, b) => {
+                          const aOut = parseFloat(a.stock_quantity || 0) <= 0 ? 1 : 0;
+                          const bOut = parseFloat(b.stock_quantity || 0) <= 0 ? 1 : 0;
+                          // First: in-stock items come before out-of-stock
+                          if (aOut !== bOut) return aOut - bOut;
+                          // Then: within same stock group, sort by expiry date (FEFO)
                           if (a.expiry_date && b.expiry_date) {
                             return new Date(a.expiry_date) - new Date(b.expiry_date);
                           }
@@ -2883,11 +2896,10 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       key={t.id}
                       type="button"
                       onClick={() => setNumpadTarget(t.id)}
-                      className={`py-1.5 px-2 rounded-lg text-xs font-extrabold transition-all text-center cursor-pointer ${
-                        numpadTarget === t.id
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'bg-transparent text-slate-600 hover:bg-slate-200'
-                      }`}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-extrabold transition-all text-center cursor-pointer ${numpadTarget === t.id
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-transparent text-slate-600 hover:bg-slate-200'
+                        }`}
                     >
                       {t.label}
                     </button>
@@ -2947,15 +2959,14 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       key={i}
                       type="button"
                       onClick={() => handleNumpadPress(val)}
-                      className={`py-3 rounded-xl font-bold text-sm transition-all shadow-xs active:scale-95 cursor-pointer flex items-center justify-center ${
-                        isBackspace
-                          ? 'bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-200 font-extrabold'
-                          : isClear
+                      className={`py-3 rounded-xl font-bold text-sm transition-all shadow-xs active:scale-95 cursor-pointer flex items-center justify-center ${isBackspace
+                        ? 'bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-200 font-extrabold'
+                        : isClear
                           ? 'bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 font-extrabold'
                           : isAction
-                          ? 'bg-indigo-100 hover:bg-indigo-200 text-indigo-700 border border-indigo-200 font-extrabold'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-extrabold text-base'
-                      }`}
+                            ? 'bg-indigo-100 hover:bg-indigo-200 text-indigo-700 border border-indigo-200 font-extrabold'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-extrabold text-base'
+                        }`}
                     >
                       {label}
                     </button>
@@ -3044,13 +3055,13 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
             <button
               type="button"
               onClick={() => setShowKeyboardModal(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+              className="bg-gray-600 hover:bg-gray-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
               title="Open Virtual Keyboard Numpad & POS Hotkeys (Alt+K)"
             >
               <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
               </svg>
-              <span>⌨️ Keyboard Pad</span>
+              <span> Keyboard Pad</span>
               <span className="text-[10px] bg-white/25 px-1 py-0.2 rounded font-mono">Alt+K</span>
             </button>
           </div>
@@ -3058,7 +3069,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
         {/* Quick Hotkeys Legend Bar */}
         <div className="px-3 py-1 bg-slate-800 text-slate-300 text-[10px] font-medium flex items-center justify-between flex-wrap gap-1">
-          <span className="font-bold text-white uppercase text-[9px] tracking-wider">Hotkeys:</span>
+          <span className="font-bold text-white uppercase text-[9px] tracking-wider">Active Keys:</span>
           <span className="bg-slate-700 px-1.5 py-0.5 rounded font-mono text-[9px]"><strong className="text-indigo-300">F2</strong> Search</span>
           <span className="bg-slate-700 px-1.5 py-0.5 rounded font-mono text-[9px]"><strong className="text-indigo-300">F4</strong> Customer</span>
           <span className="bg-slate-700 px-1.5 py-0.5 rounded font-mono text-[9px]"><strong className="text-amber-300">↑↓</strong> Nav Cart</span>
@@ -3074,48 +3085,82 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                 Select Customer (F4)
               </label>
-              <input
-                ref={customerInputRef}
-                type="text"
-                placeholder="Walk-in Customer (F4)..."
-                value={activeTab.selectedCustomerId ? (customers.find(c => String(c.id) === String(activeTab.selectedCustomerId))?.name || activeTab.customerName || '') : (activeTab.customerName || '')}
-                onChange={(e) => {
-                  updateActiveTabState('customerName', e.target.value);
-                  if (activeTab.selectedCustomerId !== '') {
-                    updateActiveTabState('selectedCustomerId', '');
-                  }
-                }}
-                className="w-full bg-white border border-slate-200 rounded-lg p-1.5 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+              {(() => {
+                const query = (activeTab.customerName || '').toLowerCase();
+                const suggestions = activeTab.selectedCustomerId === '' && activeTab.customerName && activeTab.customerName.trim() !== ''
+                  ? customers.filter(c =>
+                      c.name.toLowerCase().includes(query) || (c.phone && c.phone.includes(query))
+                    )
+                  : [];
 
-              {/* Autocomplete Customer Suggestions */}
-              {activeTab.selectedCustomerId === '' && activeTab.customerName && activeTab.customerName.trim() !== '' && (() => {
-                const query = activeTab.customerName.toLowerCase();
-                const suggestions = customers.filter(c =>
-                  c.name.toLowerCase().includes(query) || (c.phone && c.phone.includes(query))
-                );
-                if (suggestions.length === 0) return null;
+                const selectSuggestion = (c) => {
+                  updateActiveTabState('selectedCustomerId', c.id);
+                  updateActiveTabState('customerName', c.name);
+                  updateActiveTabState('customerPhone', c.phone || '');
+                  updateActiveTabState('customerAddress', c.address || '');
+                  setCustomerFocusedIndex(-1);
+                };
+
                 return (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[60] max-h-40 overflow-y-auto divide-y divide-slate-100">
-                    {suggestions.map(c => (
-                      <div
-                        key={c.id}
-                        onClick={() => {
-                          updateActiveTabState('selectedCustomerId', c.id);
-                          updateActiveTabState('customerName', c.name);
-                          updateActiveTabState('customerPhone', c.phone || '');
-                          updateActiveTabState('customerAddress', c.address || '');
-                        }}
-                        className="p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors"
-                      >
-                        <div className="text-xs font-semibold text-slate-800">{c.name}</div>
-                        <div className="text-[10px] text-slate-500 flex justify-between mt-0.5">
-                          <span>Phone: {c.phone || '-'}</span>
-                          {parseFloat(c.due_balance) > 0 && <span className="text-rose-600">Due: ৳{parseFloat(c.due_balance).toFixed(3)}</span>}
-                        </div>
+                  <>
+                    <input
+                      ref={customerInputRef}
+                      type="text"
+                      placeholder="Walk-in Customer (F4)..."
+                      value={activeTab.selectedCustomerId ? (customers.find(c => String(c.id) === String(activeTab.selectedCustomerId))?.name || activeTab.customerName || '') : (activeTab.customerName || '')}
+                      onChange={(e) => {
+                        updateActiveTabState('customerName', e.target.value);
+                        if (activeTab.selectedCustomerId !== '') {
+                          updateActiveTabState('selectedCustomerId', '');
+                        }
+                        setCustomerFocusedIndex(-1);
+                      }}
+                      onKeyDown={(e) => {
+                        if (suggestions.length === 0) return;
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          setCustomerFocusedIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : 0));
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setCustomerFocusedIndex(prev => (prev > 0 ? prev - 1 : suggestions.length - 1));
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (customerFocusedIndex >= 0 && suggestions[customerFocusedIndex]) {
+                            selectSuggestion(suggestions[customerFocusedIndex]);
+                          } else if (suggestions.length === 1) {
+                            selectSuggestion(suggestions[0]);
+                          }
+                        } else if (e.key === 'Escape') {
+                          setCustomerFocusedIndex(-1);
+                          updateActiveTabState('customerName', '');
+                        }
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-lg p-1.5 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+
+                    {/* Autocomplete Customer Suggestions */}
+                    {suggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-[60] max-h-40 overflow-y-auto divide-y divide-slate-100">
+                        {suggestions.map((c, idx) => (
+                          <div
+                            key={c.id}
+                            onClick={() => selectSuggestion(c)}
+                            className={`p-2 px-3 cursor-pointer text-left transition-colors ${
+                              idx === customerFocusedIndex
+                                ? 'bg-indigo-600 text-white'
+                                : 'hover:bg-indigo-50'
+                            }`}
+                          >
+                            <div className={`text-xs font-semibold ${idx === customerFocusedIndex ? 'text-white' : 'text-slate-800'}`}>{c.name}</div>
+                            <div className={`text-[10px] flex justify-between mt-0.5 ${idx === customerFocusedIndex ? 'text-indigo-200' : 'text-slate-500'}`}>
+                              <span>Phone: {c.phone || '-'}</span>
+                              {parseFloat(c.due_balance) > 0 && <span className={idx === customerFocusedIndex ? 'text-rose-200' : 'text-rose-600'}>Due: ৳{parseFloat(c.due_balance).toFixed(3)}</span>}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    )}
+                  </>
                 );
               })()}
             </div>

@@ -76,31 +76,31 @@ export default function Home({ onNavigate, onLoginSuccess }) {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-white">
       {/* ── Navbar ── */}
-      <nav className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-20">
 
             {/* Logo */}
             <div className="flex items-center gap-3">
               {logo ? (
-                <img src={logo} alt="Logo" className="h-10 w-10 rounded-lg object-cover" />
+                <img src={logo} alt="Logo" className="h-12 w-12 rounded-lg object-cover" />
               ) : (
-                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-lg">
                   <span className="text-white font-bold text-sm">POS</span>
                 </div>
               )}
-              <span className="text-white font-bold text-xl">POS System</span>
+              <span className="text-gray-900 font-bold text-2xl">POS System</span>
             </div>
 
             {/* Desktop Navigation Links */}
-            <div className="hidden sm:flex items-center gap-6">
+            <div className="hidden sm:flex items-center gap-8">
               {navLinks.map((link) => (
                 <button
                   key={link.page}
                   onClick={() => onNavigate(link.page)}
-                  className="text-slate-300 hover:text-indigo-400 transition-colors font-medium text-sm"
+                  className="text-gray-600 hover:text-gray-900 transition-colors font-medium text-base"
                 >
                   {link.label}
                 </button>
@@ -109,7 +109,7 @@ export default function Home({ onNavigate, onLoginSuccess }) {
 
             {/* Mobile Hamburger Button */}
             <button
-              className="sm:hidden flex items-center justify-center w-10 h-10 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors"
+              className="sm:hidden flex items-center justify-center w-10 h-10 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
               onClick={() => setMobileMenuOpen((prev) => !prev)}
               aria-label="Toggle navigation menu"
             >
@@ -134,12 +134,12 @@ export default function Home({ onNavigate, onLoginSuccess }) {
             mobileMenuOpen ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'
           }`}
         >
-          <div className="bg-slate-900/95 backdrop-blur-md border-t border-slate-700/50 px-4 py-3 flex flex-col gap-1">
+          <div className="bg-white border-t border-gray-200 px-4 py-3 flex flex-col gap-1">
             {navLinks.map((link) => (
               <button
                 key={link.page}
                 onClick={() => { onNavigate(link.page); setMobileMenuOpen(false); }}
-                className="w-full text-left text-slate-300 hover:text-white hover:bg-slate-700/50 transition-colors font-medium text-sm px-3 py-2.5 rounded-lg"
+                className="w-full text-left text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors font-medium text-sm px-3 py-2.5 rounded-lg"
               >
                 {link.label}
               </button>
@@ -149,22 +149,22 @@ export default function Home({ onNavigate, onLoginSuccess }) {
       </nav>
 
       {/* ── Main Content ── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 mb-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 mb-20">
 
         {/* Hero Section with Carousel */}
         {loading ? (
           <div className="flex items-center justify-center h-96">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-700"></div>
           </div>
         ) : heroSlides.length > 0 ? (
-          <div className="grid lg:grid-cols-2 gap-8 items-center mb-16">
+          <div className="grid lg:grid-cols-2 gap-12 items-center mb-24">
             {/* Carousel Column */}
             <div className="relative">
-              <div className="relative h-96 rounded-2xl overflow-hidden">
+              <div className="relative h-[450px] rounded-2xl overflow-hidden shadow-2xl">
                 {heroSlides.map((slide, index) => (
                   <div
                     key={slide.id}
-                    className={`absolute inset-0 transition-opacity duration-500 ${
+                    className={`absolute inset-0 transition-opacity duration-700 ${
                       index === currentSlide ? 'opacity-100' : 'opacity-0'
                     }`}
                   >
@@ -175,7 +175,7 @@ export default function Home({ onNavigate, onLoginSuccess }) {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                      <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
                         <span className="text-white font-bold text-4xl">{slide.title}</span>
                       </div>
                     )}
@@ -187,7 +187,7 @@ export default function Home({ onNavigate, onLoginSuccess }) {
                   <>
                     <button
                       onClick={prevSlide}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 hover:bg-white shadow-lg rounded-full flex items-center justify-center text-gray-800 transition-all"
                     >
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
@@ -195,7 +195,7 @@ export default function Home({ onNavigate, onLoginSuccess }) {
                     </button>
                     <button
                       onClick={nextSlide}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/90 hover:bg-white shadow-lg rounded-full flex items-center justify-center text-gray-800 transition-all"
                     >
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
@@ -206,13 +206,13 @@ export default function Home({ onNavigate, onLoginSuccess }) {
 
                 {/* Dots Indicator */}
                 {heroSlides.length > 1 && (
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-3">
                     {heroSlides.map((_, index) => (
                       <button
                         key={index}
                         onClick={() => goToSlide(index)}
-                        className={`w-2 h-2 rounded-full transition-all ${
-                          index === currentSlide ? 'bg-white w-6' : 'bg-white/50'
+                        className={`w-3 h-3 rounded-full transition-all ${
+                          index === currentSlide ? 'bg-gray-900 w-8' : 'bg-white/70'
                         }`}
                       />
                     ))}
@@ -222,20 +222,20 @@ export default function Home({ onNavigate, onLoginSuccess }) {
             </div>
 
             {/* Text and Button Column */}
-            <div className="space-y-6">
+            <div className="space-y-8">
               {heroSlides[currentSlide] && (
                 <>
                   <div>
                     {heroSlides[currentSlide].subtitle && (
-                      <p className="text-indigo-400 font-semibold text-lg mb-2">
+                      <p className="text-gray-600 font-semibold text-lg mb-3 uppercase tracking-wide">
                         {heroSlides[currentSlide].subtitle}
                       </p>
                     )}
-                    <h1 className="text-5xl font-bold text-white mb-4">
+                    <h1 className="text-6xl font-bold text-gray-900 mb-6 leading-tight">
                       {heroSlides[currentSlide].title}
                     </h1>
                     {heroSlides[currentSlide].description && (
-                      <p className="text-xl text-slate-300 leading-relaxed">
+                      <p className="text-xl text-gray-600 leading-relaxed">
                         {heroSlides[currentSlide].description}
                       </p>
                     )}
@@ -253,7 +253,7 @@ export default function Home({ onNavigate, onLoginSuccess }) {
                           }
                         }
                       }}
-                      className="px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-xl transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-indigo-500/30"
+                      className="px-10 py-4 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-lg transition-all transform hover:scale-105 active:scale-95 shadow-xl"
                     >
                       {heroSlides[currentSlide].button_text}
                     </button>
@@ -264,44 +264,301 @@ export default function Home({ onNavigate, onLoginSuccess }) {
           </div>
         ) : (
           /* Fallback Hero Section */
-          <div className="text-center mb-12 space-y-4">
-            <h1 className="text-5xl font-bold text-white mb-6">
-              Welcome to Our <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">POS System</span>
+          <div className="text-center mb-20 space-y-6">
+            <h1 className="text-6xl font-bold text-gray-900 mb-8">
+              Welcome to Our <span className="text-gray-700">POS System</span>
             </h1>
-            <p className="text-xl text-slate-300 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
               A powerful and intuitive point of sale solution for modern businesses. Manage inventory, track sales, and grow your business with ease.
             </p>
           </div>
         )}
 
+        {/* Statistics Section */}
+        <div className="grid md:grid-cols-4 gap-8 mb-24">
+          <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="text-5xl font-bold text-gray-900 mb-2">500+</div>
+            <div className="text-gray-600 font-medium">Happy Clients</div>
+          </div>
+          <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="text-5xl font-bold text-gray-900 mb-2">50K+</div>
+            <div className="text-gray-600 font-medium">Transactions Daily</div>
+          </div>
+          <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="text-5xl font-bold text-gray-900 mb-2">15+</div>
+            <div className="text-gray-600 font-medium">Countries Served</div>
+          </div>
+          <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="text-5xl font-bold text-gray-900 mb-2">99.9%</div>
+            <div className="text-gray-600 font-medium">Uptime Guaranteed</div>
+          </div>
+        </div>
+
         {/* Features */}
-        <div className="grid md:grid-cols-3 gap-8 mb-16">
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 hover:border-indigo-500/50 transition-all">
-            <h3 className="text-white font-semibold text-lg mb-2">Inventory Management</h3>
-            <p className="text-slate-400 text-sm">Track stock levels, manage products, and get alerts for low inventory.</p>
+        <div className="mb-24">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Why Choose Our POS System?</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Experience the perfect blend of functionality and simplicity
+            </p>
           </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-white p-8 rounded-xl border border-gray-200 hover:border-gray-900 transition-all shadow-sm hover:shadow-lg">
+              <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center mb-6">
+                <svg className="w-7 h-7 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              </div>
+              <h3 className="text-gray-900 font-semibold text-xl mb-3">Inventory Management</h3>
+              <p className="text-gray-600 leading-relaxed">Track stock levels, manage products, and get alerts for low inventory with real-time updates.</p>
+            </div>
 
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 hover:border-purple-500/50 transition-all">
-            <h3 className="text-white font-semibold text-lg mb-2">Sales Analytics</h3>
-            <p className="text-slate-400 text-sm">Comprehensive reports and insights to make data-driven decisions.</p>
+            <div className="bg-white p-8 rounded-xl border border-gray-200 hover:border-gray-900 transition-all shadow-sm hover:shadow-lg">
+              <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center mb-6">
+                <svg className="w-7 h-7 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h3 className="text-gray-900 font-semibold text-xl mb-3">Sales Analytics</h3>
+              <p className="text-gray-600 leading-relaxed">Comprehensive reports and insights to make data-driven decisions and grow your business.</p>
+            </div>
+
+            <div className="bg-white p-8 rounded-xl border border-gray-200 hover:border-gray-900 transition-all shadow-sm hover:shadow-lg">
+              <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center mb-6">
+                <svg className="w-7 h-7 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <h3 className="text-gray-900 font-semibold text-xl mb-3">Easy Checkout</h3>
+              <p className="text-gray-600 leading-relaxed">Fast and efficient checkout process with multiple payment options and seamless integration.</p>
+            </div>
           </div>
+        </div>
 
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-700/50 hover:border-pink-500/50 transition-all">
-            <h3 className="text-white font-semibold text-lg mb-2">Easy Checkout</h3>
-            <p className="text-slate-400 text-sm">Fast and efficient checkout process with multiple payment options.</p>
+        {/* Pricing Section */}
+        <div className="mb-24">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Choose the plan that fits your business needs
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-white p-8 rounded-xl border border-gray-200 hover:border-gray-900 transition-all shadow-sm hover:shadow-lg">
+              <h3 className="text-gray-900 font-semibold text-xl mb-2">Starter</h3>
+              <p className="text-gray-600 mb-6">Perfect for small businesses</p>
+              <div className="mb-6">
+                <span className="text-5xl font-bold text-gray-900">$29</span>
+                <span className="text-gray-600">/month</span>
+              </div>
+              <ul className="space-y-4 mb-8">
+                <li className="flex items-center text-gray-600">
+                  <svg className="w-5 h-5 text-gray-900 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Up to 100 products
+                </li>
+                <li className="flex items-center text-gray-600">
+                  <svg className="w-5 h-5 text-gray-900 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Basic analytics
+                </li>
+                <li className="flex items-center text-gray-600">
+                  <svg className="w-5 h-5 text-gray-900 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Email support
+                </li>
+              </ul>
+              <button className="w-full py-3 border-2 border-gray-900 text-gray-900 font-semibold rounded-lg hover:bg-gray-900 hover:text-white transition-all">
+                Get Started
+              </button>
+            </div>
+
+            <div className="bg-gray-900 p-8 rounded-xl border-2 border-gray-900 shadow-xl transform scale-105">
+              <div className="text-gray-400 text-sm font-semibold mb-2">MOST POPULAR</div>
+              <h3 className="text-white font-semibold text-xl mb-2">Professional</h3>
+              <p className="text-gray-400 mb-6">For growing businesses</p>
+              <div className="mb-6">
+                <span className="text-5xl font-bold text-white">$79</span>
+                <span className="text-gray-400">/month</span>
+              </div>
+              <ul className="space-y-4 mb-8">
+                <li className="flex items-center text-gray-300">
+                  <svg className="w-5 h-5 text-white mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Unlimited products
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <svg className="w-5 h-5 text-white mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Advanced analytics
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <svg className="w-5 h-5 text-white mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Priority support
+                </li>
+                <li className="flex items-center text-gray-300">
+                  <svg className="w-5 h-5 text-white mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Multi-location
+                </li>
+              </ul>
+              <button className="w-full py-3 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition-all">
+                Get Started
+              </button>
+            </div>
+
+            <div className="bg-white p-8 rounded-xl border border-gray-200 hover:border-gray-900 transition-all shadow-sm hover:shadow-lg">
+              <h3 className="text-gray-900 font-semibold text-xl mb-2">Enterprise</h3>
+              <p className="text-gray-600 mb-6">For large organizations</p>
+              <div className="mb-6">
+                <span className="text-5xl font-bold text-gray-900">$199</span>
+                <span className="text-gray-600">/month</span>
+              </div>
+              <ul className="space-y-4 mb-8">
+                <li className="flex items-center text-gray-600">
+                  <svg className="w-5 h-5 text-gray-900 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Everything in Professional
+                </li>
+                <li className="flex items-center text-gray-600">
+                  <svg className="w-5 h-5 text-gray-900 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Custom integrations
+                </li>
+                <li className="flex items-center text-gray-600">
+                  <svg className="w-5 h-5 text-gray-900 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Dedicated account manager
+                </li>
+                <li className="flex items-center text-gray-600">
+                  <svg className="w-5 h-5 text-gray-900 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  24/7 phone support
+                </li>
+              </ul>
+              <button className="w-full py-3 border-2 border-gray-900 text-gray-900 font-semibold rounded-lg hover:bg-gray-900 hover:text-white transition-all">
+                Contact Sales
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Testimonials Section */}
+        <div className="mb-24">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">What Our Clients Say</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Trusted by businesses worldwide
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                ))}
+              </div>
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                "This POS system has transformed how we manage our retail store. The inventory tracking alone has saved us countless hours and reduced shrinkage significantly."
+              </p>
+              <div className="flex items-center">
+                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                  <span className="text-gray-600 font-semibold">JD</span>
+                </div>
+                <div>
+                  <div className="text-gray-900 font-semibold">John Davidson</div>
+                  <div className="text-gray-600 text-sm">Retail Store Owner</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                ))}
+              </div>
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                "The analytics features are incredible. I can now make data-driven decisions about our product offerings and pricing strategies. Highly recommend for any growing business."
+              </p>
+              <div className="flex items-center">
+                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                  <span className="text-gray-600 font-semibold">SM</span>
+                </div>
+                <div>
+                  <div className="text-gray-900 font-semibold">Sarah Mitchell</div>
+                  <div className="text-gray-600 text-sm">Boutique Manager</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                ))}
+              </div>
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                "Customer support is exceptional. Whenever we have questions, they respond quickly and help us resolve issues. The system is reliable and easy to use for our staff."
+              </p>
+              <div className="flex items-center">
+                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                  <span className="text-gray-600 font-semibold">MR</span>
+                </div>
+                <div>
+                  <div className="text-gray-900 font-semibold">Michael Roberts</div>
+                  <div className="text-gray-600 text-sm">Restaurant Owner</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Partners/Clients Section */}
+        <div className="mb-24">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Trusted by Leading Brands</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Join hundreds of satisfied businesses
+            </p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 items-center">
+            {['Boutique', 'Fashion', 'Pharmacy', 'Retail', 'Grocery', 'Electronics'].map((brand, index) => (
+              <div key={index} className="bg-gray-50 p-6 rounded-lg border border-gray-100 flex items-center justify-center h-24">
+                <div className="text-gray-400 font-semibold text-lg">{brand}</div>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* ── Login Section – Horizontal Layout ── */}
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden">
+        <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg">
           {/* Section Header */}
-          <div className="px-8 pt-8 pb-6 border-b border-slate-700/40">
-            <h2 className="text-2xl font-bold text-white mb-1">Login to Your Account</h2>
-            <p className="text-slate-400 text-sm">Access your dashboard and manage your business</p>
+          <div className="px-8 pt-8 pb-6 border-b border-gray-200">
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">Login to Your Account</h2>
+            <p className="text-gray-600 text-sm">Access your dashboard and manage your business</p>
           </div>
 
           {/* Two-column body */}
-          <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-700/40">
+          <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
 
             {/* Left – Login Form */}
             <div className="px-8 py-8">
@@ -317,8 +574,8 @@ export default function Home({ onNavigate, onLoginSuccess }) {
 
             {/* Right – Demo Credentials */}
             <div className="px-8 py-8">
-              <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Demo Credentials</p>
-              <p className="text-xs text-slate-600 mb-4">Click any credential to auto-fill the form</p>
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Demo Credentials</p>
+              <p className="text-xs text-gray-400 mb-4">Click any credential to auto-fill the form</p>
               <div className="flex flex-col gap-2">
                 {/* Super Admin */}
                 <button
@@ -326,14 +583,14 @@ export default function Home({ onNavigate, onLoginSuccess }) {
                   onClick={() => applyCredential('restricted', '******')}
                   className={`flex items-center gap-3 w-full text-left rounded-xl px-3 py-2.5 border transition-all group ${
                     selectedCred === 'restricted'
-                      ? 'bg-rose-500/25 border-rose-400/60 ring-1 ring-rose-400/40'
-                      : 'bg-rose-500/10 border-rose-500/20 hover:bg-rose-500/20 hover:border-rose-400/40'
+                      ? 'bg-red-50 border-red-300 ring-1 ring-red-200'
+                      : 'bg-red-50/50 border-red-200 hover:bg-red-50 hover:border-red-300'
                   }`}
                 >
-                  <span className="text-xs font-bold bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full shrink-0">SUPER ADMIN</span>
-                  <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">Restricted!!!</span>
+                  <span className="text-xs font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full shrink-0">SUPER ADMIN</span>
+                  <span className="text-xs text-gray-600 group-hover:text-gray-900 transition-colors truncate">Restricted!!!</span>
                   {selectedCred === 'restricted' && (
-                    <span className="ml-auto text-rose-400 shrink-0">
+                    <span className="ml-auto text-red-600 shrink-0">
                       <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                     </span>
                   )}
@@ -341,11 +598,11 @@ export default function Home({ onNavigate, onLoginSuccess }) {
 
                 {/* Shop Admins & Staff */}
                 {[
-                  { email: 'alice@boutique.com', pass: 'alice123', role: 'SHOP ADMIN', color: 'indigo' },
-                  { email: 'admin@mkfashion.com', pass: 'mkfashion123', role: 'SHOP ADMIN', color: 'indigo' },
-                  { email: 'admin@mkpharmacy.com', pass: 'mkpharmacy123', role: 'SHOP ADMIN', color: 'indigo' },
-                  { email: 'staff1@mkpharmacy.com', pass: 'staff123', role: 'SHOP STAFF', color: 'slate' },
-                  { email: 'staff1@mkfashion.com', pass: 'staff123', role: 'SHOP STAFF', color: 'slate' },
+                  { email: 'alice@boutique.com', pass: 'alice123', role: 'SHOP ADMIN', color: 'gray' },
+                  { email: 'admin@mkfashion.com', pass: 'mkfashion123', role: 'SHOP ADMIN', color: 'gray' },
+                  { email: 'admin@mkpharmacy.com', pass: 'mkpharmacy123', role: 'SHOP ADMIN', color: 'gray' },
+                  { email: 'staff1@mkpharmacy.com', pass: 'staff123', role: 'SHOP STAFF', color: 'gray' },
+                  { email: 'staff1@mkfashion.com', pass: 'staff123', role: 'SHOP STAFF', color: 'gray' },
                 ].map((cred) => (
                   <button
                     key={cred.email}
@@ -353,14 +610,14 @@ export default function Home({ onNavigate, onLoginSuccess }) {
                     onClick={() => applyCredential(cred.email, cred.pass)}
                     className={`flex items-center gap-3 w-full text-left rounded-xl px-3 py-2.5 border transition-all group ${
                       selectedCred === cred.email
-                        ? 'bg-indigo-500/20 border-indigo-400/60 ring-1 ring-indigo-400/40'
-                        : 'bg-gray-500/10 border-gray-500/20 hover:bg-indigo-500/10 hover:border-indigo-500/30'
+                        ? 'bg-gray-100 border-gray-300 ring-1 ring-gray-200'
+                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
                     }`}
                   >
-                    <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">{cred.role}</span>
-                    <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">{cred.email} · {cred.pass}</span>
+                    <span className="text-xs font-bold bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full shrink-0">{cred.role}</span>
+                    <span className="text-xs text-gray-600 group-hover:text-gray-900 transition-colors truncate">{cred.email} · {cred.pass}</span>
                     {selectedCred === cred.email && (
-                      <span className="ml-auto text-indigo-400 shrink-0">
+                      <span className="ml-auto text-gray-700 shrink-0">
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                       </span>
                     )}
@@ -368,14 +625,14 @@ export default function Home({ onNavigate, onLoginSuccess }) {
                 ))}
               </div>
 
-              <p className="text-center text-slate-600 text-xs mt-6">
+              <p className="text-center text-gray-500 text-xs mt-6">
                 Multi-Tenant Point of Sale System &copy; {new Date().getFullYear()}{' '}
                 developed by{' '}
                 <a
                   href="https://its-mk.netlify.app/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-indigo-500 hover:text-indigo-400 transition-colors"
+                  className="text-gray-700 hover:text-gray-900 transition-colors font-medium"
                 >
                   MK
                 </a>
@@ -386,10 +643,62 @@ export default function Home({ onNavigate, onLoginSuccess }) {
       </div>
 
       {/* Footer */}
-      <footer className="bg-slate-900/80 backdrop-blur-md border-t border-slate-700/50 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center text-slate-400 text-sm">
-            <p>&copy; 2024 POS System. All rights reserved.</p>
+      <footer className="bg-gray-900 border-t border-gray-800 mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                {logo ? (
+                  <img src={logo} alt="Logo" className="h-10 w-10 rounded-lg object-cover" />
+                ) : (
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">POS</span>
+                  </div>
+                )}
+                <span className="text-white font-bold text-xl">POS System</span>
+              </div>
+              <p className="text-gray-400 text-sm leading-relaxed">
+                A powerful and intuitive point of sale solution for modern businesses.
+              </p>
+            </div>
+
+            <div>
+              <h4 className="text-white font-semibold mb-4">Quick Links</h4>
+              <ul className="space-y-2">
+                <li>
+                  <button onClick={() => onNavigate('home')} className="text-gray-400 hover:text-white transition-colors text-sm">Home</button>
+                </li>
+                <li>
+                  <button onClick={() => onNavigate('about')} className="text-gray-400 hover:text-white transition-colors text-sm">About Us</button>
+                </li>
+                <li>
+                  <button onClick={() => onNavigate('contact')} className="text-gray-400 hover:text-white transition-colors text-sm">Contact Us</button>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-white font-semibold mb-4">Features</h4>
+              <ul className="space-y-2">
+                <li className="text-gray-400 text-sm">Inventory Management</li>
+                <li className="text-gray-400 text-sm">Sales Analytics</li>
+                <li className="text-gray-400 text-sm">Multi-location Support</li>
+                <li className="text-gray-400 text-sm">Customer Management</li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-white font-semibold mb-4">Contact</h4>
+              <ul className="space-y-2">
+                <li className="text-gray-400 text-sm">support@possystem.com</li>
+                <li className="text-gray-400 text-sm">+1 (555) 123-4567</li>
+                <li className="text-gray-400 text-sm">123 Business Ave, Suite 100</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-800 pt-8 text-center">
+            <p className="text-gray-400 text-sm">&copy; 2024 POS System. All rights reserved.</p>
           </div>
         </div>
       </footer>

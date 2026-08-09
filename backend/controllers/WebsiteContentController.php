@@ -379,6 +379,10 @@ class WebsiteContentController {
                 }
             }
 
+            // Debug logging
+            error_log('POST data in update: ' . print_r($_POST, true));
+            error_log('FILES data in update: ' . print_r($_FILES, true));
+
             $name = $_POST['name'] ?? '';
             $role = $_POST['role'] ?? '';
             $bio = $_POST['bio'] ?? '';
@@ -387,7 +391,17 @@ class WebsiteContentController {
             if (empty($name) || empty($role)) {
                 http_response_code(400);
                 header('Content-Type: application/json');
-                echo json_encode(['error' => 'Name and role are required']);
+                echo json_encode([
+                    'error' => 'Name and role are required',
+                    'debug' => [
+                        'received_post' => $_POST,
+                        'received_files' => isset($_FILES['image']) ? 'image present' : 'no image',
+                        'name_value' => $name,
+                        'role_value' => $role,
+                        'name_empty' => empty($name),
+                        'role_empty' => empty($role)
+                    ]
+                ]);
                 return;
             }
 
