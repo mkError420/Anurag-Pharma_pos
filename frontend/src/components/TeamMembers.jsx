@@ -101,23 +101,40 @@ export default function TeamMembers() {
       
       const method = editingMember ? 'PUT' : 'POST';
 
-      // Create FormData for file upload
-      const formDataToSend = new FormData();
-      formDataToSend.append('name', formData.name);
-      formDataToSend.append('role', formData.role);
-      formDataToSend.append('bio', formData.bio);
+      let response;
       
       if (imageFile) {
+        // If there's an image file, use FormData
+        const formDataToSend = new FormData();
+        formDataToSend.append('name', formData.name);
+        formDataToSend.append('role', formData.role);
+        formDataToSend.append('bio', formData.bio);
         formDataToSend.append('image', imageFile);
-      }
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formDataToSend,
-      });
+        response = await fetch(url, {
+          method,
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formDataToSend,
+        });
+      } else {
+        // If no image, use JSON
+        const jsonData = {
+          name: formData.name,
+          role: formData.role,
+          bio: formData.bio
+        };
+
+        response = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(jsonData),
+        });
+      }
 
       if (response.ok) {
         setSuccess(editingMember ? 'Team member updated successfully' : 'Team member added successfully');

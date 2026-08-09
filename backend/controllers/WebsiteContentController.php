@@ -544,27 +544,45 @@ class WebsiteContentController {
 
     public function createTeamMember() {
         try {
+            // Parse request data
+            $postData = [];
+            $fileData = [];
+            
+            // Check content type to determine how to parse
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            
+            if (strpos($contentType, 'application/json') !== false) {
+                // JSON request
+                $rawInput = file_get_contents('php://input');
+                $postData = json_decode($rawInput, true) ?? [];
+                $fileData = [];
+            } else {
+                // FormData request
+                $postData = $_POST;
+                $fileData = $_FILES;
+            }
+            
             // Handle file upload
             $imageUrl = '';
-            if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+            if (isset($fileData['image']) && $fileData['image']['error'] === UPLOAD_ERR_OK) {
                 $uploadDir = '../uploads/team/';
                 if (!is_dir($uploadDir)) {
                     mkdir($uploadDir, 0755, true);
                 }
                 
-                $fileExtension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+                $fileExtension = pathinfo($fileData['image']['name'], PATHINFO_EXTENSION);
                 $fileName = time() . '_' . uniqid() . '.' . $fileExtension;
                 $uploadPath = $uploadDir . $fileName;
                 
-                if (move_uploaded_file($_FILES['image']['tmp_name'], $uploadPath)) {
+                if (move_uploaded_file($fileData['image']['tmp_name'], $uploadPath)) {
                     $imageUrl = 'uploads/team/' . $fileName;
                 }
             }
 
-            $name = $_POST['name'] ?? '';
-            $role = $_POST['role'] ?? '';
-            $bio = $_POST['bio'] ?? '';
-            $displayOrder = $_POST['order'] ?? 0;
+            $name = $postData['name'] ?? '';
+            $role = $postData['role'] ?? '';
+            $bio = $postData['bio'] ?? '';
+            $displayOrder = $postData['order'] ?? 0;
 
             if (empty($name) || empty($role)) {
                 http_response_code(400);
@@ -613,18 +631,36 @@ class WebsiteContentController {
 
             $imageUrl = $existingMember['image_url'];
             
+            // Parse request data
+            $postData = [];
+            $fileData = [];
+            
+            // Check content type to determine how to parse
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            
+            if (strpos($contentType, 'application/json') !== false) {
+                // JSON request
+                $rawInput = file_get_contents('php://input');
+                $postData = json_decode($rawInput, true) ?? [];
+                $fileData = [];
+            } else {
+                // FormData request (POST only, since we use JSON for PUT now)
+                $postData = $_POST;
+                $fileData = $_FILES;
+            }
+            
             // Handle file upload if new image provided
-            if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+            if (isset($fileData['image']) && $fileData['image']['error'] === UPLOAD_ERR_OK) {
                 $uploadDir = '../uploads/team/';
                 if (!is_dir($uploadDir)) {
                     mkdir($uploadDir, 0755, true);
                 }
                 
-                $fileExtension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+                $fileExtension = pathinfo($fileData['image']['name'], PATHINFO_EXTENSION);
                 $fileName = time() . '_' . uniqid() . '.' . $fileExtension;
                 $uploadPath = $uploadDir . $fileName;
                 
-                if (move_uploaded_file($_FILES['image']['tmp_name'], $uploadPath)) {
+                if (move_uploaded_file($fileData['image']['tmp_name'], $uploadPath)) {
                     // Delete old image if exists
                     if (!empty($existingMember['image_url']) && file_exists('../' . $existingMember['image_url'])) {
                         unlink('../' . $existingMember['image_url']);
@@ -634,13 +670,13 @@ class WebsiteContentController {
             }
 
             // Debug logging
-            error_log('POST data in update: ' . print_r($_POST, true));
-            error_log('FILES data in update: ' . print_r($_FILES, true));
+            error_log('POST data in update: ' . print_r($postData, true));
+            error_log('FILES data in update: ' . print_r($fileData, true));
 
-            $name = $_POST['name'] ?? '';
-            $role = $_POST['role'] ?? '';
-            $bio = $_POST['bio'] ?? '';
-            $displayOrder = $_POST['order'] ?? 0;
+            $name = $postData['name'] ?? '';
+            $role = $postData['role'] ?? '';
+            $bio = $postData['bio'] ?? '';
+            $displayOrder = $postData['order'] ?? 0;
 
             if (empty($name) || empty($role)) {
                 http_response_code(400);
@@ -702,6 +738,201 @@ class WebsiteContentController {
             http_response_code(500);
             header('Content-Type: application/json');
             echo json_encode(['error' => 'Failed to delete team member']);
+        }
+    }
+
+    // ============================================
+    // PRICING PLANS CRUD OPERATIONS
+    // ============================================
+
+    public function getAllPricingPlans() {
+        try {
+            $stmt = $this->db->query("
+                SELECT id, name, description, price, currency, billing_period, features, is_popular, is_active, sort_order, button_text, created_at, updated_at 
+                FROM pricing_plans 
+                WHERE is_active = 1 
+                ORDER BY sort_order ASC
+            ");
+            $plans = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Parse JSON features field
+            foreach ($plans as &$plan) {
+                $plan['features'] = json_decode($plan['features'], true) ?? [];
+                $plan['is_popular'] = (bool)$plan['is_popular'];
+                $plan['is_active'] = (bool)$plan['is_active'];
+            }
+            
+            header('Content-Type: application/json');
+            echo json_encode($plans);
+        } catch (PDOException $e) {
+            error_log('Get all pricing plans error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to fetch pricing plans']);
+        }
+    }
+
+    public function getPricingPlanById($id) {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT id, name, description, price, currency, billing_period, features, is_popular, is_active, sort_order, button_text, created_at, updated_at 
+                FROM pricing_plans 
+                WHERE id = ?
+            ");
+            $stmt->execute([$id]);
+            $plan = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$plan) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Pricing plan not found']);
+                return;
+            }
+            
+            // Parse JSON features field
+            $plan['features'] = json_decode($plan['features'], true) ?? [];
+            $plan['is_popular'] = (bool)$plan['is_popular'];
+            $plan['is_active'] = (bool)$plan['is_active'];
+            
+            header('Content-Type: application/json');
+            echo json_encode($plan);
+        } catch (PDOException $e) {
+            error_log('Get pricing plan error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to fetch pricing plan']);
+        }
+    }
+
+    public function createPricingPlan() {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            $name = $input['name'] ?? '';
+            $description = $input['description'] ?? '';
+            $price = $input['price'] ?? 0;
+            $currency = $input['currency'] ?? 'BDT';
+            $billingPeriod = $input['billing_period'] ?? 'month';
+            $features = json_encode($input['features'] ?? []);
+            $isPopular = isset($input['is_popular']) ? (int)$input['is_popular'] : 0;
+            $isActive = isset($input['is_active']) ? (int)$input['is_active'] : 1;
+            $sortOrder = $input['sort_order'] ?? 0;
+            $buttonText = $input['button_text'] ?? 'Get Started';
+            
+            if (empty($name)) {
+                http_response_code(400);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Plan name is required']);
+                return;
+            }
+            
+            $stmt = $this->db->prepare("
+                INSERT INTO pricing_plans (name, description, price, currency, billing_period, features, is_popular, is_active, sort_order, button_text)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([$name, $description, $price, $currency, $billingPeriod, $features, $isPopular, $isActive, $sortOrder, $buttonText]);
+            
+            $planId = $this->db->lastInsertId();
+            
+            header('Content-Type: application/json');
+            echo json_encode([
+                'id' => (int)$planId,
+                'name' => $name,
+                'description' => $description,
+                'price' => (float)$price,
+                'currency' => $currency,
+                'billing_period' => $billingPeriod,
+                'features' => json_decode($features, true),
+                'is_popular' => (bool)$isPopular,
+                'is_active' => (bool)$isActive,
+                'sort_order' => (int)$sortOrder,
+                'button_text' => $buttonText
+            ]);
+        } catch (PDOException $e) {
+            error_log('Create pricing plan error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to create pricing plan']);
+        }
+    }
+
+    public function updatePricingPlan($id) {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+            
+            $name = $input['name'] ?? '';
+            $description = $input['description'] ?? '';
+            $price = $input['price'] ?? 0;
+            $currency = $input['currency'] ?? 'BDT';
+            $billingPeriod = $input['billing_period'] ?? 'month';
+            $features = json_encode($input['features'] ?? []);
+            $isPopular = isset($input['is_popular']) ? (int)$input['is_popular'] : 0;
+            $isActive = isset($input['is_active']) ? (int)$input['is_active'] : 1;
+            $sortOrder = $input['sort_order'] ?? 0;
+            $buttonText = $input['button_text'] ?? 'Get Started';
+            
+            if (empty($name)) {
+                http_response_code(400);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Plan name is required']);
+                return;
+            }
+            
+            $stmt = $this->db->prepare("
+                UPDATE pricing_plans 
+                SET name = ?, description = ?, price = ?, currency = ?, billing_period = ?, features = ?, is_popular = ?, is_active = ?, sort_order = ?, button_text = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$name, $description, $price, $currency, $billingPeriod, $features, $isPopular, $isActive, $sortOrder, $buttonText, $id]);
+            
+            if ($stmt->rowCount() === 0) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Pricing plan not found']);
+                return;
+            }
+            
+            header('Content-Type: application/json');
+            echo json_encode([
+                'id' => (int)$id,
+                'name' => $name,
+                'description' => $description,
+                'price' => (float)$price,
+                'currency' => $currency,
+                'billing_period' => $billingPeriod,
+                'features' => json_decode($features, true),
+                'is_popular' => (bool)$isPopular,
+                'is_active' => (bool)$isActive,
+                'sort_order' => (int)$sortOrder,
+                'button_text' => $buttonText
+            ]);
+        } catch (PDOException $e) {
+            error_log('Update pricing plan error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to update pricing plan']);
+        }
+    }
+
+    public function deletePricingPlan($id) {
+        try {
+            $stmt = $this->db->prepare("DELETE FROM pricing_plans WHERE id = ?");
+            $stmt->execute([$id]);
+            
+            if ($stmt->rowCount() === 0) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Pricing plan not found']);
+                return;
+            }
+            
+            header('Content-Type: application/json');
+            echo json_encode(['message' => 'Pricing plan deleted successfully']);
+        } catch (PDOException $e) {
+            error_log('Delete pricing plan error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to delete pricing plan']);
         }
     }
 }

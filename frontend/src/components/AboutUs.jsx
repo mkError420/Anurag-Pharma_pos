@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Footer from './Footer';
 import API_BASE_URL from '../config';
 
-export default function AboutUs({ onNavigate }) {
+export default function AboutUs({ onNavigate, publicPage }) {
   const [logo, setLogo] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,21 +56,36 @@ export default function AboutUs({ onNavigate }) {
             <div className="flex items-center gap-8">
               <button
                 onClick={() => onNavigate('home')}
-                className="text-gray-600 hover:text-gray-900 transition-colors font-medium"
+                className={`text-gray-600 hover:text-gray-900 transition-colors font-medium relative ${
+                  publicPage === 'home' ? 'text-gray-900' : ''
+                }`}
               >
                 Home
+                {publicPage === 'home' && (
+                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-900"></span>
+                )}
               </button>
               <button
                 onClick={() => onNavigate('about')}
-                className="text-gray-900 hover:text-gray-900 transition-colors font-medium"
+                className={`text-gray-900 hover:text-gray-900 transition-colors font-medium relative ${
+                  publicPage === 'about' ? 'text-gray-900' : ''
+                }`}
               >
                 About Us
+                {publicPage === 'about' && (
+                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-900"></span>
+                )}
               </button>
               <button
                 onClick={() => onNavigate('contact')}
-                className="text-gray-600 hover:text-gray-900 transition-colors font-medium"
+                className={`text-gray-600 hover:text-gray-900 transition-colors font-medium relative ${
+                  publicPage === 'contact' ? 'text-gray-900' : ''
+                }`}
               >
                 Contact Us
+                {publicPage === 'contact' && (
+                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-900"></span>
+                )}
               </button>
             </div>
           </div>
@@ -79,71 +94,81 @@ export default function AboutUs({ onNavigate }) {
 
       {/* About Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="text-center mb-20">
-          <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            About <span className="text-gray-700">Us</span>
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            We are dedicated to providing businesses with powerful, intuitive, and reliable point of sale solutions.
-          </p>
-        </div>
-
-        {/* Our Story */}
-        <div className="bg-white p-8 rounded-2xl border border-gray-200 mb-8 shadow-sm">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Our Story</h2>
-          <p className="text-gray-600 leading-relaxed mb-4">
-            Founded with a vision to revolutionize retail management, our POS System has grown to become a trusted solution for businesses of all sizes. We understand the challenges that modern businesses face, and we've built our platform to address those needs head-on.
-          </p>
-          <p className="text-gray-600 leading-relaxed">
-            From small local shops to multi-location enterprises, our system scales to meet your needs while maintaining simplicity and ease of use.
-          </p>
-        </div>
-
-        {/* Our Mission */}
-        <div className="bg-white p-8 rounded-2xl border border-gray-200 mb-8 shadow-sm">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Our Mission</h2>
-          <p className="text-gray-600 leading-relaxed">
-            To empower businesses with technology that simplifies operations, provides actionable insights, and drives growth. We believe that every business deserves access to enterprise-grade tools that are easy to use and affordable.
-          </p>
-        </div>
-
-        {/* Our Values */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-            </div>
-            <h3 className="text-gray-900 font-semibold text-lg mb-2">Trust & Security</h3>
-            <p className="text-gray-600 text-sm">Your data security is our top priority. We use industry-standard encryption and security practices.</p>
+        
+        {/* Classic Hero Section */}
+        <div className="text-center mb-24">
+          <div className="inline-block border-t-2 border-b-2 border-gray-800 py-4 px-12 mb-8">
+            <h1 className="text-5xl font-serif font-bold text-gray-900 mb-2">
+              About Our Company
+            </h1>
           </div>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed italic font-serif">
+            "Excellence in Point of Sale Solutions Since Our Foundation"
+          </p>
+        </div>
 
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+        {/* Classic Story Section */}
+        <div className="mb-24">
+          <div className="max-w-4xl mx-auto">
+            <div className="border-l-4 border-gray-800 pl-8 mb-12">
+              <h2 className="text-3xl font-serif font-bold text-gray-900 mb-6">Our Story</h2>
+              <p className="text-gray-700 leading-loose mb-4 text-lg">
+                Founded with a vision to revolutionize retail management, our POS System has grown to become a trusted solution for businesses of all sizes. We understand the challenges that modern businesses face, and we've built our platform to address those needs head-on.
+              </p>
+              <p className="text-gray-700 leading-loose text-lg">
+                From small local shops to multi-location enterprises, our system scales to meet your needs while maintaining simplicity and ease of use. Our journey has been marked by continuous innovation and an unwavering commitment to our customers' success.
+              </p>
             </div>
-            <h3 className="text-gray-900 font-semibold text-lg mb-2">Innovation</h3>
-            <p className="text-gray-600 text-sm">We continuously evolve our platform with new features and improvements based on customer feedback.</p>
-          </div>
 
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
+            <div className="border-l-4 border-gray-800 pl-8">
+              <h2 className="text-3xl font-serif font-bold text-gray-900 mb-6">Our Mission</h2>
+              <p className="text-gray-700 leading-loose text-lg">
+                To empower businesses with technology that simplifies operations, provides actionable insights, and drives growth. We believe that every business deserves access to enterprise-grade tools that are easy to use and affordable. Our mission is to bridge the gap between complex technology and practical business needs.
+              </p>
             </div>
-            <h3 className="text-gray-900 font-semibold text-lg mb-2">Customer Focus</h3>
-            <p className="text-gray-600 text-sm">Our customers are at the heart of everything we do. Your success is our success.</p>
           </div>
         </div>
 
-        {/* Team Section */}
-        <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">Our Team</h2>
-          <p className="text-gray-600 leading-relaxed mb-6">
+        {/* Classic Values Section */}
+        <div className="mb-24">
+          <h2 className="text-3xl font-serif font-bold text-gray-900 text-center mb-12">Our Core Values</h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="text-center p-8 border border-gray-200 bg-white">
+              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-6">
+                <svg className="w-8 h-8 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <h3 className="text-gray-900 font-serif font-bold text-xl mb-3">Trust & Security</h3>
+              <p className="text-gray-600 leading-relaxed">Your data security is our top priority. We use industry-standard encryption and security practices.</p>
+            </div>
+
+            <div className="text-center p-8 border border-gray-200 bg-white">
+              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-6">
+                <svg className="w-8 h-8 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h3 className="text-gray-900 font-serif font-bold text-xl mb-3">Innovation</h3>
+              <p className="text-gray-600 leading-relaxed">We continuously evolve our platform with new features and improvements based on customer feedback.</p>
+            </div>
+
+            <div className="text-center p-8 border border-gray-200 bg-white">
+              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-6">
+                <svg className="w-8 h-8 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <h3 className="text-gray-900 font-serif font-bold text-xl mb-3">Customer Focus</h3>
+              <p className="text-gray-600 leading-relaxed">Our customers are at the heart of everything we do. Your success is our success.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Classic Team Section */}
+        <div className="mb-24">
+          <h2 className="text-3xl font-serif font-bold text-gray-900 text-center mb-12">Meet Our Team</h2>
+          <p className="text-gray-600 text-center max-w-3xl mx-auto mb-12 leading-relaxed">
             Our team consists of experienced professionals passionate about technology and retail. From developers to support specialists, everyone at our company is committed to delivering the best possible experience for our customers.
           </p>
           {loading ? (
@@ -155,26 +180,75 @@ export default function AboutUs({ onNavigate }) {
               <p>No team members to display at this time.</p>
             </div>
           ) : (
-            <div className="grid md:grid-cols-4 gap-6">
+            <div className="grid md:grid-cols-4 gap-8">
               {teamMembers.map((member) => (
-                <div key={member.id} className="text-center">
+                <div key={member.id} className="text-center p-6 border border-gray-200 bg-white">
                   {member.image_url ? (
                     <img
                       src={member.image_url}
                       alt={member.name}
-                      className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-2 border-gray-200"
+                      className="w-24 h-24 rounded-full object-cover mx-auto mb-4 border-4 border-gray-100"
                     />
                   ) : (
-                    <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center mx-auto mb-3">
-                      <span className="text-gray-600 font-semibold">{member.name.charAt(0)}</span>
+                    <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 border-4 border-gray-100">
+                      <span className="text-gray-600 font-bold text-2xl">{member.name.charAt(0)}</span>
                     </div>
                   )}
-                  <h3 className="text-gray-900 font-semibold">{member.name}</h3>
-                  <p className="text-gray-600 text-sm">{member.role}</p>
+                  <h3 className="text-gray-900 font-serif font-bold text-lg mb-2">{member.name}</h3>
+                  <p className="text-gray-600 text-sm italic">{member.role}</p>
                 </div>
               ))}
             </div>
           )}
+        </div>
+
+        {/* Classic Quote Section */}
+        <div className="max-w-4xl mx-auto text-center mb-24">
+          <div className="border-t-2 border-b-2 border-gray-200 py-12 px-8">
+            <svg className="w-12 h-12 text-gray-300 mx-auto mb-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-9.57 1.413 0 2.286.146 3.676.647.326.134.526.46.526.825v3.478c0 .365-.197.693-.526.825-1.39-.58-2.263-.647-3.676-.647-5.252 0-5.704 3.731-9.57 8.983-9.57v7.391H21V21h-6.983zM8.017 21v-7.391c0-5.704 3.731-9.57 8.983-9.57 1.413 0 2.286.146 3.676.647.326.134.526.46.526.825v3.478c0 .365-.197.693-.526.825-1.39-.58-2.263-.647-3.676-.647-5.252 0-5.704 3.731-9.57 8.983-9.57v7.391H21V21H8.017z"/>
+            </svg>
+            <p className="text-2xl font-serif text-gray-700 italic leading-relaxed mb-6">
+              Success is not just about making sales. It's about building relationships, understanding needs, and delivering solutions that truly make a difference in our customers' businesses.
+            </p>
+            <p className="text-gray-500 font-semibold">— Our Founding Philosophy</p>
+          </div>
+        </div>
+
+        {/* Classic Timeline Section */}
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-3xl font-serif font-bold text-gray-900 text-center mb-12">Our Journey</h2>
+          <div className="space-y-8">
+            <div className="flex gap-6">
+              <div className="w-16 flex-shrink-0 text-center">
+                <div className="w-12 h-12 rounded-full bg-gray-800 text-white flex items-center justify-center mx-auto font-bold">1</div>
+                <div className="w-0.5 h-full bg-gray-200 mx-auto mt-2"></div>
+              </div>
+              <div className="pb-8">
+                <h3 className="text-xl font-serif font-bold text-gray-900 mb-2">Foundation</h3>
+                <p className="text-gray-600 leading-relaxed">Started with a simple vision to make POS technology accessible to every business.</p>
+              </div>
+            </div>
+            <div className="flex gap-6">
+              <div className="w-16 flex-shrink-0 text-center">
+                <div className="w-12 h-12 rounded-full bg-gray-800 text-white flex items-center justify-center mx-auto font-bold">2</div>
+                <div className="w-0.5 h-full bg-gray-200 mx-auto mt-2"></div>
+              </div>
+              <div className="pb-8">
+                <h3 className="text-xl font-serif font-bold text-gray-900 mb-2">Growth</h3>
+                <p className="text-gray-600 leading-relaxed">Expanded our features and user base, becoming a trusted name in the industry.</p>
+              </div>
+            </div>
+            <div className="flex gap-6">
+              <div className="w-16 flex-shrink-0 text-center">
+                <div className="w-12 h-12 rounded-full bg-gray-800 text-white flex items-center justify-center mx-auto font-bold">3</div>
+              </div>
+              <div>
+                <h3 className="text-xl font-serif font-bold text-gray-900 mb-2">Innovation</h3>
+                <p className="text-gray-600 leading-relaxed">Continuously evolving with cutting-edge technology and customer-driven improvements.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

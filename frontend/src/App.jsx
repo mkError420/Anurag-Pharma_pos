@@ -7,6 +7,7 @@ import TeamMembers from './components/TeamMembers';
 import HeroSlides from './components/HeroSlides';
 import ContactInformation from './components/ContactInformation';
 import ContactMessages from './components/ContactMessages';
+import PricingPlans from './components/PricingPlans';
 import DashboardLayout from './components/DashboardLayout';
 import Dashboard from './components/Dashboard';
 import Checkout from './components/Checkout';
@@ -253,11 +254,12 @@ export default function App() {
         case '/all-transactions': return <AllTransactions />;
         case '/total-revenue': return <TotalRevenue />;
         case '/investment': return <InvestmentPage />;
-        case '/attendance': return <ManageStaff />;
+        case '/attendance': return <Attendance />;
         case '/team-members': return <TeamMembers />;
         case '/hero-slides': return <HeroSlides />;
         case '/contact-information': return <ContactInformation />;
         case '/contact-messages': return <ContactMessages />;
+        case '/pricing-plans': return <PricingPlans />;
         case '/settings': return <Settings />;
         default: return <Dashboard />;
       }
@@ -348,9 +350,9 @@ export default function App() {
             </div>
           </div>
         )}
-        {publicPage === 'home' && <Home onNavigate={setPublicPage} onLoginSuccess={handleLoginSuccess} />}
-        {publicPage === 'about' && <AboutUs onNavigate={setPublicPage} />}
-        {publicPage === 'contact' && <ContactUs onNavigate={setPublicPage} />}
+        {publicPage === 'home' && <Home onNavigate={setPublicPage} onLoginSuccess={handleLoginSuccess} publicPage={publicPage} />}
+        {publicPage === 'about' && <AboutUs onNavigate={setPublicPage} publicPage={publicPage} />}
+        {publicPage === 'contact' && <ContactUs onNavigate={setPublicPage} publicPage={publicPage} />}
       </>
     );
   }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Footer from './Footer';
 import API_BASE_URL from '../config';
 
-export default function ContactUs({ onNavigate }) {
+export default function ContactUs({ onNavigate, publicPage }) {
   const [logo, setLogo] = useState(null);
   const [contactInfo, setContactInfo] = useState({
     email_addresses: [],
@@ -104,21 +104,36 @@ export default function ContactUs({ onNavigate }) {
             <div className="flex items-center gap-8">
               <button
                 onClick={() => onNavigate('home')}
-                className="text-gray-600 hover:text-gray-900 transition-colors font-medium"
+                className={`text-gray-600 hover:text-gray-900 transition-colors font-medium relative ${
+                  publicPage === 'home' ? 'text-gray-900' : ''
+                }`}
               >
                 Home
+                {publicPage === 'home' && (
+                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-900"></span>
+                )}
               </button>
               <button
                 onClick={() => onNavigate('about')}
-                className="text-gray-600 hover:text-gray-900 transition-colors font-medium"
+                className={`text-gray-600 hover:text-gray-900 transition-colors font-medium relative ${
+                  publicPage === 'about' ? 'text-gray-900' : ''
+                }`}
               >
                 About Us
+                {publicPage === 'about' && (
+                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-900"></span>
+                )}
               </button>
               <button
                 onClick={() => onNavigate('contact')}
-                className="text-gray-900 hover:text-gray-900 transition-colors font-medium"
+                className={`text-gray-900 hover:text-gray-900 transition-colors font-medium relative ${
+                  publicPage === 'contact' ? 'text-gray-900' : ''
+                }`}
               >
                 Contact Us
+                {publicPage === 'contact' && (
+                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-gray-900"></span>
+                )}
               </button>
             </div>
           </div>

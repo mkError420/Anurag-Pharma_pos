@@ -569,6 +569,36 @@ class DB {
                 }
             }
 
+            // Create pricing_plans table if not exists
+            if (!$tableExists('pricing_plans')) {
+                $pdo->exec("
+                    CREATE TABLE `pricing_plans` (
+                        `id` INT AUTO_INCREMENT PRIMARY KEY,
+                        `name` VARCHAR(100) NOT NULL,
+                        `description` TEXT NULL,
+                        `price` DECIMAL(10,2) NOT NULL,
+                        `currency` VARCHAR(10) NOT NULL DEFAULT 'BDT',
+                        `billing_period` VARCHAR(20) NOT NULL DEFAULT 'month',
+                        `features` JSON NULL,
+                        `is_popular` TINYINT(1) NOT NULL DEFAULT 0,
+                        `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+                        `sort_order` INT NOT NULL DEFAULT 0,
+                        `button_text` VARCHAR(50) NULL,
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                ");
+                
+                // Insert default pricing plans
+                $pdo->exec("
+                    INSERT INTO `pricing_plans` (`name`, `description`, `price`, `currency`, `billing_period`, `features`, `is_popular`, `is_active`, `sort_order`, `button_text`)
+                    VALUES 
+                    ('Starter', 'Perfect for small businesses', 1500.00, 'BDT', 'month', '[\"Up to 100 products\", \"Basic analytics\", \"Email support\"]', 0, 1, 1, 'Get Started'),
+                    ('Professional', 'For growing businesses', 2000.00, 'BDT', 'month', '[\"Unlimited products\", \"Advanced analytics\", \"Priority support\", \"Multi-location\"]', 1, 1, 2, 'Get Started'),
+                    ('Enterprise', 'For large organizations', 3000.00, 'BDT', 'month', '[\"Everything in Professional\", \"Custom integrations\", \"Dedicated account manager\", \"24/7 phone support\"]', 0, 1, 3, 'Contact Sales')
+                ");
+            }
+
         } catch (\PDOException $e) {
             error_log("Migration error: " . $e->getMessage());
             file_put_contents(__DIR__ . '/migration_error.txt', "Migration error: " . $e->getMessage());

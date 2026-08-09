@@ -8,9 +8,11 @@ export default function Login({
   setExternalEmail,
   externalPassword,
   setExternalPassword,
+  prefilledEmail = '',
+  prefilledPassword = '',
 }) {
-  const [internalEmail, setInternalEmail] = useState('');
-  const [internalPassword, setInternalPassword] = useState('');
+  const [internalEmail, setInternalEmail] = useState(prefilledEmail);
+  const [internalPassword, setInternalPassword] = useState(prefilledPassword);
 
   const email = externalEmail !== undefined ? externalEmail : internalEmail;
   const setEmail = setExternalEmail || setInternalEmail;
@@ -40,6 +42,16 @@ export default function Login({
     };
     fetchLogo();
   }, []);
+
+  // Update internal state when prefilled values change
+  useEffect(() => {
+    if (prefilledEmail) {
+      setInternalEmail(prefilledEmail);
+    }
+    if (prefilledPassword) {
+      setInternalPassword(prefilledPassword);
+    }
+  }, [prefilledEmail, prefilledPassword]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

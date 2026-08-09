@@ -180,6 +180,11 @@ $routes = [
             $controller = new WebsiteContentController();
             $controller->getContactInformation();
         },
+        // Public Pricing Plans Endpoint (no authentication required)
+        '/^public\/pricing-plans$/' => function() {
+            $controller = new WebsiteContentController();
+            $controller->getAllPricingPlans();
+        },
         // Diagnostics
         '/^diagnostic$/' => function() {
             header('Content-Type: text/plain');
@@ -371,6 +376,25 @@ $routes = [
                 $controller->getContactInformation();
             });
         },
+        // Pricing Plans (authenticated)
+        '/^pricing-plans$/' => function() {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->getAllPricingPlans();
+            });
+        },
+        '/^pricing-plans\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->getPricingPlanById($args[0]);
+            });
+        },
+        '/^pricing-plans\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->getPricingPlanById($args[0]);
+            });
+        },
         // Contact Messages (authenticated)
         '/^contact-messages$/' => function() {
             AuthController::requireAuth(function() {
@@ -449,9 +473,16 @@ $routes = [
         },
         // Team Members
         '/^team-members$/' => function($args, $data) {
-            AuthController::requireAuth(function() {
+            AuthController::requireAuth(function() use ($data) {
                 $controller = new WebsiteContentController();
                 $controller->createTeamMember();
+            });
+        },
+        // Pricing Plans
+        '/^pricing-plans$/' => function($args, $data) {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->createPricingPlan();
             });
         },
         // Public Contact Message Submission (no authentication required)
@@ -513,9 +544,16 @@ $routes = [
         },
         // Team Members
         '/^team-members\/(\d+)$/' => function($args, $data) {
-            AuthController::requireAuth(function() use ($args) {
+            AuthController::requireAuth(function() use ($args, $data) {
                 $controller = new WebsiteContentController();
                 $controller->updateTeamMember($args[0]);
+            });
+        },
+        // Pricing Plans
+        '/^pricing-plans\/(\d+)$/' => function($args, $data) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->updatePricingPlan($args[0]);
             });
         },
         // Contact Information
@@ -591,6 +629,13 @@ $routes = [
             AuthController::requireAuth(function() use ($args) {
                 $controller = new WebsiteContentController();
                 $controller->deleteTeamMember($args[0]);
+            });
+        },
+        // Pricing Plans
+        '/^pricing-plans\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->deletePricingPlan($args[0]);
             });
         },
     ]
