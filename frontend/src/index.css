@@ -100,6 +100,7 @@
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
+    color: #000000 !important;
   }
   
   body.print-mode-thermal #receipt-print-area,
@@ -109,7 +110,7 @@
     padding: 0mm 2mm 2mm 2mm !important;
     font-family: 'Courier New', Courier, monospace !important;
     font-size: 12px !important;
-    font-weight: 700 !important;
+    font-weight: 800 !important;
     line-height: 1.3 !important;
     color: #000000 !important;
     -webkit-print-color-adjust: exact !important;
@@ -119,7 +120,8 @@
   body.print-mode-thermal #receipt-print-area *,
   body.print-mode-thermal #history-print-area * {
     color: #000000 !important;
-    font-weight: 700 !important;
+    font-weight: 800 !important;
+    border-color: #000000 !important;
   }
 
   body.print-mode-thermal .regular-only {

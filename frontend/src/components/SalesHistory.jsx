@@ -2142,43 +2142,43 @@ export default function SalesHistory() {
                         <div className="w-full py-4 flex justify-center items-start min-h-0 overflow-y-auto">
                           {previewMode === 'thermal' ? (
                             /* Thermal Receipt Mockup */
-                            <div className="w-[320px] bg-white text-slate-800 shadow-lg p-6 font-mono text-[11px] leading-relaxed border-t-8 border-indigo-600 rounded-b-md">
-                              <div className="text-center mb-4">
-                                <h2 className="text-sm font-bold tracking-tight uppercase text-slate-950">{receipt.shop_name}</h2>
-                                {receipt.shop_address && <p className="text-[10px] text-slate-500 mt-0.5">{receipt.shop_address}</p>}
-                                {receipt.shop_phone && <p className="text-[10px] text-slate-500">Tel: {receipt.shop_phone}</p>}
-                                {receipt.shop_email && <p className="text-[10px] text-slate-500">Email: {receipt.shop_email}</p>}
-                                <p className="text-[9px] text-slate-400 mt-2 font-sans tracking-widest">*** TRANSACTION RECEIPT ***</p>
+                            <div className="w-[320px] bg-white text-black shadow-lg p-6 font-mono text-[11px] font-black leading-relaxed border-t-8 border-indigo-600 rounded-b-md">
+                              <div className="text-center mb-4 text-black">
+                                <h2 className="text-sm font-black tracking-tight uppercase text-black">{receipt.shop_name}</h2>
+                                {receipt.shop_address && <p className="text-[10px] font-black text-black mt-0.5">{receipt.shop_address}</p>}
+                                {receipt.shop_phone && <p className="text-[10px] font-black text-black">Tel: {receipt.shop_phone}</p>}
+                                {receipt.shop_email && <p className="text-[10px] font-black text-black">Email: {receipt.shop_email}</p>}
+                                <p className="text-[9px] font-black text-black mt-2 font-sans tracking-widest">*** TRANSACTION RECEIPT ***</p>
                               </div>
 
-                              <div className="border-b border-dashed border-slate-300 py-2 my-2 text-[10px] space-y-0.5 text-slate-600">
-                                <div><span className="font-semibold text-slate-800">Sale ID:</span> #{receipt.sale_id}</div>
-                                <div><span className="font-semibold text-slate-800">Date:</span> {receipt.created_at}</div>
-                                <div><span className="font-semibold text-slate-800">Cashier:</span> {receipt.staff_name}</div>
-                                <div><span className="font-semibold text-slate-800">Customer:</span> {receipt.customer_name}</div>
-                                {receipt.customer_phone && <div><span className="font-semibold text-slate-800">Phone:</span> {receipt.customer_phone}</div>}
+                              <div className="border-b-2 border-dashed border-black py-2 my-2 text-[10px] space-y-0.5 text-black font-black">
+                                <div><span className="font-black text-black">Sale ID:</span> #{receipt.sale_id}</div>
+                                <div><span className="font-black text-black">Date:</span> {receipt.created_at}</div>
+                                <div><span className="font-black text-black">Cashier:</span> {receipt.staff_name}</div>
+                                <div><span className="font-black text-black">Customer:</span> {receipt.customer_name}</div>
+                                {receipt.customer_phone && <div><span className="font-black text-black">Phone:</span> {receipt.customer_phone}</div>}
                               </div>
 
-                              <table className="w-full text-left text-[10px] border-collapse">
+                              <table className="w-full text-left text-[10px] font-black border-collapse text-black">
                                 <thead>
-                                  <tr className="border-b border-dashed border-slate-300 font-bold text-slate-700">
-                                    <th className="pb-1 text-left">Item</th>
-                                    <th className="pb-1 text-center w-8">Qty</th>
-                                    <th className="pb-1 text-center w-8">Unit</th>
-                                    <th className="pb-1 text-right w-16">Price</th>
-                                    <th className="pb-1 text-right w-20">Total</th>
+                                  <tr className="border-b-2 border-dashed border-black font-black text-black">
+                                    <th className="pb-1 text-left text-black">Item</th>
+                                    <th className="pb-1 text-center w-8 text-black">Qty</th>
+                                    <th className="pb-1 text-center w-8 text-black">Unit</th>
+                                    <th className="pb-1 text-right w-16 text-black">Price</th>
+                                    <th className="pb-1 text-right w-20 text-black">Total</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {receipt.items.map((item, idx) => (
-                                    <tr key={idx} className="border-b border-dotted border-slate-100">
-                                      <td className="py-2 pr-1 text-slate-800 break-words max-w-[90px]">
+                                    <tr key={idx} className="border-b border-dashed border-slate-400">
+                                      <td className="py-2 pr-1 text-black font-black break-words max-w-[90px]">
                                         <div>{item.product_name || item.name}</div>
                                       </td>
-                                      <td className="py-2 text-center text-slate-600">{item.quantity}</td>
-                                      <td className="py-2 text-center text-slate-500">{item.unit || 'pcs'}</td>
-                                      <td className="py-2 text-right text-slate-600">৳{parseFloat(item.unit_price || item.price).toFixed(3)}</td>
-                                      <td className="py-2 text-right font-semibold text-slate-800">
+                                      <td className="py-2 text-center text-black font-black">{item.quantity}</td>
+                                      <td className="py-2 text-center text-black font-extrabold">{item.unit || 'pcs'}</td>
+                                      <td className="py-2 text-right text-black font-black">৳{parseFloat(item.unit_price || item.price).toFixed(3)}</td>
+                                      <td className="py-2 text-right font-black text-black">
                                         ৳{((item.unit_price || item.price) * item.quantity).toFixed(3)}
                                       </td>
                                     </tr>
@@ -2186,36 +2186,36 @@ export default function SalesHistory() {
                                 </tbody>
                               </table>
 
-                              <div className="border-t border-dashed border-slate-300 pt-2.5 mt-2.5 text-[10px] space-y-1.5 text-slate-600">
-                                <div className="flex justify-between">
+                              <div className="border-t-2 border-dashed border-black pt-2.5 mt-2.5 text-[10px] font-black space-y-1.5 text-black">
+                                <div className="flex justify-between text-black">
                                   <span>Subtotal:</span>
-                                  <span className="font-medium text-slate-800">৳{receipt.subtotal.toFixed(3)}</span>
+                                  <span className="font-black text-black">৳{receipt.subtotal.toFixed(3)}</span>
                                 </div>
                                 {receipt.discount > 0 && (
-                                  <div className="flex justify-between text-rose-500">
+                                  <div className="flex justify-between text-rose-700 font-black">
                                     <span>Discount:</span>
                                     <span>-৳{receipt.discount.toFixed(3)}</span>
                                   </div>
                                 )}
-                                <div className="flex justify-between">
+                                <div className="flex justify-between text-black">
                                   <span>Tax ({taxRatePercent}%):</span>
-                                  <span className="font-medium text-slate-800">৳{receipt.tax.toFixed(3)}</span>
+                                  <span className="font-black text-black">৳{receipt.tax.toFixed(3)}</span>
                                 </div>
-                                <div className="flex justify-between font-bold text-slate-900 border-t border-dotted border-slate-200 pt-1.5 text-[12px]">
+                                <div className="flex justify-between font-black text-black border-t-2 border-dashed border-black pt-1.5 text-[12px]">
                                   <span>Total Paid:</span>
                                   <span>৳{receipt.paid_amount.toFixed(3)}</span>
                                 </div>
                                 {receipt.due_amount > 0 && (
-                                  <div className="flex justify-between font-bold text-rose-600 border-t border-dotted border-slate-200 pt-1 text-[11px]">
+                                  <div className="flex justify-between font-black text-rose-800 border-t-2 border-dashed border-black pt-1 text-[11px]">
                                     <span>Due ammount:</span>
                                     <span>৳{receipt.due_amount.toFixed(3)}</span>
                                   </div>
                                 )}
                               </div>
 
-                              <div className="text-center mt-6 pt-3 border-t border-dashed border-slate-300">
-                                <p className="text-[10px] text-slate-600 uppercase font-semibold">Payment: {receipt.payment_method.replace('_', ' ')}</p>
-                                <p className="text-[10px] font-bold text-slate-800 tracking-wider mt-2">*** THANK YOU ***</p>
+                              <div className="text-center mt-6 pt-3 border-t-2 border-dashed border-black relative text-black">
+                                <p className="text-[10px] text-black uppercase font-black">Payment: {receipt.payment_method.replace('_', ' ')}</p>
+                                <p className="text-[10px] font-black text-black tracking-wider mt-2">*** THANK YOU ***</p>
                               </div>
                             </div>
                           ) : (

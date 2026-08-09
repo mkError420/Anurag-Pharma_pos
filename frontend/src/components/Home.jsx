@@ -7,6 +7,18 @@ export default function Home({ onNavigate, onLoginSuccess }) {
   const [heroSlides, setHeroSlides] = useState([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Lifted login state so demo credential buttons can pre-fill the form
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [selectedCred, setSelectedCred] = useState(null);
+
+  const applyCredential = (email, pass) => {
+    setLoginEmail(email);
+    setLoginPassword(pass);
+    setSelectedCred(email);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,12 +69,19 @@ export default function Home({ onNavigate, onLoginSuccess }) {
     setCurrentSlide(index);
   };
 
+  const navLinks = [
+    { label: 'Home', page: 'home' },
+    { label: 'About Us', page: 'about' },
+    { label: 'Contact Us', page: 'contact' },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Navbar */}
+      {/* ── Navbar ── */}
       <nav className="bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
+
             {/* Logo */}
             <div className="flex items-center gap-3">
               {logo ? (
@@ -75,39 +94,70 @@ export default function Home({ onNavigate, onLoginSuccess }) {
               <span className="text-white font-bold text-xl">POS System</span>
             </div>
 
-            {/* Navigation Links */}
-            <div className="flex items-center gap-6">
-              <button
-                onClick={() => onNavigate('home')}
-                className="text-white hover:text-indigo-400 transition-colors font-medium"
-              >
-                Home
-              </button>
-              <button
-                onClick={() => onNavigate('about')}
-                className="text-slate-300 hover:text-indigo-400 transition-colors font-medium"
-              >
-                About Us
-              </button>
-              <button
-                onClick={() => onNavigate('contact')}
-                className="text-slate-300 hover:text-indigo-400 transition-colors font-medium"
-              >
-                Contact Us
-              </button>
+            {/* Desktop Navigation Links */}
+            <div className="hidden sm:flex items-center gap-6">
+              {navLinks.map((link) => (
+                <button
+                  key={link.page}
+                  onClick={() => onNavigate(link.page)}
+                  className="text-slate-300 hover:text-indigo-400 transition-colors font-medium text-sm"
+                >
+                  {link.label}
+                </button>
+              ))}
             </div>
+
+            {/* Mobile Hamburger Button */}
+            <button
+              className="sm:hidden flex items-center justify-center w-10 h-10 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              aria-label="Toggle navigation menu"
+            >
+              {mobileMenuOpen ? (
+                /* X icon */
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                /* Hamburger icon */
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Dropdown Menu */}
+        <div
+          className={`sm:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+            mobileMenuOpen ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'
+          }`}
+        >
+          <div className="bg-slate-900/95 backdrop-blur-md border-t border-slate-700/50 px-4 py-3 flex flex-col gap-1">
+            {navLinks.map((link) => (
+              <button
+                key={link.page}
+                onClick={() => { onNavigate(link.page); setMobileMenuOpen(false); }}
+                className="w-full text-left text-slate-300 hover:text-white hover:bg-slate-700/50 transition-colors font-medium text-sm px-3 py-2.5 rounded-lg"
+              >
+                {link.label}
+              </button>
+            ))}
           </div>
         </div>
       </nav>
 
-      {/* Hero Section with Carousel */}
+      {/* ── Main Content ── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 mb-16">
+
+        {/* Hero Section with Carousel */}
         {loading ? (
           <div className="flex items-center justify-center h-96">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
           </div>
         ) : heroSlides.length > 0 ? (
-          <div className="grid lg:grid-cols-2 gap-8 items-center">
+          <div className="grid lg:grid-cols-2 gap-8 items-center mb-16">
             {/* Carousel Column */}
             <div className="relative">
               <div className="relative h-96 rounded-2xl overflow-hidden">
@@ -131,7 +181,7 @@ export default function Home({ onNavigate, onLoginSuccess }) {
                     )}
                   </div>
                 ))}
-                
+
                 {/* Navigation Arrows */}
                 {heroSlides.length > 1 && (
                   <>
@@ -242,14 +292,95 @@ export default function Home({ onNavigate, onLoginSuccess }) {
           </div>
         </div>
 
-        {/* Login Section */}
-        <div className="max-w-md mx-auto">
-          <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 border border-slate-700/50">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-white mb-2">Login to Your Account</h2>
-              <p className="text-slate-400 text-sm">Access your dashboard and manage your business</p>
+        {/* ── Login Section – Horizontal Layout ── */}
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden">
+          {/* Section Header */}
+          <div className="px-8 pt-8 pb-6 border-b border-slate-700/40">
+            <h2 className="text-2xl font-bold text-white mb-1">Login to Your Account</h2>
+            <p className="text-slate-400 text-sm">Access your dashboard and manage your business</p>
+          </div>
+
+          {/* Two-column body */}
+          <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-700/40">
+
+            {/* Left – Login Form */}
+            <div className="px-8 py-8">
+              <Login
+                onLoginSuccess={onLoginSuccess}
+                hideCredentials
+                externalEmail={loginEmail}
+                setExternalEmail={setLoginEmail}
+                externalPassword={loginPassword}
+                setExternalPassword={setLoginPassword}
+              />
             </div>
-            <Login onLoginSuccess={onLoginSuccess} />
+
+            {/* Right – Demo Credentials */}
+            <div className="px-8 py-8">
+              <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Demo Credentials</p>
+              <p className="text-xs text-slate-600 mb-4">Click any credential to auto-fill the form</p>
+              <div className="flex flex-col gap-2">
+                {/* Super Admin */}
+                <button
+                  type="button"
+                  onClick={() => applyCredential('restricted', '******')}
+                  className={`flex items-center gap-3 w-full text-left rounded-xl px-3 py-2.5 border transition-all group ${
+                    selectedCred === 'restricted'
+                      ? 'bg-rose-500/25 border-rose-400/60 ring-1 ring-rose-400/40'
+                      : 'bg-rose-500/10 border-rose-500/20 hover:bg-rose-500/20 hover:border-rose-400/40'
+                  }`}
+                >
+                  <span className="text-xs font-bold bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full shrink-0">SUPER ADMIN</span>
+                  <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">Restricted!!!</span>
+                  {selectedCred === 'restricted' && (
+                    <span className="ml-auto text-rose-400 shrink-0">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                    </span>
+                  )}
+                </button>
+
+                {/* Shop Admins & Staff */}
+                {[
+                  { email: 'alice@boutique.com', pass: 'alice123', role: 'SHOP ADMIN', color: 'indigo' },
+                  { email: 'admin@mkfashion.com', pass: 'mkfashion123', role: 'SHOP ADMIN', color: 'indigo' },
+                  { email: 'admin@mkpharmacy.com', pass: 'mkpharmacy123', role: 'SHOP ADMIN', color: 'indigo' },
+                  { email: 'staff1@mkpharmacy.com', pass: 'staff123', role: 'SHOP STAFF', color: 'slate' },
+                  { email: 'staff1@mkfashion.com', pass: 'staff123', role: 'SHOP STAFF', color: 'slate' },
+                ].map((cred) => (
+                  <button
+                    key={cred.email}
+                    type="button"
+                    onClick={() => applyCredential(cred.email, cred.pass)}
+                    className={`flex items-center gap-3 w-full text-left rounded-xl px-3 py-2.5 border transition-all group ${
+                      selectedCred === cred.email
+                        ? 'bg-indigo-500/20 border-indigo-400/60 ring-1 ring-indigo-400/40'
+                        : 'bg-gray-500/10 border-gray-500/20 hover:bg-indigo-500/10 hover:border-indigo-500/30'
+                    }`}
+                  >
+                    <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">{cred.role}</span>
+                    <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">{cred.email} · {cred.pass}</span>
+                    {selectedCred === cred.email && (
+                      <span className="ml-auto text-indigo-400 shrink-0">
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <p className="text-center text-slate-600 text-xs mt-6">
+                Multi-Tenant Point of Sale System &copy; {new Date().getFullYear()}{' '}
+                developed by{' '}
+                <a
+                  href="https://its-mk.netlify.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-500 hover:text-indigo-400 transition-colors"
+                >
+                  MK
+                </a>
+              </p>
+            </div>
           </div>
         </div>
       </div>

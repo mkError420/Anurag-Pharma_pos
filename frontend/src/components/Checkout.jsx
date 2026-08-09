@@ -45,6 +45,13 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
   const [barcodeInput, setBarcodeInput] = useState('');
   const [autoFocusBarcode, setAutoFocusBarcode] = useState(true);
   const barcodeInputRef = useRef(null);
+  const customerInputRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  // Virtual Keyboard / Numpad Pad States
+  const [showKeyboardModal, setShowKeyboardModal] = useState(false);
+  const [numpadTarget, setNumpadTarget] = useState('paidAmount'); // 'quantity' | 'price' | 'discountPercent' | 'discountAmount' | 'paidAmount' | 'redeemPoints'
+  const [selectedCartItemId, setSelectedCartItemId] = useState(null);
 
   // UI States
   const [loading, setLoading] = useState(false);
@@ -476,6 +483,254 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     };
   }, [receipt, showHeldBillsModal, showHoldBillModal, barcodeInput, activeTabId, customers]);
 
+  // Global POS Keyboard Hotkeys (F2: Search, F4: Customer, F8: Clear, F9: Pay, F10: Hold, Alt+K: Numpad, Esc: Close)
+  useEffect(() => {
+    const handlePOSHotkeys = (e) => {
+      // Esc key closes active overlay modals
+      if (e.key === 'Escape') {
+        if (showKeyboardModal) { setShowKeyboardModal(false); return; }
+        if (showCheckoutPreview) { setShowCheckoutPreview(false); return; }
+        if (showHoldBillModal) { setShowHoldBillModal(false); return; }
+        if (showHeldBillsModal) { setShowHeldBillsModal(false); return; }
+        return;
+      }
+
+      // Ignore shortcuts if print preview or modals are open
+      if (receipt || showHeldBillsModal || showHoldBillModal || showCheckoutPreview) {
+        return;
+      }
+
+      // Alt + K : Toggle Onscreen Keyboard Numpad
+      if ((e.altKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setShowKeyboardModal(prev => !prev);
+        return;
+      }
+
+      // F2 : Focus Product Search Input
+      if (e.key === 'F2') {
+        e.preventDefault();
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        } else if (barcodeInputRef.current) {
+          barcodeInputRef.current.focus();
+        }
+        return;
+      }
+
+      // F4 : Focus Select Customer Input
+      if (e.key === 'F4') {
+        e.preventDefault();
+        if (customerInputRef.current) {
+          customerInputRef.current.focus();
+        }
+        return;
+      }
+
+      // F8 : Clear Cart
+      if (e.key === 'F8') {
+        e.preventDefault();
+        if (activeTab && activeTab.cart.length > 0) {
+          if (window.confirm('Are you sure you want to clear the active cart? (F8)')) {
+            updateActiveTabState('cart', []);
+            updateActiveTabState('discountPercent', 0);
+            updateActiveTabState('discountAmount', 0);
+            updateActiveTabState('paidAmount', '');
+            updateActiveTabState('isPaidTouched', false);
+            triggerAlert('success', 'Cart cleared successfully.');
+          }
+        }
+        return;
+      }
+
+      // F9 : Open Checkout Preview / Complete Sale
+      if (e.key === 'F9') {
+        e.preventDefault();
+        if (activeTab && activeTab.cart.length > 0 && !submitting) {
+          setPreviewModeType('checkout');
+          setShowCheckoutPreview(true);
+        }
+        return;
+      }
+
+      // F10 : Open Hold Bill Modal
+      if (e.key === 'F10') {
+        e.preventDefault();
+        if (activeTab && activeTab.cart.length > 0) {
+          setShowHoldBillModal(true);
+        }
+        return;
+      }
+
+      // ARROW KEYS & ENTER CART NAVIGATION (When not editing a text input field)
+      const activeElement = document.activeElement;
+      const isEditingInput = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT');
+
+      if (activeTab && activeTab.cart.length > 0 && !isEditingInput) {
+        const cart = activeTab.cart;
+        const currentIndex = cart.findIndex(i => i.id === selectedCartItemId);
+
+        // ArrowDown : Move selection to next item in cart
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          const nextIndex = currentIndex < cart.length - 1 ? currentIndex + 1 : 0;
+          setSelectedCartItemId(cart[nextIndex].id);
+          return;
+        }
+
+        // ArrowUp : Move selection to previous item in cart
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          const prevIndex = currentIndex > 0 ? currentIndex - 1 : cart.length - 1;
+          setSelectedCartItemId(cart[prevIndex].id);
+          return;
+        }
+
+        // ArrowRight : Increase quantity (+1) of selected cart item
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          const targetId = selectedCartItemId || cart[cart.length - 1].id;
+          updateQuantity(targetId, 1);
+          return;
+        }
+
+        // ArrowLeft : Decrease quantity (-1) of selected cart item
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          const targetId = selectedCartItemId || cart[cart.length - 1].id;
+          updateQuantity(targetId, -1);
+          return;
+        }
+
+        // Delete : Remove selected cart item
+        if (e.key === 'Delete') {
+          e.preventDefault();
+          const targetId = selectedCartItemId || cart[cart.length - 1].id;
+          removeFromCart(targetId);
+          return;
+        }
+
+        // Enter : Open Checkout preview
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (!submitting) {
+            setPreviewModeType('checkout');
+            setShowCheckoutPreview(true);
+          }
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handlePOSHotkeys);
+    return () => {
+      window.removeEventListener('keydown', handlePOSHotkeys);
+    };
+  }, [activeTab, receipt, showHeldBillsModal, showHoldBillModal, showCheckoutPreview, showKeyboardModal, submitting, selectedCartItemId]);
+
+  // Handler for Virtual Numpad Key Press
+  const handleNumpadPress = (key) => {
+    if (!activeTab) return;
+
+    const getTargetCartItem = () => {
+      if (!activeTab.cart || activeTab.cart.length === 0) return null;
+      if (selectedCartItemId) {
+        const found = activeTab.cart.find(i => i.id === selectedCartItemId);
+        if (found) return found;
+      }
+      return activeTab.cart[activeTab.cart.length - 1];
+    };
+
+    const targetItem = getTargetCartItem();
+
+    if (numpadTarget === 'quantity') {
+      if (!targetItem) return;
+      let currentVal = String(targetItem.quantity || 0);
+
+      if (key === 'CLEAR') {
+        updateQuantity(targetItem.id, -targetItem.quantity);
+      } else if (key === 'BACKSPACE') {
+        const newVal = currentVal.slice(0, -1);
+        handleQuantityInput(targetItem.id, newVal === '' ? '0' : newVal);
+      } else if (key === '+1') {
+        updateQuantity(targetItem.id, 1);
+      } else if (key === '-1') {
+        updateQuantity(targetItem.id, -1);
+      } else {
+        const newVal = currentVal === '0' ? String(key) : currentVal + String(key);
+        handleQuantityInput(targetItem.id, newVal);
+      }
+    } else if (numpadTarget === 'price') {
+      if (!targetItem) return;
+      let currentVal = String(targetItem.price || 0);
+
+      if (key === 'CLEAR') {
+        updatePrice(targetItem.id, '0');
+      } else if (key === 'BACKSPACE') {
+        const newVal = currentVal.slice(0, -1);
+        updatePrice(targetItem.id, newVal === '' ? '0' : newVal);
+      } else {
+        const newVal = currentVal === '0' ? String(key) : currentVal + String(key);
+        updatePrice(targetItem.id, newVal);
+      }
+    } else if (numpadTarget === 'discountPercent') {
+      let currentVal = String(activeTab.discountPercent || 0);
+      if (key === 'CLEAR') {
+        updateActiveTabState('discountPercent', 0);
+      } else if (key === 'BACKSPACE') {
+        const newVal = currentVal.slice(0, -1);
+        updateActiveTabState('discountPercent', Math.min(100, Math.max(0, parseFloat(newVal) || 0)));
+      } else {
+        const newVal = currentVal === '0' ? String(key) : currentVal + String(key);
+        updateActiveTabState('discountPercent', Math.min(100, Math.max(0, parseFloat(newVal) || 0)));
+      }
+      updateActiveTabState('discountAmount', 0);
+    } else if (numpadTarget === 'discountAmount') {
+      let currentVal = String(activeTab.discountAmount || 0);
+      if (key === 'CLEAR') {
+        updateActiveTabState('discountAmount', 0);
+      } else if (key === 'BACKSPACE') {
+        const newVal = currentVal.slice(0, -1);
+        updateActiveTabState('discountAmount', Math.max(0, parseFloat(newVal) || 0));
+      } else {
+        const newVal = currentVal === '0' ? String(key) : currentVal + String(key);
+        updateActiveTabState('discountAmount', Math.max(0, parseFloat(newVal) || 0));
+      }
+      updateActiveTabState('discountPercent', 0);
+    } else if (numpadTarget === 'paidAmount') {
+      let currentVal = String(activeTab.paidAmount || '');
+      if (key === 'CLEAR') {
+        updateActiveTabState('paidAmount', '');
+        updateActiveTabState('isPaidTouched', false);
+      } else if (key === 'BACKSPACE') {
+        const newVal = currentVal.slice(0, -1);
+        updateActiveTabState('paidAmount', newVal);
+        updateActiveTabState('isPaidTouched', true);
+      } else if (key === 'EXACT') {
+        updateActiveTabState('paidAmount', getFinalTotal().toFixed(3));
+        updateActiveTabState('isPaidTouched', true);
+      } else if (typeof key === 'number' && key >= 10) {
+        updateActiveTabState('paidAmount', String(key));
+        updateActiveTabState('isPaidTouched', true);
+      } else {
+        const newVal = currentVal === '' ? String(key) : currentVal + String(key);
+        updateActiveTabState('paidAmount', newVal);
+        updateActiveTabState('isPaidTouched', true);
+      }
+    } else if (numpadTarget === 'redeemPoints') {
+      let currentVal = String(activeTab.redeemPoints || 0);
+      if (key === 'CLEAR') {
+        updateActiveTabState('redeemPoints', 0);
+      } else if (key === 'BACKSPACE') {
+        const newVal = currentVal.slice(0, -1);
+        updateActiveTabState('redeemPoints', parseInt(newVal, 10) || 0);
+      } else {
+        const newVal = currentVal === '0' ? String(key) : currentVal + String(key);
+        updateActiveTabState('redeemPoints', parseInt(newVal, 10) || 0);
+      }
+    }
+  };
+
   const handleBarcodeKeydown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -536,7 +791,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     }
 
     const existingIndex = activeTab.cart.findIndex(item => item.name.trim().toLowerCase() === product.name.trim().toLowerCase());
-    
+
     // Calculate total stock for this product name across all batches
     const totalStock = products
       .filter(p => (p.name || '').trim().toLowerCase() === (product.name || '').trim().toLowerCase())
@@ -773,7 +1028,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
       // Resolve FEFO allocations for the API payload
       const payloadItems = [];
-      
+
       const sortedProductsForApi = [...products].sort((a, b) => {
         if (a.expiry_date && b.expiry_date) {
           return new Date(a.expiry_date) - new Date(b.expiry_date);
@@ -786,7 +1041,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       activeTab.cart.forEach(cartItem => {
         let remainingQty = cartItem.quantity;
         const matchingProducts = sortedProductsForApi.filter(p => (p.name || '').trim().toLowerCase() === (cartItem.name || '').trim().toLowerCase());
-        
+
         matchingProducts.forEach(p => {
           if (remainingQty <= 0) return;
           const alloc = Math.min(p.stock_quantity, remainingQty);
@@ -799,7 +1054,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
             remainingQty -= alloc;
           }
         });
-        
+
         // If any remaining qty (e.g. over total stock), dump on original ID to let backend fail correctly
         if (remainingQty > 0) {
           payloadItems.push({
@@ -1360,8 +1615,9 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
             {/* Search Input */}
             <div className="sm:col-span-2 relative">
               <input
+                ref={searchInputRef}
                 type="text"
-                placeholder="Search by product name..."
+                placeholder="Search by product name... (F2)"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setSearchFocusedIndex(-1); }}
                 onKeyDown={(e) => {
@@ -1483,120 +1739,121 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                         });
 
                         return sortedProducts.map((product, index) => {
-                        const inCartItem = activeTab?.cart?.find(item => (item.name || '').trim().toLowerCase() === (product.name || '').trim().toLowerCase());
-                        const qtyForRow = rowAllocations[product.id] || 0;
-                        const remainingQty = product.stock_quantity;
-                        const isOutOfStock = remainingQty <= 0;
+                          const inCartItem = activeTab?.cart?.find(item => (item.name || '').trim().toLowerCase() === (product.name || '').trim().toLowerCase());
+                          const qtyForRow = rowAllocations[product.id] || 0;
+                          const remainingQty = product.stock_quantity;
+                          const isOutOfStock = remainingQty <= 0;
 
-                        // Expiry status calculation
-                        let isExpired = false;
-                        let expiryBadge = null;
-                        if (product.expiry_date) {
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          const expiry = new Date(product.expiry_date);
-                          expiry.setHours(0, 0, 0, 0);
-                          isExpired = expiry.getTime() < today.getTime();
-                          const diffTime = expiry.getTime() - today.getTime();
-                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                          // Expiry status calculation
+                          let isExpired = false;
+                          let expiryBadge = null;
+                          if (product.expiry_date) {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const expiry = new Date(product.expiry_date);
+                            expiry.setHours(0, 0, 0, 0);
+                            isExpired = expiry.getTime() < today.getTime();
+                            const diffTime = expiry.getTime() - today.getTime();
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                          if (isExpired) {
-                            expiryBadge = (
-                              <span className="bg-rose-100 text-rose-700 border border-rose-200 px-2 py-0.5 rounded text-[11px] font-extrabold inline-flex items-center shadow-2xs">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 mr-1 animate-pulse"></span>
-                                Expired ({expiry.toLocaleDateString()})
-                              </span>
-                            );
-                          } else if (diffDays <= 30) {
-                            expiryBadge = (
-                              <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[11px] font-bold inline-flex items-center">
-                                Expiring ({expiry.toLocaleDateString()})
-                              </span>
-                            );
+                            if (isExpired) {
+                              expiryBadge = (
+                                <span className="bg-rose-100 text-rose-700 border border-rose-200 px-2 py-0.5 rounded text-[11px] font-extrabold inline-flex items-center shadow-2xs">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-600 mr-1 animate-pulse"></span>
+                                  Expired ({expiry.toLocaleDateString()})
+                                </span>
+                              );
+                            } else if (diffDays <= 30) {
+                              expiryBadge = (
+                                <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[11px] font-bold inline-flex items-center">
+                                  Expiring ({expiry.toLocaleDateString()})
+                                </span>
+                              );
+                            } else {
+                              expiryBadge = (
+                                <span className="text-slate-600 text-xs font-medium">
+                                  {expiry.toLocaleDateString()}
+                                </span>
+                              );
+                            }
                           } else {
-                            expiryBadge = (
-                              <span className="text-slate-600 text-xs font-medium">
-                                {expiry.toLocaleDateString()}
-                              </span>
-                            );
+                            expiryBadge = <span className="text-slate-400 text-xs">N/A</span>;
                           }
-                        } else {
-                          expiryBadge = <span className="text-slate-400 text-xs">N/A</span>;
-                        }
 
-                        const isDisabled = isOutOfStock || isExpired;
+                          const isDisabled = isOutOfStock || isExpired;
 
-                        return (
-                          <tr key={product.id} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''} ${isExpired ? 'bg-rose-50/60' : ''}`}>
-                            <td
-                              className={`p-3 pl-4 font-semibold transition-colors ${isDisabled ? 'text-slate-400 cursor-not-allowed' : 'text-slate-800 cursor-pointer hover:text-indigo-600'}`}
-                              onClick={() => !isDisabled && addToCart(product)}
-                              title={isExpired ? `Expired on ${product.expiry_date}` : (isOutOfStock ? 'Out of stock' : 'Click to add to cart')}
-                            >
-                              {product.name}
-                              {isExpired && <span className="ml-2 text-xs text-rose-600 font-bold">(Expired)</span>}
-                            </td>
-                            <td className="p-3 text-right font-extrabold text-slate-700">৳{parseFloat(product.price).toFixed(3)}</td>
-                            <td className="p-3 text-center">{expiryBadge}</td>
-                            <td className="p-3 text-center">
-                              <span className={`px-2 py-0.5 rounded text-xs font-bold ${isExpired
-                                ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                                : remainingQty <= product.low_stock_threshold
-                                ? 'bg-rose-50 text-rose-600 border border-rose-100'
-                                : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                }`}>
-                                {isExpired ? 'Expired' : `${remainingQty} ${product.unit || 'pcs'} left`}
-                              </span>
-                            </td>
-                            <td className="p-3 text-center">
-                              {qtyForRow > 0 && inCartItem ? (
-                                <div className="flex items-center justify-center space-x-2">
+                          return (
+                            <tr key={product.id} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''} ${isExpired ? 'bg-rose-50/60' : ''}`}>
+                              <td
+                                className={`p-3 pl-4 font-semibold transition-colors ${isDisabled ? 'text-slate-400 cursor-not-allowed' : 'text-slate-800 cursor-pointer hover:text-indigo-600'}`}
+                                onClick={() => !isDisabled && addToCart(product)}
+                                title={isExpired ? `Expired on ${product.expiry_date}` : (isOutOfStock ? 'Out of stock' : 'Click to add to cart')}
+                              >
+                                {product.name}
+                                {isExpired && <span className="ml-2 text-xs text-rose-600 font-bold">(Expired)</span>}
+                              </td>
+                              <td className="p-3 text-right font-extrabold text-slate-700">৳{parseFloat(product.price).toFixed(3)}</td>
+                              <td className="p-3 text-center">{expiryBadge}</td>
+                              <td className="p-3 text-center">
+                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${isExpired
+                                  ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                                  : remainingQty <= product.low_stock_threshold
+                                    ? 'bg-rose-50 text-rose-600 border border-rose-100'
+                                    : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                  }`}>
+                                  {isExpired ? 'Expired' : `${remainingQty} ${product.unit || 'pcs'} left`}
+                                </span>
+                              </td>
+                              <td className="p-3 text-center">
+                                {qtyForRow > 0 && inCartItem ? (
+                                  <div className="flex items-center justify-center space-x-2">
+                                    <button
+                                      onClick={() => updateQuantity(inCartItem.id, -1)}
+                                      className="w-7 h-7 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg flex items-center justify-center transition-colors"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.001"
+                                      max={product.stock_quantity}
+                                      value={qtyForRow}
+                                      onChange={(e) => {
+                                        let val = parseFloat(e.target.value) || 0;
+                                        if (val > product.stock_quantity) val = product.stock_quantity;
+                                        const newTotal = (inCartItem.quantity - qtyForRow) + val;
+                                        handleQuantityInput(inCartItem.id, newTotal.toString());
+                                      }}
+                                      onBlur={(e) => {
+                                        let val = parseFloat(e.target.value) || 0;
+                                        if (val > product.stock_quantity) val = product.stock_quantity;
+                                        const newTotal = (inCartItem.quantity - qtyForRow) + val;
+                                        handleQuantityBlur(inCartItem.id, newTotal);
+                                      }}
+                                      className="w-12 text-center text-xs font-extrabold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded-md border border-indigo-100 focus:ring-1 focus:ring-indigo-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    />
+                                    <button
+                                      onClick={() => updateQuantity(inCartItem.id, 1)}
+                                      className="w-7 h-7 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded-lg flex items-center justify-center transition-colors"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                ) : (
                                   <button
-                                    onClick={() => updateQuantity(inCartItem.id, -1)}
-                                    className="w-7 h-7 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg flex items-center justify-center transition-colors"
+                                    onClick={() => addToCart(product)}
+                                    disabled={isDisabled}
+                                    className="bg-slate-600 hover:bg-indigo-700 text-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-xs"
                                   >
-                                    -
+                                    Add
                                   </button>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.001"
-                                    max={product.stock_quantity}
-                                    value={qtyForRow}
-                                    onChange={(e) => {
-                                      let val = parseFloat(e.target.value) || 0;
-                                      if (val > product.stock_quantity) val = product.stock_quantity;
-                                      const newTotal = (inCartItem.quantity - qtyForRow) + val;
-                                      handleQuantityInput(inCartItem.id, newTotal.toString());
-                                    }}
-                                    onBlur={(e) => {
-                                      let val = parseFloat(e.target.value) || 0;
-                                      if (val > product.stock_quantity) val = product.stock_quantity;
-                                      const newTotal = (inCartItem.quantity - qtyForRow) + val;
-                                      handleQuantityBlur(inCartItem.id, newTotal);
-                                    }}
-                                    className="w-12 text-center text-xs font-extrabold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded-md border border-indigo-100 focus:ring-1 focus:ring-indigo-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                  />
-                                  <button
-                                    onClick={() => updateQuantity(inCartItem.id, 1)}
-                                    className="w-7 h-7 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded-lg flex items-center justify-center transition-colors"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => addToCart(product)}
-                                  disabled={isDisabled}
-                                  className="bg-slate-600 hover:bg-indigo-700 text-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-xs"
-                                >
-                                  Add
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })})()}
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -1641,7 +1898,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
             {/* Header */}
             <div className="bg-gray-600 px-6 py-4 flex items-center justify-between">
               <div className="flex items-center space-x-3">
-               {/*  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {/*  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg> */}
                 <h2 className="text-lg font-bold text-white">Checkout Preview</h2>
@@ -1792,42 +2049,42 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               <div className="w-full py-4 flex justify-center items-start min-h-0 overflow-y-auto">
                 {previewMode === 'thermal' ? (
                   /* Thermal Receipt Mockup */
-                  <div className="w-[320px] bg-white text-slate-950 shadow-lg p-6 font-mono text-[12px] font-bold leading-relaxed border-t-8 border-indigo-600 rounded-b-md">
-                    <div className="text-center mb-4">
+                  <div className="w-[320px] bg-white text-black shadow-lg p-6 font-mono text-[12px] font-black leading-relaxed border-t-8 border-indigo-600 rounded-b-md">
+                    <div className="text-center mb-4 text-black">
                       <h2 className="text-base font-black tracking-tight uppercase text-black">{receipt.shop_name}</h2>
-                      {receipt.shop_address && <p className="text-[11px] font-bold text-slate-900 mt-0.5">{receipt.shop_address}</p>}
-                      {receipt.shop_phone && <p className="text-[11px] font-bold text-slate-900">Tel: {receipt.shop_phone}</p>}
-                      {receipt.shop_email && <p className="text-[11px] font-bold text-slate-900">Email: {receipt.shop_email}</p>}
+                      {receipt.shop_address && <p className="text-[11px] font-black text-black mt-0.5">{receipt.shop_address}</p>}
+                      {receipt.shop_phone && <p className="text-[11px] font-black text-black">Tel: {receipt.shop_phone}</p>}
+                      {receipt.shop_email && <p className="text-[11px] font-black text-black">Email: {receipt.shop_email}</p>}
                       <p className="text-[10px] font-black text-black mt-2 font-sans tracking-widest">*** TRANSACTION RECEIPT ***</p>
                     </div>
 
-                    <div className="border-b-2 border-dashed border-slate-900 py-2 my-2 text-[11px] space-y-0.5 text-black">
-                      <div><span className="font-extrabold text-black">Sale ID:</span> #{receipt.sale_id}</div>
-                      <div><span className="font-extrabold text-black">Date:</span> {receipt.created_at}</div>
-                      <div><span className="font-extrabold text-black">Cashier:</span> {receipt.staff_name}</div>
-                      <div><span className="font-extrabold text-black">Customer:</span> {receipt.customer_name}</div>
-                      {receipt.customer_phone && <div><span className="font-extrabold text-black">Phone:</span> {receipt.customer_phone}</div>}
+                    <div className="border-b-2 border-dashed border-black py-2 my-2 text-[11px] space-y-0.5 text-black font-black">
+                      <div><span className="font-black text-black">Sale ID:</span> #{receipt.sale_id}</div>
+                      <div><span className="font-black text-black">Date:</span> {receipt.created_at}</div>
+                      <div><span className="font-black text-black">Cashier:</span> {receipt.staff_name}</div>
+                      <div><span className="font-black text-black">Customer:</span> {receipt.customer_name}</div>
+                      {receipt.customer_phone && <div><span className="font-black text-black">Phone:</span> {receipt.customer_phone}</div>}
                     </div>
 
-                    <table className="w-full text-left text-[11px] font-bold border-collapse">
+                    <table className="w-full text-left text-[11px] font-black border-collapse text-black">
                       <thead>
-                        <tr className="border-b-2 border-dashed border-slate-900 font-black text-black">
-                          <th className="pb-1 text-left">Item</th>
-                          <th className="pb-1 text-center w-8">Qty</th>
-                          <th className="pb-1 text-center w-8">Unit</th>
-                          <th className="pb-1 text-right w-16">Price</th>
-                          <th className="pb-1 text-right w-20">Total</th>
+                        <tr className="border-b-2 border-dashed border-black font-black text-black">
+                          <th className="pb-1 text-left text-black">Item</th>
+                          <th className="pb-1 text-center w-8 text-black">Qty</th>
+                          <th className="pb-1 text-center w-8 text-black">Unit</th>
+                          <th className="pb-1 text-right w-16 text-black">Price</th>
+                          <th className="pb-1 text-right w-20 text-black">Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {receipt.items.map((item, idx) => (
-                          <tr key={idx} className="border-b border-dashed border-slate-300">
-                            <td className="py-2 pr-1 text-black font-extrabold break-words max-w-[100px]">
+                          <tr key={idx} className="border-b border-dashed border-slate-400">
+                            <td className="py-2 pr-1 text-black font-black break-words max-w-[100px]">
                               <div>{item.name || item.product_name}</div>
                             </td>
-                            <td className="py-2 text-center text-black font-bold">{item.quantity}</td>
-                            <td className="py-2 text-center text-slate-800 font-semibold">{item.unit || 'pcs'}</td>
-                            <td className="py-2 text-right text-black font-bold">৳{parseFloat(item.price || item.unit_price).toFixed(3)}</td>
+                            <td className="py-2 text-center text-black font-black">{item.quantity}</td>
+                            <td className="py-2 text-center text-black font-extrabold">{item.unit || 'pcs'}</td>
+                            <td className="py-2 text-right text-black font-black">৳{parseFloat(item.price || item.unit_price).toFixed(3)}</td>
                             <td className="py-2 text-right font-black text-black">
                               ৳{((item.price || item.unit_price) * item.quantity).toFixed(3)}
                             </td>
@@ -1836,37 +2093,37 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       </tbody>
                     </table>
 
-                    <div className="border-t-2 border-dashed border-slate-900 pt-2.5 mt-2.5 text-[11px] font-bold space-y-1.5 text-black">
-                      <div className="flex justify-between">
+                    <div className="border-t-2 border-dashed border-black pt-2.5 mt-2.5 text-[11px] font-black space-y-1.5 text-black">
+                      <div className="flex justify-between text-black">
                         <span>Subtotal:</span>
-                        <span className="font-extrabold text-black">৳{parseFloat(receipt.subtotal).toFixed(3)}</span>
+                        <span className="font-black text-black">৳{parseFloat(receipt.subtotal).toFixed(3)}</span>
                       </div>
                       {parseFloat(receipt.discount || 0) > 0 && (
-                        <div className="flex justify-between text-rose-600 font-extrabold">
+                        <div className="flex justify-between text-rose-700 font-black">
                           <span>Discount:</span>
                           <span>-৳{parseFloat(receipt.discount).toFixed(3)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between">
+                      <div className="flex justify-between text-black">
                         <span>Tax:</span>
-                        <span className="font-extrabold text-black">৳{parseFloat(receipt.tax).toFixed(3)}</span>
+                        <span className="font-black text-black">৳{parseFloat(receipt.tax).toFixed(3)}</span>
                       </div>
                       {receipt.loyalty_enabled && (
                         <>
                           {receipt.points_earned > 0 && (
-                            <div className="flex justify-between text-indigo-700 font-black">
+                            <div className="flex justify-between text-indigo-900 font-black">
                               <span>Points Earned:</span>
                               <span>+{receipt.points_earned} pts</span>
                             </div>
                           )}
                           {receipt.points_redeemed > 0 && (
-                            <div className="flex justify-between text-rose-700 font-black">
+                            <div className="flex justify-between text-rose-800 font-black">
                               <span>Points Redeemed:</span>
                               <span>-{receipt.points_redeemed} pts</span>
                             </div>
                           )}
                           {receipt.points_redeemed_value > 0 && (
-                            <div className="flex justify-between text-rose-600 font-bold text-[11px]">
+                            <div className="flex justify-between text-rose-800 font-black text-[11px]">
                               <span>Points Discount:</span>
                               <span>-৳{receipt.points_redeemed_value.toFixed(3)}</span>
                             </div>
@@ -1874,39 +2131,39 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                         </>
                       )}
                       {parseFloat(receipt.reduce_due_amount || 0) > 0 && (
-                        <div className="flex justify-between text-indigo-700 font-black">
+                        <div className="flex justify-between text-indigo-900 font-black">
                           <span>Due Paid:</span>
                           <span>৳{parseFloat(receipt.reduce_due_amount).toFixed(3)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between font-black text-black border-t-2 border-dashed border-slate-900 pt-1.5 text-[13px]">
+                      <div className="flex justify-between font-black text-black border-t-2 border-dashed border-black pt-1.5 text-[13px]">
                         <span>Total Bill:</span>
                         <span>৳{parseFloat(receipt.total).toFixed(3)}</span>
                       </div>
                       {receipt.change_amount > 0 && (
                         <>
-                          <div className="flex justify-between font-bold text-black pt-1 text-[11px]">
+                          <div className="flex justify-between font-black text-black pt-1 text-[11px]">
                             <span>Given Amount:</span>
                             <span>৳{parseFloat(receipt.paid_amount).toFixed(3)}</span>
                           </div>
-                          <div className="flex justify-between font-black text-emerald-700 border-t border-dashed border-slate-900 pt-1 text-[12px]">
+                          <div className="flex justify-between font-black text-emerald-800 border-t border-dashed border-black pt-1 text-[12px]">
                             <span>Change Return:</span>
                             <span>৳{parseFloat(receipt.change_amount).toFixed(3)}</span>
                           </div>
                         </>
                       )}
                       {parseFloat(receipt.due_amount || 0) > 0 && (
-                        <div className="flex justify-between font-black text-rose-700 border-t border-dashed border-slate-900 pt-1 text-[12px]">
+                        <div className="flex justify-between font-black text-rose-800 border-t border-dashed border-black pt-1 text-[12px]">
                           <span>Due ammount:</span>
                           <span>৳{parseFloat(receipt.due_amount).toFixed(3)}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="text-center mt-6 pt-3 border-t-2 border-dashed border-slate-900 relative">
-                      <p className="text-[11px] text-black uppercase font-bold">Payment: {receipt.payment_method.replace('_', ' ')}</p>
+                    <div className="text-center mt-6 pt-3 border-t-2 border-dashed border-black relative text-black">
+                      <p className="text-[11px] text-black uppercase font-black">Payment: {receipt.payment_method.replace('_', ' ')}</p>
                       <p className="text-[11px] font-black text-black tracking-wider mt-2">*** THANK YOU ***</p>
-                      <p className="text-[9px] font-bold text-slate-800 mt-4 text-right">Bring this receipt, if you return product</p>
+                      <p className="text-[10px] font-black text-black mt-4 text-right">Bring this receipt, if you return product</p>
                     </div>
                   </div>
                 ) : (
@@ -2581,6 +2838,188 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         </div>
       )}
 
+      {/* --- VIRTUAL KEYBOARD / NUMPAD MODAL --- */}
+      {showKeyboardModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col border border-slate-200 animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="bg-slate-900 px-5 py-3.5 flex items-center justify-between text-white">
+              <div className="flex items-center space-x-2.5">
+                <span className="text-xl">⌨️</span>
+                <div>
+                  <h3 className="text-sm font-bold leading-tight">POS Keyboard & Virtual Numpad</h3>
+                  <p className="text-[10px] text-slate-400">Touch Numpad & Keyboard Hotkeys Console</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowKeyboardModal(false)}
+                className="text-slate-400 hover:text-white transition-colors p-1"
+                title="Close (Esc)"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 max-h-[85vh] overflow-y-auto">
+
+              {/* Target Selector Tabs */}
+              <div>
+                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Select Field to Edit:
+                </label>
+                <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl">
+                  {[
+                    { id: 'paidAmount', label: '💵 Amt Paid' },
+                    { id: 'quantity', label: '📦 Item Qty' },
+                    { id: 'price', label: '🏷️ Item Price' },
+                    { id: 'discountPercent', label: '% Disc (%)' },
+                    { id: 'discountAmount', label: '৳ Disc (Amt)' },
+                    { id: 'redeemPoints', label: '⭐ Points' },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setNumpadTarget(t.id)}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-extrabold transition-all text-center cursor-pointer ${
+                        numpadTarget === t.id
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'bg-transparent text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Target Display Box */}
+              <div className="bg-slate-900 rounded-xl p-3 text-white flex justify-between items-center shadow-inner">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Active Target: {numpadTarget}
+                  </span>
+                  {(numpadTarget === 'quantity' || numpadTarget === 'price') && (
+                    <span className="text-xs text-indigo-300 font-semibold truncate block max-w-[200px]">
+                      Item: {(() => {
+                        const item = activeTab?.cart?.find(i => i.id === selectedCartItemId) || activeTab?.cart?.[activeTab.cart.length - 1];
+                        return item ? item.name : 'No cart item selected';
+                      })()}
+                    </span>
+                  )}
+                </div>
+                <div className="text-2xl font-black text-emerald-400 font-mono tracking-tight">
+                  {(() => {
+                    if (!activeTab) return '0';
+                    if (numpadTarget === 'quantity') {
+                      const item = activeTab.cart.find(i => i.id === selectedCartItemId) || activeTab.cart[activeTab.cart.length - 1];
+                      return item ? `${item.quantity} ${item.unit || 'pcs'}` : '0';
+                    }
+                    if (numpadTarget === 'price') {
+                      const item = activeTab.cart.find(i => i.id === selectedCartItemId) || activeTab.cart[activeTab.cart.length - 1];
+                      return item ? `৳${parseFloat(item.price || 0).toFixed(3)}` : '৳0.000';
+                    }
+                    if (numpadTarget === 'discountPercent') return `${activeTab.discountPercent || 0}%`;
+                    if (numpadTarget === 'discountAmount') return `৳${(activeTab.discountAmount || 0).toFixed(3)}`;
+                    if (numpadTarget === 'paidAmount') return `৳${(parseFloat(activeTab.paidAmount) || 0).toFixed(3)}`;
+                    if (numpadTarget === 'redeemPoints') return `${activeTab.redeemPoints || 0} pts`;
+                    return '0';
+                  })()}
+                </div>
+              </div>
+
+              {/* Numpad Button Grid */}
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  ['7', 7], ['8', 8], ['9', 9], ['⌫', 'BACKSPACE'],
+                  ['4', 4], ['5', 5], ['6', 6], ['C', 'CLEAR'],
+                  ['1', 1], ['2', 2], ['3', 3], ['.', '.'],
+                  ['0', 0], ['00', '00'], ['+1 Qty', '+1'], ['-1 Qty', '-1'],
+                ].map(([label, val], i) => {
+                  const isAction = val === 'BACKSPACE' || val === 'CLEAR' || val === '+1' || val === '-1';
+                  const isBackspace = val === 'BACKSPACE';
+                  const isClear = val === 'CLEAR';
+
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleNumpadPress(val)}
+                      className={`py-3 rounded-xl font-bold text-sm transition-all shadow-xs active:scale-95 cursor-pointer flex items-center justify-center ${
+                        isBackspace
+                          ? 'bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-200 font-extrabold'
+                          : isClear
+                          ? 'bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-200 font-extrabold'
+                          : isAction
+                          ? 'bg-indigo-100 hover:bg-indigo-200 text-indigo-700 border border-indigo-200 font-extrabold'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 font-extrabold text-base'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Quick Cash Presets (When Target is Paid Amount) */}
+              {numpadTarget === 'paidAmount' && (
+                <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Quick Cash Presets:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleNumpadPress('EXACT')}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-1.5 px-3 rounded-lg shadow-sm cursor-pointer"
+                    >
+                      Exact (৳{getFinalTotal().toFixed(3)})
+                    </button>
+                    {[50, 100, 200, 500, 1000].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => handleNumpadPress(amt)}
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-1.5 px-2.5 rounded-lg border border-slate-200 cursor-pointer"
+                      >
+                        ৳{amt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Keyboard Hotkeys Reference */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1">
+                <span className="font-bold text-slate-700 block mb-1">⌨️ Physical Keyboard Hotkeys:</span>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-600">
+                  <div><strong className="text-indigo-600 font-mono">F2</strong> : Focus Product Search</div>
+                  <div><strong className="text-indigo-600 font-mono">F4</strong> : Focus Customer Field</div>
+                  <div><strong className="text-rose-600 font-mono">F8</strong> : Clear Cart</div>
+                  <div><strong className="text-emerald-600 font-mono">F9</strong> : Preview / Complete Checkout</div>
+                  <div><strong className="text-amber-600 font-mono">F10</strong> : Hold Bill</div>
+                  <div><strong className="text-cyan-600 font-mono">Alt + K</strong> : Toggle Keypad Modal</div>
+                  <div><strong className="text-slate-500 font-mono">Esc</strong> : Close Overlay Modals</div>
+                </div>
+              </div>
+
+            </div>
+
+            <div className="bg-slate-100 px-5 py-3 border-t border-slate-200 flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowKeyboardModal(false)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Close (Esc)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 
@@ -2591,16 +3030,54 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     return (
       <div className="flex flex-col h-full overflow-hidden">
 
+        {/* Top Cart Action Header with Keyboard Numpad Trigger */}
+        <div className="px-3 py-2 border-b border-slate-200 bg-slate-100/90 flex justify-between items-center text-xs">
+          <div className="flex items-center space-x-2">
+            <span className="font-extrabold text-slate-700 uppercase tracking-wider text-[11px]">Cart Details</span>
+            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+              {activeTab.cart.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0)} items
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            {/* Keyboard Hotkey Trigger Button */}
+            <button
+              type="button"
+              onClick={() => setShowKeyboardModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+              title="Open Virtual Keyboard Numpad & POS Hotkeys (Alt+K)"
+            >
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              <span>⌨️ Keyboard Pad</span>
+              <span className="text-[10px] bg-white/25 px-1 py-0.2 rounded font-mono">Alt+K</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Hotkeys Legend Bar */}
+        <div className="px-3 py-1 bg-slate-800 text-slate-300 text-[10px] font-medium flex items-center justify-between flex-wrap gap-1">
+          <span className="font-bold text-white uppercase text-[9px] tracking-wider">Hotkeys:</span>
+          <span className="bg-slate-700 px-1.5 py-0.5 rounded font-mono text-[9px]"><strong className="text-indigo-300">F2</strong> Search</span>
+          <span className="bg-slate-700 px-1.5 py-0.5 rounded font-mono text-[9px]"><strong className="text-indigo-300">F4</strong> Customer</span>
+          <span className="bg-slate-700 px-1.5 py-0.5 rounded font-mono text-[9px]"><strong className="text-amber-300">↑↓</strong> Nav Cart</span>
+          <span className="bg-slate-700 px-1.5 py-0.5 rounded font-mono text-[9px]"><strong className="text-cyan-300">←→</strong> Qty (+/-)</span>
+          <span className="bg-slate-700 px-1.5 py-0.5 rounded font-mono text-[9px]"><strong className="text-emerald-300">Enter / F9</strong> Pay</span>
+          <span className="bg-slate-700 px-1.5 py-0.5 rounded font-mono text-[9px]"><strong className="text-rose-300">F8</strong> Clear</span>
+        </div>
+
         {/* Customer & Cart items header */}
         <div className="p-2.5 border-b border-slate-100 bg-slate-50 space-y-2">
           <div className="grid grid-cols-3 gap-2">
             <div className="col-span-2 relative">
               <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                Select Customer
+                Select Customer (F4)
               </label>
               <input
+                ref={customerInputRef}
                 type="text"
-                placeholder="Walk-in Customer"
+                placeholder="Walk-in Customer (F4)..."
                 value={activeTab.selectedCustomerId ? (customers.find(c => String(c.id) === String(activeTab.selectedCustomerId))?.name || activeTab.customerName || '') : (activeTab.customerName || '')}
                 onChange={(e) => {
                   updateActiveTabState('customerName', e.target.value);
@@ -2873,7 +3350,11 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
                   {activeTab.cart.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/40 transition-colors">
+                    <tr
+                      key={item.id}
+                      onClick={() => setSelectedCartItemId(item.id)}
+                      className={`hover:bg-indigo-50/40 transition-colors cursor-pointer ${selectedCartItemId === item.id ? 'bg-indigo-50/80 font-bold border-l-4 border-indigo-600' : ''}`}
+                    >
                       <td className="p-2 pl-3 font-semibold text-slate-800 max-w-[120px] truncate" title={item.name}>
                         <div className="truncate">{item.name}</div>
                         <div className="text-[10px] text-slate-450 font-normal">Cost: ৳{parseFloat(item.cost_price || 0).toFixed(3)}</div>
@@ -3169,7 +3650,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
               ) : (
                 <>
-                  <span className="text-xs">Preview Checkout</span>
+                  <span className="text-xs text-white">Preview Checkout</span>
                   <span className="font-extrabold bg-yellow-500/80 px-1.5 py-0.5 rounded text-[10px]">
                     ৳{getFinalTotal().toFixed(3)}
                   </span>
