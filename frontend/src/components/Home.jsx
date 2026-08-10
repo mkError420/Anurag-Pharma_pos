@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Login from './Login';
 import Footer from './Footer';
 import API_BASE_URL from '../config';
+import { createTimeline, stagger, splitText } from 'animejs';
 
 export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [logo, setLogo] = useState(null);
@@ -11,6 +12,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
+  const [visibleCards, setVisibleCards] = useState([]);
+  const navbarTextRef = useRef(null);
 
   // Lifted login state so demo credential buttons can pre-fill the form
   const [loginEmail, setLoginEmail] = useState('');
@@ -67,6 +70,56 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
     }
   }, [heroSlides.length]);
 
+  // Scroll velocity animation for feature cards
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const cardIndex = parseInt(entry.target.dataset.index);
+            setVisibleCards((prev) => [...new Set([...prev, cardIndex])]);
+          }
+        });
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+      }
+    );
+
+    const featureCards = document.querySelectorAll('.feature-card');
+    featureCards.forEach((card) => observer.observe(card));
+
+    return () => {
+      featureCards.forEach((card) => observer.unobserve(card));
+    };
+  }, []);
+
+  // 3D character animation for navbar text
+  useEffect(() => {
+    if (navbarTextRef.current) {
+      splitText(navbarTextRef.current, {
+        chars: `<span class="char-3d word-{i}">
+          <em class="face face-top">{value}</em>
+          <em class="face-front">{value}</em>
+          <em class="face face-bottom">{value}</em>
+        </span>`,
+      });
+
+      const charsStagger = stagger(100, { start: 0 });
+
+      const timeline = createTimeline({ defaults: { ease: 'linear', loop: true, duration: 750 } })
+        .add('.char-3d', { rotateX: -90 }, charsStagger)
+        .add('.char-3d .face-top', { opacity: [.5, 0] }, charsStagger)
+        .add('.char-3d .face-front', { opacity: [1, .5] }, charsStagger)
+        .add('.char-3d .face-bottom', { opacity: [.5, 1] }, charsStagger);
+
+      return () => {
+        timeline.pause();
+      };
+    }
+  }, []);
+
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
   };
@@ -87,6 +140,40 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
   return (
     <div className="min-h-screen bg-white">
+      <style>{`
+        .navbar-3d-text {
+          position: relative;
+          display: inline-block;
+        }
+
+        .char-3d {
+          position: relative;
+          display: inline-block;
+          transform-style: preserve-3d;
+          transform-origin: 50% 50% 1rem;
+        }
+
+        .face {
+          position: absolute;
+          left: 0;
+        }
+
+        .face-bottom {
+          top: 100%;
+          transform-origin: 50% 0%;
+          transform: rotateX(90deg);
+        }
+
+        .face-top {
+          bottom: 100%;
+          transform-origin: 50% 100%;
+          transform: rotateX(-90deg);
+        }
+
+        .face-front {
+          position: relative;
+        }
+      `}</style>
       {/* ── Navbar ── */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -101,7 +188,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                   <span className="text-white font-bold text-sm">POS</span>
                 </div>
               )}
-              <span className="text-gray-900 font-bold text-2xl">Codexxaa-Solutions</span>
+              <p ref={navbarTextRef} className="text-gray-900 font-bold text-2xl navbar-3d-text">Codexxaa-Solutions</p>
             </div>
 
             {/* Desktop Navigation Links */}
@@ -409,7 +496,14 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
           <div className="space-y-12">
             {/* Sales & Billing */}
-            <div className="bg-white p-8 rounded-xl border border-gray-200">
+            <div 
+              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
+              data-index="0"
+              style={{
+                opacity: visibleCards.includes(0) ? 1 : 0,
+                transform: visibleCards.includes(0) ? 'translateY(0)' : 'translateY(50px)'
+              }}
+            >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
                   <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -483,7 +577,14 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             </div>
 
             {/* Inventory Management */}
-            <div className="bg-white p-8 rounded-xl border border-gray-200">
+            <div 
+              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
+              data-index="1"
+              style={{
+                opacity: visibleCards.includes(1) ? 1 : 0,
+                transform: visibleCards.includes(1) ? 'translateY(0)' : 'translateY(50px)'
+              }}
+            >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
                   <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -557,7 +658,14 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             </div>
 
             {/* Customer Management */}
-            <div className="bg-white p-8 rounded-xl border border-gray-200">
+            <div 
+              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
+              data-index="2"
+              style={{
+                opacity: visibleCards.includes(2) ? 1 : 0,
+                transform: visibleCards.includes(2) ? 'translateY(0)' : 'translateY(50px)'
+              }}
+            >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
                   <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -607,7 +715,14 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             </div>
 
             {/* Supplier Management */}
-            <div className="bg-white p-8 rounded-xl border border-gray-200">
+            <div 
+              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
+              data-index="3"
+              style={{
+                opacity: visibleCards.includes(3) ? 1 : 0,
+                transform: visibleCards.includes(3) ? 'translateY(0)' : 'translateY(50px)'
+              }}
+            >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
                   <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -645,7 +760,14 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             </div>
 
             {/* Staff & HR Management */}
-            <div className="bg-white p-8 rounded-xl border border-gray-200">
+            <div 
+              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
+              data-index="4"
+              style={{
+                opacity: visibleCards.includes(4) ? 1 : 0,
+                transform: visibleCards.includes(4) ? 'translateY(0)' : 'translateY(50px)'
+              }}
+            >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
                   <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -695,7 +817,14 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             </div>
 
             {/* Financial Management */}
-            <div className="bg-white p-8 rounded-xl border border-gray-200">
+            <div 
+              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
+              data-index="5"
+              style={{
+                opacity: visibleCards.includes(5) ? 1 : 0,
+                transform: visibleCards.includes(5) ? 'translateY(0)' : 'translateY(50px)'
+              }}
+            >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
                   <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -745,7 +874,14 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             </div>
 
             {/* Multi-Shop Support */}
-            <div className="bg-white p-8 rounded-xl border border-gray-200">
+            <div 
+              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
+              data-index="6"
+              style={{
+                opacity: visibleCards.includes(6) ? 1 : 0,
+                transform: visibleCards.includes(6) ? 'translateY(0)' : 'translateY(50px)'
+              }}
+            >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
                   <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -795,7 +931,14 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             </div>
 
             {/* Reporting & Analytics */}
-            <div className="bg-white p-8 rounded-xl border border-gray-200">
+            <div 
+              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
+              data-index="7"
+              style={{
+                opacity: visibleCards.includes(7) ? 1 : 0,
+                transform: visibleCards.includes(7) ? 'translateY(0)' : 'translateY(50px)'
+              }}
+            >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
                   <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -845,7 +988,14 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             </div>
 
             {/* System Security */}
-            <div className="bg-white p-8 rounded-xl border border-gray-200">
+            <div 
+              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
+              data-index="8"
+              style={{
+                opacity: visibleCards.includes(8) ? 1 : 0,
+                transform: visibleCards.includes(8) ? 'translateY(0)' : 'translateY(50px)'
+              }}
+            >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
                   <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
