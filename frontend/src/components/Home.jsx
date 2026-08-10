@@ -295,22 +295,22 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
         )}
 
         {/* Statistics Section */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-24">
-          <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-100">
-            <div className="text-5xl font-bold text-gray-900 mb-2">500+</div>
-            <div className="text-gray-600 font-medium">Happy Clients</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16">
+          <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="text-3xl font-bold text-gray-900 mb-1">500+</div>
+            <div className="text-gray-600 font-medium text-sm">Happy Clients</div>
           </div>
-          <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-100">
-            <div className="text-5xl font-bold text-gray-900 mb-2">50K+</div>
-            <div className="text-gray-600 font-medium">Transactions Daily</div>
+          <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="text-3xl font-bold text-gray-900 mb-1">50K+</div>
+            <div className="text-gray-600 font-medium text-sm">Transactions Daily</div>
           </div>
-          <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-100">
-            <div className="text-5xl font-bold text-gray-900 mb-2">15+</div>
-            <div className="text-gray-600 font-medium">Districts Served</div>
+          <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="text-3xl font-bold text-gray-900 mb-1">15+</div>
+            <div className="text-gray-600 font-medium text-sm">Districts Served</div>
           </div>
-          <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-100">
-            <div className="text-5xl font-bold text-gray-900 mb-2">99.9%</div>
-            <div className="text-gray-600 font-medium">Uptime Guaranteed</div>
+          <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
+            <div className="text-3xl font-bold text-gray-900 mb-1">99.9%</div>
+            <div className="text-gray-600 font-medium text-sm">Uptime Guaranteed</div>
           </div>
         </div>
 
@@ -333,7 +333,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
         {/* Login Popup */}
         {showLoginPopup && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[60vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-bold text-gray-900">Login to View Demo</h2>
@@ -350,6 +350,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                   onLoginSuccess={onLoginSuccess}
                   prefilledEmail={loginEmail}
                   prefilledPassword={loginPassword}
+                  twoColumnLayout={true}
                 />
               </div>
             </div>
