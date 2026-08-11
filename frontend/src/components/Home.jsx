@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Login from './Login';
 import Footer from './Footer';
 import API_BASE_URL from '../config';
-import { animate, splitText, stagger } from 'animejs';
 import AnimatedButton from './AnimatedButton';
 
 export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
@@ -13,7 +12,6 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
-  const navbarTextRef = useRef(null);
 
   // Lifted login state so demo credential buttons can pre-fill the form
   const [loginEmail, setLoginEmail] = useState('');
@@ -97,29 +95,6 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
     };
   }, []);
 
-  // Word-based animation for navbar text
-  useEffect(() => {
-    if (navbarTextRef.current) {
-      const { words } = splitText(navbarTextRef.current, {
-        words: { wrap: 'clip' },
-      });
-
-      animate(words, {
-        y: [
-          { to: ['100%', '0%'] },
-          { to: '-100%', delay: 750, ease: 'in(3)' }
-        ],
-        duration: 750,
-        ease: 'out(3)',
-        delay: stagger(100),
-        loop: true,
-      });
-
-      return () => {
-        // Cleanup animation if needed
-      };
-    }
-  }, []);
 
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
@@ -142,10 +117,28 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   return (
     <div className="min-h-screen bg-white">
       <style>{`
-        .navbar-3d-text {
-          position: relative;
-          display: inline-block;
-          overflow: hidden;
+        .site-logo-shimmer {
+          font-size: 1.5rem;
+          font-weight: 800;
+          background: linear-gradient(
+            110deg,
+            #0f172a 30%,
+            #38bdf8 50%,
+            #0f172a 70%
+          );
+          background-size: 200% 100%;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          animation: shimmer 3s infinite linear;
+        }
+
+        @keyframes shimmer {
+          0% {
+            background-position: 200% 0;
+          }
+          100% {
+            background-position: -200% 0;
+          }
         }
         .fade-in-up {
           opacity: 0;
@@ -171,7 +164,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                   <span className="text-white font-bold text-sm">POS</span>
                 </div>
               )}
-              <p ref={navbarTextRef} className="text-gray-900 font-bold text-2xl navbar-3d-text">Codexxaa-Solutions</p>
+              <p className="site-logo-shimmer">Codexxaa-Solutions</p>
             </div>
 
             {/* Desktop Navigation Links */}
