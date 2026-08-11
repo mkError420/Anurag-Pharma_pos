@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Footer from './Footer';
 import API_BASE_URL from '../config';
+import { animate, splitText, stagger } from 'animejs';
+import AnimatedButton from './AnimatedButton';
 
 export default function ContactUs({ onNavigate, publicPage }) {
   const [logo, setLogo] = useState(null);
@@ -22,6 +24,7 @@ export default function ContactUs({ onNavigate, publicPage }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navbarTextRef = useRef(null);
 
   const navLinks = [
     { label: 'Home', page: 'home' },
@@ -54,6 +57,30 @@ export default function ContactUs({ onNavigate, publicPage }) {
       }
     };
     fetchData();
+  }, []);
+
+  // Word-based animation for navbar text
+  useEffect(() => {
+    if (navbarTextRef.current) {
+      const { words } = splitText(navbarTextRef.current, {
+        words: { wrap: 'clip' },
+      });
+
+      animate(words, {
+        y: [
+          { to: ['100%', '0%'] },
+          { to: '-100%', delay: 750, ease: 'in(3)' }
+        ],
+        duration: 750,
+        ease: 'out(3)',
+        delay: stagger(100),
+        loop: true,
+      });
+
+      return () => {
+        // Cleanup animation if needed
+      };
+    }
   }, []);
 
   const handleSubmit = async (e) => {
@@ -91,6 +118,13 @@ export default function ContactUs({ onNavigate, publicPage }) {
 
   return (
     <div className="min-h-screen bg-white">
+      <style>{`
+        .navbar-3d-text {
+          position: relative;
+          display: inline-block;
+          overflow: hidden;
+        }
+      `}</style>
       {/* Navbar */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -104,7 +138,7 @@ export default function ContactUs({ onNavigate, publicPage }) {
                   <span className="text-white font-bold text-sm">POS</span>
                 </div>
               )}
-              <span className="text-gray-900 font-bold text-2xl">POS System</span>
+              <p ref={navbarTextRef} className="text-gray-900 font-bold text-2xl navbar-3d-text">Codexxaa-Solutions</p>
             </div>
 
             {/* Desktop Navigation Links */}
@@ -245,12 +279,12 @@ export default function ContactUs({ onNavigate, publicPage }) {
                 />
               </div>
 
-              <button
+              <AnimatedButton
                 type="submit"
-                className="w-full py-3 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                style={{ width: '100%' }}
               >
                 Send Message
-              </button>
+              </AnimatedButton>
             </form>
           </div>
 

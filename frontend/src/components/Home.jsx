@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import Login from './Login';
 import Footer from './Footer';
 import API_BASE_URL from '../config';
-import { createTimeline, stagger, splitText } from 'animejs';
+import { animate, splitText, stagger } from 'animejs';
+import AnimatedButton from './AnimatedButton';
+import gsap from 'gsap';
 
 export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [logo, setLogo] = useState(null);
@@ -12,8 +14,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
-  const [visibleCards, setVisibleCards] = useState([]);
-  const navbarTextRef = useRef(null);
+  const navbarSvgRef = useRef(null);
 
   // Lifted login state so demo credential buttons can pre-fill the form
   const [loginEmail, setLoginEmail] = useState('');
@@ -70,53 +71,105 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
     }
   }, [heroSlides.length]);
 
-  // Scroll velocity animation for feature cards
+  // Fade-in-up animation for feature cards
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const cardIndex = parseInt(entry.target.dataset.index);
-            setVisibleCards((prev) => [...new Set([...prev, cardIndex])]);
-          }
-        });
-      },
-      {
-        threshold: 0.1,
-        rootMargin: '0px 0px -50px 0px'
-      }
-    );
+    const animatedElements = document.querySelectorAll('.fade-in-up');
 
-    const featureCards = document.querySelectorAll('.feature-card');
-    featureCards.forEach((card) => observer.observe(card));
+    const observerOptions = {
+      root: null,
+      rootMargin: '0px',
+      threshold: 0.15
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+        } else {
+          entry.target.classList.remove('is-visible');
+        }
+      });
+    }, observerOptions);
+
+    animatedElements.forEach((el) => observer.observe(el));
 
     return () => {
-      featureCards.forEach((card) => observer.unobserve(card));
+      animatedElements.forEach((el) => observer.unobserve(el));
     };
   }, []);
 
-  // 3D character animation for navbar text
+  // GSAP animation for navbar SVG
   useEffect(() => {
-    if (navbarTextRef.current) {
-      splitText(navbarTextRef.current, {
-        chars: `<span class="char-3d word-{i}">
-          <em class="face face-top">{value}</em>
-          <em class="face-front">{value}</em>
-          <em class="face face-bottom">{value}</em>
-        </span>`,
+    if (navbarSvgRef.current) {
+      const lamp = navbarSvgRef.current.querySelector('#lamp');
+      if (lamp) {
+        const tl = gsap.timeline();
+        tl.fromTo(lamp, {
+          rotation: -26,
+          svgOrigin: '400 130'
+        }, {
+          duration: 1,
+          rotation: 26,
+          svgOrigin: '400 130',
+          ease: 'power1.inOut',
+          repeat: -1,
+          yoyo: true
+        });
+
+        return () => {
+          tl.kill();
+        };
+      }
+    }
+  }, []);
+
+  // Decoder animation for feature list heading
+  useEffect(() => {
+    const decoderElement = document.getElementById('decoderText');
+    if (decoderElement) {
+      const originalText = 'Complete Feature List';
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()_-+=[]{}|;:,.<>?';
+
+      decoderElement.innerHTML = '';
+      originalText.split('').forEach(char => {
+        const span = document.createElement('span');
+        span.innerHTML = char === ' ' ? '&nbsp;' : char;
+        decoderElement.appendChild(span);
       });
 
-      const charsStagger = stagger(100, { start: 0 });
+      const letters = Array.from(decoderElement.children);
 
-      const timeline = createTimeline({ defaults: { ease: 'linear', loop: true, duration: 750 } })
-        .add('.char-3d', { rotateX: -90 }, charsStagger)
-        .add('.char-3d .face-top', { opacity: [.5, 0] }, charsStagger)
-        .add('.char-3d .face-front', { opacity: [1, .5] }, charsStagger)
-        .add('.char-3d .face-bottom', { opacity: [.5, 1] }, charsStagger);
+      function createDecoderAnimation() {
+        const tl = gsap.timeline({
+          onComplete: () => {
+            gsap.delayedCall(3, () => tl.restart());
+          }
+        });
 
-      return () => {
-        timeline.pause();
-      };
+        letters.forEach((letter, i) => {
+          const originalChar = letter.innerHTML;
+          if (originalChar === '&nbsp;') return;
+
+          let proxy = { charIndex: 0 };
+          
+          tl.to(proxy, {
+            charIndex: chars.length - 1,
+            duration: 1.5,
+            ease: 'power2.inOut',
+            onUpdate: () => {
+              const randomIndex = Math.floor(Math.random() * chars.length);
+              letter.textContent = chars[randomIndex];
+            },
+            onComplete: () => {
+              letter.textContent = originalChar;
+            }
+          }, i * 0.1);
+        });
+        
+        tl.to({}, { duration: 2 });
+      }
+      
+      createDecoderAnimation();
     }
   }, []);
 
@@ -141,37 +194,40 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   return (
     <div className="min-h-screen bg-white">
       <style>{`
-        .navbar-3d-text {
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        .navbar-svg-container {
           position: relative;
           display: inline-block;
+          width: 120px;
+          height: auto;
         }
-
-        .char-3d {
+        .navbar-svg-container svg {
+          width: 100%;
+          height: auto;
+        }
+        .fade-in-up {
+          opacity: 0;
+          transform: translateY(50px);
+          transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+        }
+        .fade-in-up.is-visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .decoder-text {
+          font-family: 'Share Tech Mono', monospace;
+          font-weight: 400;
           position: relative;
+          color: #00ff99;
+          text-shadow: 0 0 5px #00ff99, 0 0 15px #00ff99, 0 0 30px #00ff99;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+        .decoder-text span {
           display: inline-block;
-          transform-style: preserve-3d;
-          transform-origin: 50% 50% 1rem;
-        }
-
-        .face {
-          position: absolute;
-          left: 0;
-        }
-
-        .face-bottom {
-          top: 100%;
-          transform-origin: 50% 0%;
-          transform: rotateX(90deg);
-        }
-
-        .face-top {
-          bottom: 100%;
-          transform-origin: 50% 100%;
-          transform: rotateX(-90deg);
-        }
-
-        .face-front {
           position: relative;
+          min-width: 0.5ch;
+          will-change: contents;
         }
       `}</style>
       {/* ── Navbar ── */}
@@ -188,7 +244,52 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                   <span className="text-white font-bold text-sm">POS</span>
                 </div>
               )}
-              <p ref={navbarTextRef} className="text-gray-900 font-bold text-2xl navbar-3d-text">Codexxaa-Solutions</p>
+              <div ref={navbarSvgRef} className="navbar-svg-container">
+                <svg id="mainSVG" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+                  <defs>
+                    <clipPath id="lightTextMask">
+                      <path d="m313.26,268.73v39.85h18.23v121.36h-31.76v-161.21h13.54Z" fill="#fcee21"/>
+                      <path d="m336.4,429.94v-161.21h13.54v161.21h-13.54Z" fill="#fcee21"/>
+                      <path d="m445.52,288.32v-19.59h13.46v161.21h-13.46v-128.62h-14.9v128.62h-13.54v-161.21h13.54v19.59h14.9Z" fill="#fcee21"/>
+                      <path d="m463.97,268.73h39.7v13.08h-13.08v148.13h-13.54v-148.13h-13.08v-13.08Z" fill="#fcee21"/>
+                      <path d="m384.12,291.34v18.58c-4.46-.13-7.97-1.52-10.51-4.21-2.62-2.77-3.93-6.23-3.93-10.36s1.33-7.66,4.01-10.44c2.67-2.72,6.1-4.08,10.29-4.08,2.52,0,4.81.5,6.88,1.51,2.07,1.01,3.63,2.34,4.69,4.01l11.49-6.58c-2.37-3.73-5.6-6.68-9.68-8.85-4.13-2.22-8.65-3.33-13.54-3.33-7.82,0-14.37,2.67-19.66,8.02-5.29,5.4-7.94,11.95-7.94,19.66v134.29l54.6.76v-138.98h-26.69Z" fill="#fcee21"/>
+                    </clipPath>
+                    <filter id="glow" x="-100%" y="-100%" width="550%" height="550%">
+                      <feGaussianBlur stdDeviation="0 19" result="coloredBlur" />
+                      <feOffset dx="0" dy="0" result="offsetblur"></feOffset>
+                      <feFlood id="glowAlpha" flood-color="#FEFFD9" flood-opacity="0.5"></feFlood>
+                      <feComposite in2="offsetblur" operator="in"></feComposite>
+                      <feMerge>
+                        <feMergeNode/>          
+                        <feMergeNode in="SourceGraphic"></feMergeNode>
+                      </feMerge>
+                    </filter>	
+                    <mask id="lightMask">
+                      <path id="lamp" d="m383,275.25l-29.1,37.09c-1.06,1.34-.1,3.31,1.61,3.31h88.99c1.71,0,2.67-1.97,1.61-3.31l-29.1-37.09c-8.65-11.03-25.35-11.03-34,0Z" fill="#FFF"/>
+                    </mask>
+                  </defs>
+                  <g class="lightGroup" fill="#454545">
+                    <path d="m313.26,268.73v39.85h18.23v13.08h-31.76v-52.94h13.54Z"/>
+                    <path d="m336.4,321.67v-52.94h13.54v52.94h-13.54Z"/>
+                    <path d="m384.12,291.34h26.69v5.37c0,7.76-2.45,14.06-7.34,18.9-4.89,4.79-11.19,7.18-18.91,7.18-8.22,0-15.02-2.65-20.42-7.94-5.29-5.29-7.94-11.82-7.94-19.59s2.65-14.27,7.94-19.66c5.29-5.34,11.85-8.02,19.66-8.02,4.89,0,9.4,1.11,13.54,3.33,4.08,2.17,7.31,5.12,9.68,8.85l-11.49,6.58c-1.06-1.66-2.62-3-4.69-4.01-2.07-1.01-4.36-1.51-6.88-1.51-4.19,0-7.61,1.36-10.29,4.08-2.67,2.77-4.01,6.25-4.01,10.44s1.31,7.59,3.93,10.36c2.67,2.82,6.4,4.24,11.19,4.24,6.15,0,10.21-2.32,12.17-6.96h-12.86v-11.65Z"/>
+                    <path d="m445.52,288.32v-19.59h13.46v52.94h-13.46v-20.34h-14.9v20.34h-13.54v-52.94h13.54v19.59h14.9Z"/>
+                    <path d="m463.97,268.73h39.7v13.08h-13.08v39.85h-13.54v-39.85h-13.08v-13.08Z"/>
+                  </g>	
+                  <g clip-path="url(#lightTextMask)">
+                    <g filter="url(#glow)">
+                      <g mask="url(#lightMask)">
+                        <g class="lightGroup" fill="#F5F5F5">
+                          <path d="m313.26,268.73v39.85h18.23v13.08h-31.76v-52.94h13.54Z"/>
+                          <path d="m336.4,321.67v-52.94h13.54v52.94h-13.54Z"/>
+                          <path d="m384.12,291.34h26.69v5.37c0,7.76-2.45,14.06-7.34,18.9-4.89,4.79-11.19,7.18-18.91,7.18-8.22,0-15.02-2.65-20.42-7.94-5.29-5.29-7.94-11.82-7.94-19.59s2.65-14.27,7.94-19.66c5.29-5.34,11.85-8.02,19.66-8.02,4.89,0,9.4,1.11,13.54,3.33,4.08,2.17,7.31,5.12,9.68,8.85l-11.49,6.58c-1.06-1.66-2.62-3-4.69-4.01-2.07-1.01-4.36-1.51-6.88-1.51-4.19,0-7.61,1.36-10.29,4.08-2.67,2.77-4.01,6.25-4.01,10.44s1.31,7.59,3.93,10.36c2.67,2.82,6.4,4.24,11.19,4.24,6.15,0,10.21-2.32,12.17-6.96h-12.86v-11.65Z"/>
+                          <path d="m445.52,288.32v-19.59h13.46v52.94h-13.46v-20.34h-14.9v20.34h-13.54v-52.94h13.54v19.59h14.9Z"/>
+                          <path d="m463.97,268.73h39.7v13.08h-13.08v39.85h-13.54v-39.85h-13.08v-13.08Z"/>
+                        </g>
+                      </g>
+                    </g>
+                  </g>
+                </svg>
+              </div>
             </div>
 
             {/* Desktop Navigation Links */}
@@ -349,7 +450,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                   </div>
 
                   {heroSlides[currentSlide].button_text && (
-                    <button
+                    <AnimatedButton
                       onClick={() => {
                         if (heroSlides[currentSlide].button_link) {
                           if (heroSlides[currentSlide].button_link.startsWith('/')) {
@@ -360,10 +461,9 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                           }
                         }
                       }}
-                      className="px-10 py-4 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-lg transition-all transform hover:scale-105 active:scale-95 shadow-xl"
                     >
                       {heroSlides[currentSlide].button_text}
-                    </button>
+                    </AnimatedButton>
                   )}
                 </>
               )}
@@ -403,18 +503,12 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-24">
-          <button
-            onClick={() => setShowLoginPopup(true)}
-            className="px-8 py-4 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-lg transition-all transform hover:scale-105 active:scale-95 shadow-xl"
-          >
+          <AnimatedButton onClick={() => setShowLoginPopup(true)}>
             View Demo
-          </button>
-          <button
-            onClick={() => onNavigate('contact')}
-            className="px-8 py-4 bg-white hover:bg-gray-50 text-gray-900 font-semibold rounded-lg border-2 border-gray-900 transition-all transform hover:scale-105 active:scale-95 shadow-xl"
-          >
+          </AnimatedButton>
+          <AnimatedButton onClick={() => onNavigate('contact')}>
             Contact Us
-          </button>
+          </AnimatedButton>
         </div>
 
         {/* Login Popup */}
@@ -488,7 +582,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
         {/* Comprehensive Features Section */}
         <div className="mb-24">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Complete Feature List</h2>
+            <h2 id="decoderText" className="decoder-text text-4xl font-bold mb-4" style={{ fontSize: 'clamp(1.5rem, 4vw, 3rem)' }}></h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Everything you need to manage your business efficiently
             </p>
@@ -497,12 +591,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
           <div className="space-y-12">
             {/* Sales & Billing */}
             <div 
-              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
-              data-index="0"
-              style={{
-                opacity: visibleCards.includes(0) ? 1 : 0,
-                transform: visibleCards.includes(0) ? 'translateY(0)' : 'translateY(50px)'
-              }}
+              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -578,12 +667,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Inventory Management */}
             <div 
-              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
-              data-index="1"
-              style={{
-                opacity: visibleCards.includes(1) ? 1 : 0,
-                transform: visibleCards.includes(1) ? 'translateY(0)' : 'translateY(50px)'
-              }}
+              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -659,12 +743,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Customer Management */}
             <div 
-              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
-              data-index="2"
-              style={{
-                opacity: visibleCards.includes(2) ? 1 : 0,
-                transform: visibleCards.includes(2) ? 'translateY(0)' : 'translateY(50px)'
-              }}
+              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -716,12 +795,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Supplier Management */}
             <div 
-              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
-              data-index="3"
-              style={{
-                opacity: visibleCards.includes(3) ? 1 : 0,
-                transform: visibleCards.includes(3) ? 'translateY(0)' : 'translateY(50px)'
-              }}
+              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -761,12 +835,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Staff & HR Management */}
             <div 
-              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
-              data-index="4"
-              style={{
-                opacity: visibleCards.includes(4) ? 1 : 0,
-                transform: visibleCards.includes(4) ? 'translateY(0)' : 'translateY(50px)'
-              }}
+              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -818,12 +887,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Financial Management */}
             <div 
-              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
-              data-index="5"
-              style={{
-                opacity: visibleCards.includes(5) ? 1 : 0,
-                transform: visibleCards.includes(5) ? 'translateY(0)' : 'translateY(50px)'
-              }}
+              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -875,12 +939,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Multi-Shop Support */}
             <div 
-              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
-              data-index="6"
-              style={{
-                opacity: visibleCards.includes(6) ? 1 : 0,
-                transform: visibleCards.includes(6) ? 'translateY(0)' : 'translateY(50px)'
-              }}
+              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -932,12 +991,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Reporting & Analytics */}
             <div 
-              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
-              data-index="7"
-              style={{
-                opacity: visibleCards.includes(7) ? 1 : 0,
-                transform: visibleCards.includes(7) ? 'translateY(0)' : 'translateY(50px)'
-              }}
+              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -989,12 +1043,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* System Security */}
             <div 
-              className="feature-card bg-white p-8 rounded-xl border border-gray-200 transition-all duration-700 ease-out"
-              data-index="8"
-              style={{
-                opacity: visibleCards.includes(8) ? 1 : 0,
-                transform: visibleCards.includes(8) ? 'translateY(0)' : 'translateY(50px)'
-              }}
+              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -1042,57 +1091,43 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
               Choose the plan that fits your business needs
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="pricing-card-container grid md:grid-cols-3 gap-8">
             {pricingPlans.map((plan) => (
-              <div 
-                key={plan.id} 
-                className={`p-8 rounded-xl border transition-all shadow-sm hover:shadow-lg ${
-                  plan.is_popular 
-                    ? 'bg-gray-900 border-2 border-gray-900 shadow-xl transform scale-105' 
-                    : 'bg-white border border-gray-200 hover:border-gray-900'
-                }`}
-              >
-                {plan.is_popular && (
-                  <div className="text-gray-400 text-sm font-semibold mb-2">MOST POPULAR</div>
-                )}
-                <h3 className={`font-semibold text-xl mb-2 ${plan.is_popular ? 'text-white' : 'text-gray-900'}`}>
-                  {plan.name}
-                </h3>
-                <p className={`mb-6 ${plan.is_popular ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {plan.description}
-                </p>
-                <div className="mb-6">
-                  <span className={`text-5xl font-bold ${plan.is_popular ? 'text-white' : 'text-gray-900'}`}>
-                    {plan.currency} {plan.price}
-                  </span>
-                  <span className={plan.is_popular ? 'text-gray-400' : 'text-gray-600'}>
-                    /{plan.billing_period}
-                  </span>
+              <div key={plan.id} className="pricing-card">
+                <div className="face face1">
+                  <div className="content">
+                    <h3>{plan.name}</h3>
+                    <div className="text-white text-2xl font-bold mt-2">
+                      {plan.currency} {plan.price}
+                      <span className="text-sm font-normal">/{plan.billing_period}</span>
+                    </div>
+                  </div>
                 </div>
-                <ul className="space-y-4 mb-8">
-                  {plan.features.map((feature, index) => (
-                    <li key={index} className={`flex items-center ${plan.is_popular ? 'text-gray-300' : 'text-gray-600'}`}>
-                      <svg 
-                        className={`w-5 h-5 mr-3 ${plan.is_popular ? 'text-white' : 'text-gray-900'}`} 
-                        fill="none" 
-                        stroke="currentColor" 
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                      </svg>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                <button 
-                  className={`w-full py-3 font-semibold rounded-lg transition-all ${
-                    plan.is_popular 
-                      ? 'bg-white text-gray-900 hover:bg-gray-100' 
-                      : 'border-2 border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'
-                  }`}
-                >
-                  {plan.button_text}
-                </button>
+                <div className="face face2">
+                  <div className="content">
+                    <p className="text-gray-600 mb-4">{plan.description}</p>
+                    <ul className="space-y-2 mb-6 text-left">
+                      {plan.features.map((feature, index) => (
+                        <li key={index} className="flex items-center text-gray-600 text-sm">
+                          <svg 
+                            className="w-4 h-4 mr-2 text-gray-900" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                    <AnimatedButton 
+                      style={{ width: '100%' }}
+                    >
+                      {plan.button_text}
+                    </AnimatedButton>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
