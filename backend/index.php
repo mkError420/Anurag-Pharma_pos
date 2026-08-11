@@ -491,6 +491,19 @@ $routes = [
                 $controller->createTeamMember();
             });
         },
+        '/^team-members\/(\d+)$/' => function($args, $data) {
+            AuthController::requireAuth(function() use ($args) {
+                // Check for _method override
+                if (isset($_POST['_method']) && $_POST['_method'] === 'PUT') {
+                    $controller = new WebsiteContentController();
+                    $controller->updateTeamMember($args[0]);
+                } else {
+                    http_response_code(405);
+                    header('Content-Type: application/json');
+                    echo json_encode(['error' => 'Method not allowed']);
+                }
+            });
+        },
         // Pricing Plans
         '/^pricing-plans$/' => function($args, $data) {
             AuthController::requireAuth(function() {

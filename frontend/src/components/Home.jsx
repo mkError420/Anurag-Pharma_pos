@@ -15,6 +15,12 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [visibleCardIndex, setVisibleCardIndex] = useState(0);
   const [showYoutubePopup, setShowYoutubePopup] = useState(false);
   const [youtubeVideoUrl, setYoutubeVideoUrl] = useState('');
+  const [animatedStats, setAnimatedStats] = useState({
+    clients: 0,
+    transactions: 0,
+    districts: 0,
+    uptime: 0
+  });
 
   // Lifted login state so demo credential buttons can pre-fill the form
   const [loginEmail, setLoginEmail] = useState('');
@@ -97,6 +103,40 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
       return () => clearInterval(interval);
     }
   }, [heroSlides.length]);
+
+  // Animate stats on page load
+  useEffect(() => {
+    const duration = 2000;
+    const steps = 60;
+    const interval = duration / steps;
+    let step = 0;
+
+    const animate = () => {
+      step++;
+      const progress = step / steps;
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+      setAnimatedStats({
+        clients: Math.floor(500 * easeProgress),
+        transactions: Math.floor(50 * easeProgress),
+        districts: Math.floor(15 * easeProgress),
+        uptime: (99.9 * easeProgress).toFixed(1)
+      });
+
+      if (step < steps) {
+        setTimeout(animate, interval);
+      } else {
+        setAnimatedStats({
+          clients: 500,
+          transactions: 50,
+          districts: 15,
+          uptime: 99.9
+        });
+      }
+    };
+
+    animate();
+  }, []);
 
   // Sequential fade-in-up animation for feature cards
   useEffect(() => {
@@ -204,7 +244,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             {/* Logo */}
             <div className="flex items-center gap-3">
               {logo ? (
-                <img src={logo} alt="Logo" className="h-12 w-12 rounded-lg object-cover" />
+                <img src={logo} alt="Logo" className="h-12 w-12 rounded-lg object-contain bg-slate-900" />
               ) : (
                 <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-lg">
                   <span className="text-white font-bold text-sm">POS</span>
@@ -395,21 +435,21 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
         {/* Statistics Section */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16">
-          <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-            <div className="text-3xl font-bold text-gray-900 mb-1">500+</div>
-            <div className="text-gray-600 font-medium text-sm">Happy Clients</div>
+          <div className="text-center p-4 bg-gradient-to-br from-rose-50 to-pink-100 rounded-xl border border-rose-200">
+            <div className="text-3xl font-bold text-rose-700 mb-1">{animatedStats.clients}+</div>
+            <div className="text-rose-600 font-medium text-sm">Happy Clients</div>
           </div>
-          <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-            <div className="text-3xl font-bold text-gray-900 mb-1">50K+</div>
-            <div className="text-gray-600 font-medium text-sm">Transactions Daily</div>
+          <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-cyan-100 rounded-xl border border-blue-200">
+            <div className="text-3xl font-bold text-blue-700 mb-1">{animatedStats.transactions}K+</div>
+            <div className="text-blue-600 font-medium text-sm">Transactions Daily</div>
           </div>
-          <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-            <div className="text-3xl font-bold text-gray-900 mb-1">15+</div>
-            <div className="text-gray-600 font-medium text-sm">Districts Served</div>
+          <div className="text-center p-4 bg-gradient-to-br from-amber-50 to-yellow-100 rounded-xl border border-amber-200">
+            <div className="text-3xl font-bold text-amber-700 mb-1">{animatedStats.districts}+</div>
+            <div className="text-amber-600 font-medium text-sm">Districts Served</div>
           </div>
-          <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
-            <div className="text-3xl font-bold text-gray-900 mb-1">99.9%</div>
-            <div className="text-gray-600 font-medium text-sm">Uptime Guaranteed</div>
+          <div className="text-center p-4 bg-gradient-to-br from-emerald-50 to-green-100 rounded-xl border border-emerald-200">
+            <div className="text-3xl font-bold text-emerald-700 mb-1">{animatedStats.uptime}%</div>
+            <div className="text-emerald-600 font-medium text-sm">Uptime Guaranteed</div>
           </div>
         </div>
 
@@ -489,31 +529,16 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-white p-8 rounded-xl border border-gray-200 hover:border-gray-900 transition-all shadow-sm hover:shadow-lg">
-              <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center mb-6">
-                <svg className="w-7 h-7 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-              </div>
               <h3 className="text-gray-900 font-semibold text-xl mb-3">Inventory Management</h3>
               <p className="text-gray-600 leading-relaxed">Track stock levels, manage products, and get alerts for low inventory with real-time updates.</p>
             </div>
 
             <div className="bg-white p-8 rounded-xl border border-gray-200 hover:border-gray-900 transition-all shadow-sm hover:shadow-lg">
-              <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center mb-6">
-                <svg className="w-7 h-7 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
               <h3 className="text-gray-900 font-semibold text-xl mb-3">Sales Analytics</h3>
               <p className="text-gray-600 leading-relaxed">Comprehensive reports and insights to make data-driven decisions and grow your business.</p>
             </div>
 
             <div className="bg-white p-8 rounded-xl border border-gray-200 hover:border-gray-900 transition-all shadow-sm hover:shadow-lg">
-              <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center mb-6">
-                <svg className="w-7 h-7 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
               <h3 className="text-gray-900 font-semibold text-xl mb-3">Easy Checkout</h3>
               <p className="text-gray-600 leading-relaxed">Fast and efficient checkout process with multiple payment options and seamless integration.</p>
             </div>
@@ -529,504 +554,559 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             </p>
           </div>
 
-          <div className="space-y-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Sales & Billing */}
             <div 
-              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${0 <= visibleCardIndex ? 'is-visible' : ''}`}
+              className={`feature-card-sequential bg-gradient-to-br from-rose-50 to-pink-50 p-6 rounded-2xl border border-rose-100 hover:shadow-xl transition-all duration-300 ${0 <= visibleCardIndex ? 'is-visible' : ''}`}
               data-index="0"
             >
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-                Sales & Billing
-              </h3>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Multi-tab checkout system for concurrent sales</span>
+              
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Sales & Billing</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Multi-tab checkout system</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Product search by name, SKU, or barcode scanning</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Product search & barcode scanning</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Customer selection and attachment to sales</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Customer attachment to sales</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Discount support (percentage and amount-based)</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Discount support (percentage & amount)</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Tax calculation with configurable rates</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Tax calculation with configurable rates</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Multiple payment methods: cash, card, mobile pay</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Multiple payment methods</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Receipt generation (thermal and regular formats)</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Receipt generation</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Real-time stock validation and deduction</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Real-time stock validation</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Loyalty points redemption system</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Loyalty points redemption</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Hold/defer bill functionality for later completion</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-rose-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Hold/defer bill functionality</span>
                 </li>
               </ul>
             </div>
 
             {/* Inventory Management */}
             <div 
-              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${1 <= visibleCardIndex ? 'is-visible' : ''}`}
+              className={`feature-card-sequential bg-gradient-to-br from-blue-50 to-cyan-50 p-6 rounded-2xl border border-blue-100 hover:shadow-xl transition-all duration-300 ${1 <= visibleCardIndex ? 'is-visible' : ''}`}
               data-index="1"
             >
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                  </svg>
-                </div>
-                Inventory Management
-              </h3>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Full CRUD operations for products</span>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Inventory Management</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Full CRUD operations for products</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">SKU-based product identification</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">SKU-based product identification</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Stock quantity management with low stock alerts</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Low stock alerts</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Expiry date tracking with 30-day warnings</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Expiry date tracking</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Batch/Lot tracking with FIFO consumption</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Batch/Lot tracking with FIFO</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Stock adjustments with reason tracking</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Stock adjustments tracking</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Wastage/Loss tracking and reporting</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Wastage/Loss reporting</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Purchase order management</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Purchase order management</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Bulk CSV import/export for products</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Bulk CSV import/export</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Cost price logs and historical tracking</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Cost price history tracking</span>
                 </li>
               </ul>
             </div>
 
             {/* Customer Management */}
             <div 
-              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${2 <= visibleCardIndex ? 'is-visible' : ''}`}
+              className={`feature-card-sequential bg-gradient-to-br from-amber-50 to-yellow-50 p-6 rounded-2xl border border-amber-100 hover:shadow-xl transition-all duration-300 ${2 <= visibleCardIndex ? 'is-visible' : ''}`}
               data-index="2"
             >
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-                Customer Management
-              </h3>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Full customer directory with contact info</span>
+
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Customer Management</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-amber-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Full customer directory</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Customer credit/due balance tracking</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-amber-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Credit/due balance tracking</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Due payment collection and history</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-amber-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Due payment collection</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Loyalty points earning and redemption</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-amber-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Loyalty points system</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Configurable loyalty point rates</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-amber-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Configurable point rates</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Customer returns and refunds processing</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-amber-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Returns & refunds processing</span>
                 </li>
               </ul>
             </div>
 
             {/* Supplier Management */}
             <div 
-              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${3 <= visibleCardIndex ? 'is-visible' : ''}`}
+              className={`feature-card-sequential bg-gradient-to-br from-emerald-50 to-green-50 p-6 rounded-2xl border border-emerald-100 hover:shadow-xl transition-all duration-300 ${3 <= visibleCardIndex ? 'is-visible' : ''}`}
               data-index="3"
             >
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                Supplier Management
-              </h3>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Full supplier directory management</span>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Supplier Management</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-emerald-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Full supplier directory</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Supplier credit and due balance tracking</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-emerald-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Credit & due balance tracking</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Purchase order tracking by supplier</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-emerald-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Purchase order tracking</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Supplier returns processing</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-emerald-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Supplier returns processing</span>
                 </li>
               </ul>
             </div>
 
             {/* Staff & HR Management */}
             <div 
-              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${4 <= visibleCardIndex ? 'is-visible' : ''}`}
+              className={`feature-card-sequential bg-gradient-to-br from-purple-50 to-violet-50 p-6 rounded-2xl border border-purple-100 hover:shadow-xl transition-all duration-300 ${4 <= visibleCardIndex ? 'is-visible' : ''}`}
               data-index="4"
             >
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-                Staff & HR Management
-              </h3>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Multi-role user system (admin, staff)</span>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Staff & HR Management</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Multi-role user system</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Daily attendance tracking with check-in/out</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Daily attendance tracking</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Staff salary and payroll management</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Salary & payroll management</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Overtime calculation and payment</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Overtime calculation</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Attendance status tracking (present, absent, late)</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Attendance status tracking</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Staff section access restrictions</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-purple-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Section access restrictions</span>
                 </li>
               </ul>
             </div>
 
             {/* Financial Management */}
             <div 
-              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${5 <= visibleCardIndex ? 'is-visible' : ''}`}
+              className={`feature-card-sequential bg-gradient-to-br from-teal-50 to-cyan-50 p-6 rounded-2xl border border-teal-100 hover:shadow-xl transition-all duration-300 ${5 <= visibleCardIndex ? 'is-visible' : ''}`}
               data-index="5"
             >
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                Financial Management
-              </h3>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Total revenue and profit tracking</span>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Financial Management</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-teal-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Revenue & profit tracking</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">COGS (Cost of Goods Sold) calculation</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-teal-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">COGS calculation</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">7-day sales trend analysis</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-teal-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">7-day sales trend analysis</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Other costs and expenses tracking</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-teal-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Expense tracking</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Investment tracking (capital injection/withdrawal)</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-teal-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Investment tracking</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Due payments collection and tracking</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-teal-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Due payments tracking</span>
                 </li>
               </ul>
             </div>
 
             {/* Multi-Shop Support */}
             <div 
-              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${6 <= visibleCardIndex ? 'is-visible' : ''}`}
+              className={`feature-card-sequential bg-gradient-to-br from-indigo-50 to-blue-50 p-6 rounded-2xl border border-indigo-100 hover:shadow-xl transition-all duration-300 ${6 <= visibleCardIndex ? 'is-visible' : ''}`}
               data-index="6"
             >
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                Multi-Shop / Multi-Tenant
-              </h3>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Create and manage multiple tenant shops</span>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Multi-Shop / Multi-Tenant</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-indigo-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Multiple tenant shops</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Shop-specific tax rate configuration</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-indigo-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Shop-specific tax rates</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Shop-level data isolation and security</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-indigo-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Data isolation & security</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Shop suspension and activation</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-indigo-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Shop suspension/activation</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Shop logo and branding customization</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-indigo-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Logo & branding customization</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Global user management across all shops</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-indigo-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Global user management</span>
                 </li>
               </ul>
             </div>
 
             {/* Reporting & Analytics */}
             <div 
-              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${7 <= visibleCardIndex ? 'is-visible' : ''}`}
+              className={`feature-card-sequential bg-gradient-to-br from-orange-50 to-amber-50 p-6 rounded-2xl border border-orange-100 hover:shadow-xl transition-all duration-300 ${7 <= visibleCardIndex ? 'is-visible' : ''}`}
               data-index="7"
             >
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                </div>
-                Reporting & Analytics
-              </h3>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Real-time dashboard metrics</span>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Reporting & Analytics</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-orange-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Real-time dashboard metrics</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Sales history with advanced filtering</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-orange-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Sales history & filtering</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Unified transaction view (all types)</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-orange-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Unified transaction view</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Inventory reports and stock history</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-orange-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Inventory reports</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Payment method breakdown analysis</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-orange-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Payment method analysis</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Top-selling products identification</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-orange-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Top-selling products</span>
                 </li>
               </ul>
             </div>
 
-            {/* System Security */}
+            {/* System Security */} 
             <div 
-              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${8 <= visibleCardIndex ? 'is-visible' : ''}`}
+              className={`feature-card-sequential bg-gradient-to-br from-slate-50 to-gray-50 p-6 rounded-2xl border border-slate-100 hover:shadow-xl transition-all duration-300 ${8 <= visibleCardIndex ? 'is-visible' : ''}`}
               data-index="8"
             >
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-                System Security
-              </h3>
-              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">JWT-based authentication system</span>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">System Security</h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">JWT-based authentication</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Role-based access control (RBAC)</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Role-based access control</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Shop-level data isolation</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Shop-level data isolation</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-600">Token validation and auto-logout</span>
+                <li className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <svg className="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-700 text-sm">Token validation & auto-logout</span>
                 </li>
               </ul>
             </div>

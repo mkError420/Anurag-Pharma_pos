@@ -85,14 +85,18 @@ export default function DashboardLayout({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <div className="hidden sm:block">
+            <button
+              onClick={() => onNavigate('/dashboard')}
+              className="hidden sm:block hover:opacity-80 transition-opacity"
+              title="Go to Dashboard"
+            >
               <h1 
                 className="text-sm font-semibold uppercase tracking-wider"
                 style={{ color: currentTheme.logo }}
               >
                 {user.shop_name}
               </h1>
-            </div>
+            </button>
           </div>
 
           {/* Right Header: Actions, Alerts, and Profile */}

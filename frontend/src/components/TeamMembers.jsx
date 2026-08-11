@@ -104,15 +104,23 @@ export default function TeamMembers() {
       let response;
       
       if (imageFile) {
-        // If there's an image file, use FormData
+        // If there's an image file, use FormData with POST method and _method override
         const formDataToSend = new FormData();
         formDataToSend.append('name', formData.name);
         formDataToSend.append('role', formData.role);
         formDataToSend.append('bio', formData.bio);
         formDataToSend.append('image', imageFile);
+        
+        // Use POST with _method override for file uploads (PHP doesn't handle PUT with FormData)
+        const methodToSend = 'POST';
+        const urlToSend = editingMember ? `${API_BASE_URL}/team-members/${editingMember.id}` : `${API_BASE_URL}/team-members`;
+        
+        if (editingMember) {
+          formDataToSend.append('_method', 'PUT');
+        }
 
-        response = await fetch(url, {
-          method,
+        response = await fetch(urlToSend, {
+          method: methodToSend,
           headers: {
             Authorization: `Bearer ${token}`,
           },

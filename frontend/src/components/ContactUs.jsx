@@ -125,7 +125,7 @@ export default function ContactUs({ onNavigate, publicPage }) {
             {/* Logo */}
             <div className="flex items-center gap-3">
               {logo ? (
-                <img src={logo} alt="Logo" className="h-12 w-12 rounded-lg object-cover" />
+                <img src={logo} alt="Logo" className="h-12 w-12 rounded-lg object-contain bg-slate-900" />
               ) : (
                 <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center shadow-lg">
                   <span className="text-white font-bold text-sm">POS</span>
