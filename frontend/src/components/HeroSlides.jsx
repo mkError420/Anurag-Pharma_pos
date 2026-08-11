@@ -149,7 +149,8 @@ export default function HeroSlides() {
         ? `${API_BASE_URL}/hero-slides/${editingSlide.id}`
         : `${API_BASE_URL}/hero-slides`;
       
-      const method = editingSlide ? 'PUT' : 'POST';
+      // Always use POST method, add _method for PUT
+      const method = 'POST';
 
       // Create FormData for file upload
       const formDataToSend = new FormData();
@@ -159,6 +160,10 @@ export default function HeroSlides() {
       formDataToSend.append('button_text', formData.button_text);
       formDataToSend.append('button_link', formData.button_link);
       formDataToSend.append('order', formData.order);
+      
+      if (editingSlide) {
+        formDataToSend.append('_method', 'PUT');
+      }
       
       if (imageFile) {
         formDataToSend.append('image', imageFile);

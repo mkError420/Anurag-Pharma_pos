@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 // Inline SVG Icon Helper Components
 const DashboardIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" /></svg>;
@@ -30,6 +30,15 @@ export default function Sidebar({
   heldBillsCount = 0,
   newContactMessagesCount = 0
 }) {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const getNavItems = () => {
     switch (role) {
@@ -203,34 +212,58 @@ export default function Sidebar({
           } ${isCollapsed ? 'w-20' : 'w-64'}`}
       >
         {/* Brand Header */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-slate-800">
-          <div className="flex items-center space-x-3 overflow-hidden">
-            {logo ? (
-              <img
-                src={logo}
-                alt="Brand Logo"
-                className="w-9 h-9 rounded-lg object-contain bg-slate-900 border border-slate-700 shrink-0"
-              />
-            ) : (
-              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 font-bold text-slate-800 shrink-0">
-                POS
-              </div>
-            )}
-            {!isCollapsed && (
-              <span className="text-lg font-bold tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent truncate">
-                {role === 'super_admin' ? 'SuperAdmin' : 'ShopPortal'}
-              </span>
-            )}
+        <div className="flex flex-col border-b border-slate-800">
+          <div className="flex items-center justify-between h-16 px-4">
+            <div className="flex items-center space-x-3 overflow-hidden">
+              {logo ? (
+                <img
+                  src={logo}
+                  alt="Brand Logo"
+                  className="w-9 h-9 rounded-lg object-contain bg-slate-900 border border-slate-700 shrink-0"
+                />
+              ) : (
+                <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 font-bold text-slate-800 shrink-0">
+                  POS
+                </div>
+              )}
+              {!isCollapsed && (
+                <span className="text-lg font-bold tracking-wider bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent truncate">
+                  {role === 'super_admin' ? 'SuperAdmin' : 'ShopPortal'}
+                </span>
+              )}
+            </div>
+            {/* Mobile close button */}
+            <button
+              className="p-1 rounded-md text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          {/* Mobile close button */}
-          <button
-            className="p-1 rounded-md text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          
+          {/* Mobile Date/Time Display */}
+          <div className="lg:hidden px-4 pb-3 flex items-center justify-between">
+            <div className="flex flex-col">
+              <div className="text-lg font-bold text-white font-mono">
+                {currentTime.toLocaleTimeString('en-US', { 
+                  hour12: true, 
+                  hour: '2-digit', 
+                  minute: '2-digit', 
+                  second: '2-digit' 
+                })}
+              </div>
+              <div className="text-xs text-slate-400">
+                {currentTime.toLocaleDateString('en-US', { 
+                  weekday: 'short', 
+                  year: 'numeric', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Navigation Items */}

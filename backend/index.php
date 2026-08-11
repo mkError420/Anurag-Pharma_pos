@@ -471,6 +471,19 @@ $routes = [
                 $controller->createHeroSlide();
             });
         },
+        '/^hero-slides\/(\d+)$/' => function($args, $data) {
+            AuthController::requireAuth(function() use ($args) {
+                // Check for _method override
+                if (isset($_POST['_method']) && $_POST['_method'] === 'PUT') {
+                    $controller = new WebsiteContentController();
+                    $controller->updateHeroSlide($args[0]);
+                } else {
+                    http_response_code(405);
+                    header('Content-Type: application/json');
+                    echo json_encode(['error' => 'Method not allowed']);
+                }
+            });
+        },
         // Team Members
         '/^team-members$/' => function($args, $data) {
             AuthController::requireAuth(function() use ($data) {

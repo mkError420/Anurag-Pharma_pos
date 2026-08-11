@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 
 export default function DashboardLayout({
@@ -17,6 +17,7 @@ export default function DashboardLayout({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
   
   // Theme colors
   const themeColors = [
@@ -26,6 +27,14 @@ export default function DashboardLayout({
   ];
 
   const [currentTheme, setCurrentTheme] = useState(themeColors[0]);
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Dynamic Badge Color mapping based on user role
   const getRoleBadge = (role) => {
@@ -88,6 +97,26 @@ export default function DashboardLayout({
 
           {/* Right Header: Actions, Alerts, and Profile */}
           <div className="flex items-center space-x-4">
+            
+            {/* Date and Time Display */}
+            <div className="hidden md:flex flex-col items-end">
+              <div className="text-lg font-bold text-slate-800 dark:text-slate-200 font-mono">
+                {currentTime.toLocaleTimeString('en-US', { 
+                  hour12: true, 
+                  hour: '2-digit', 
+                  minute: '2-digit', 
+                  second: '2-digit' 
+                })}
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                {currentTime.toLocaleDateString('en-US', { 
+                  weekday: 'short', 
+                  year: 'numeric', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </div>
+            </div>
             
             {/* Theme Color Buttons */}
             <div className="flex items-center space-x-2">
