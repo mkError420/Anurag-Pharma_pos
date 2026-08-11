@@ -12,6 +12,9 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
+  const [visibleCardIndex, setVisibleCardIndex] = useState(0);
+  const [showYoutubePopup, setShowYoutubePopup] = useState(false);
+  const [youtubeVideoUrl, setYoutubeVideoUrl] = useState('');
 
   // Lifted login state so demo credential buttons can pre-fill the form
   const [loginEmail, setLoginEmail] = useState('');
@@ -22,6 +25,33 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
     setLoginEmail(email);
     setLoginPassword(pass);
     setSelectedCred(email);
+  };
+
+  const getYoutubeVideoId = (url) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
+  const handleButtonClick = (link) => {
+    if (!link) return;
+
+    // Check if it's a YouTube link
+    const youtubeVideoId = getYoutubeVideoId(link);
+    if (youtubeVideoId) {
+      setYoutubeVideoUrl(`https://www.youtube.com/embed/${youtubeVideoId}`);
+      setShowYoutubePopup(true);
+      return;
+    }
+
+    // Handle internal navigation
+    if (link.startsWith('/')) {
+      const page = link.slice(1);
+      onNavigate(page);
+    } else {
+      // Open external links in new tab
+      window.open(link, '_blank');
+    }
   };
 
   useEffect(() => {
@@ -68,22 +98,38 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
     }
   }, [heroSlides.length]);
 
-  // Fade-in-up animation for feature cards
+  // Sequential fade-in-up animation for feature cards
   useEffect(() => {
-    const animatedElements = document.querySelectorAll('.fade-in-up');
+    const animatedElements = document.querySelectorAll('.feature-card-sequential');
 
     const observerOptions = {
       root: null,
-      rootMargin: '0px',
-      threshold: 0.15
+      rootMargin: '-20% 0px -20% 0px',
+      threshold: 0.5
     };
 
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
+        const cardIndex = parseInt(entry.target.dataset.index);
+        
         if (entry.isIntersecting) {
-          entry.target.classList.add('is-visible');
+          // When a card comes into view, show all cards up to this index
+          setVisibleCardIndex(cardIndex);
         } else {
-          entry.target.classList.remove('is-visible');
+          // When scrolling up, check which card is now most visible
+          const allCards = document.querySelectorAll('.feature-card-sequential');
+          let maxVisibleIndex = 0;
+          
+          allCards.forEach((card) => {
+            const rect = card.getBoundingClientRect();
+            const index = parseInt(card.dataset.index);
+            // Check if card is in the middle of viewport
+            if (rect.top < window.innerHeight * 0.7 && rect.bottom > window.innerHeight * 0.3) {
+              maxVisibleIndex = Math.max(maxVisibleIndex, index);
+            }
+          });
+          
+          setVisibleCardIndex(maxVisibleIndex);
         }
       });
     }, observerOptions);
@@ -140,12 +186,12 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             background-position: -200% 0;
           }
         }
-        .fade-in-up {
+        .feature-card-sequential {
           opacity: 0;
           transform: translateY(50px);
-          transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+          transition: opacity 0.6s ease-out, transform 0.6s ease-out;
         }
-        .fade-in-up.is-visible {
+        .feature-card-sequential.is-visible {
           opacity: 1;
           transform: translateY(0);
         }
@@ -326,16 +372,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
                   {heroSlides[currentSlide].button_text && (
                     <AnimatedButton
-                      onClick={() => {
-                        if (heroSlides[currentSlide].button_link) {
-                          if (heroSlides[currentSlide].button_link.startsWith('/')) {
-                            const page = heroSlides[currentSlide].button_link.slice(1);
-                            onNavigate(page);
-                          } else {
-                            window.open(heroSlides[currentSlide].button_link, '_blank');
-                          }
-                        }
-                      }}
+                      onClick={() => handleButtonClick(heroSlides[currentSlide].button_link)}
                     >
                       {heroSlides[currentSlide].button_text}
                     </AnimatedButton>
@@ -413,6 +450,35 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
           </div>
         )}
 
+        {/* YouTube Video Popup */}
+        {showYoutubePopup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <h2 className="text-xl font-bold text-gray-900">Video</h2>
+                <button
+                  onClick={() => setShowYoutubePopup(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="aspect-video">
+                <iframe
+                  src={youtubeVideoUrl}
+                  className="w-full h-full"
+                  title="YouTube video player"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Features */}
         <div className="mb-24">
           <div className="text-center mb-16">
@@ -466,7 +532,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
           <div className="space-y-12">
             {/* Sales & Billing */}
             <div 
-              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
+              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${0 <= visibleCardIndex ? 'is-visible' : ''}`}
+              data-index="0"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -542,7 +609,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Inventory Management */}
             <div 
-              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
+              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${1 <= visibleCardIndex ? 'is-visible' : ''}`}
+              data-index="1"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -618,7 +686,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Customer Management */}
             <div 
-              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
+              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${2 <= visibleCardIndex ? 'is-visible' : ''}`}
+              data-index="2"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -670,7 +739,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Supplier Management */}
             <div 
-              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
+              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${3 <= visibleCardIndex ? 'is-visible' : ''}`}
+              data-index="3"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -710,7 +780,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Staff & HR Management */}
             <div 
-              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
+              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${4 <= visibleCardIndex ? 'is-visible' : ''}`}
+              data-index="4"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -762,7 +833,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Financial Management */}
             <div 
-              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
+              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${5 <= visibleCardIndex ? 'is-visible' : ''}`}
+              data-index="5"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -814,7 +886,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Multi-Shop Support */}
             <div 
-              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
+              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${6 <= visibleCardIndex ? 'is-visible' : ''}`}
+              data-index="6"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -866,7 +939,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* Reporting & Analytics */}
             <div 
-              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
+              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${7 <= visibleCardIndex ? 'is-visible' : ''}`}
+              data-index="7"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -918,7 +992,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
             {/* System Security */}
             <div 
-              className="fade-in-up bg-white p-8 rounded-xl border border-gray-200"
+              className={`feature-card-sequential bg-white p-8 rounded-xl border border-gray-200 ${8 <= visibleCardIndex ? 'is-visible' : ''}`}
+              data-index="8"
             >
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
