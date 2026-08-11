@@ -454,7 +454,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
         </div>
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-24">
+        <div className="flex flex-row gap-4 justify-center mb-24">
           <AnimatedButton onClick={() => setShowLoginPopup(true)}>
             View Demo
           </AnimatedButton>
