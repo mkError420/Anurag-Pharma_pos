@@ -4,7 +4,6 @@ import Footer from './Footer';
 import API_BASE_URL from '../config';
 import { animate, splitText, stagger } from 'animejs';
 import AnimatedButton from './AnimatedButton';
-import gsap from 'gsap';
 
 export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [logo, setLogo] = useState(null);
@@ -14,7 +13,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
-  const navbarSvgRef = useRef(null);
+  const navbarTextRef = useRef(null);
 
   // Lifted login state so demo credential buttons can pre-fill the form
   const [loginEmail, setLoginEmail] = useState('');
@@ -98,78 +97,27 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
     };
   }, []);
 
-  // GSAP animation for navbar SVG
+  // Word-based animation for navbar text
   useEffect(() => {
-    if (navbarSvgRef.current) {
-      const lamp = navbarSvgRef.current.querySelector('#lamp');
-      if (lamp) {
-        const tl = gsap.timeline();
-        tl.fromTo(lamp, {
-          rotation: -26,
-          svgOrigin: '400 130'
-        }, {
-          duration: 1,
-          rotation: 26,
-          svgOrigin: '400 130',
-          ease: 'power1.inOut',
-          repeat: -1,
-          yoyo: true
-        });
-
-        return () => {
-          tl.kill();
-        };
-      }
-    }
-  }, []);
-
-  // Decoder animation for feature list heading
-  useEffect(() => {
-    const decoderElement = document.getElementById('decoderText');
-    if (decoderElement) {
-      const originalText = 'Complete Feature List';
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()_-+=[]{}|;:,.<>?';
-
-      decoderElement.innerHTML = '';
-      originalText.split('').forEach(char => {
-        const span = document.createElement('span');
-        span.innerHTML = char === ' ' ? '&nbsp;' : char;
-        decoderElement.appendChild(span);
+    if (navbarTextRef.current) {
+      const { words } = splitText(navbarTextRef.current, {
+        words: { wrap: 'clip' },
       });
 
-      const letters = Array.from(decoderElement.children);
+      animate(words, {
+        y: [
+          { to: ['100%', '0%'] },
+          { to: '-100%', delay: 750, ease: 'in(3)' }
+        ],
+        duration: 750,
+        ease: 'out(3)',
+        delay: stagger(100),
+        loop: true,
+      });
 
-      function createDecoderAnimation() {
-        const tl = gsap.timeline({
-          onComplete: () => {
-            gsap.delayedCall(3, () => tl.restart());
-          }
-        });
-
-        letters.forEach((letter, i) => {
-          const originalChar = letter.innerHTML;
-          if (originalChar === '&nbsp;') return;
-
-          let proxy = { charIndex: 0 };
-          
-          tl.to(proxy, {
-            charIndex: chars.length - 1,
-            duration: 1.5,
-            ease: 'power2.inOut',
-            onUpdate: () => {
-              const randomIndex = Math.floor(Math.random() * chars.length);
-              letter.textContent = chars[randomIndex];
-            },
-            onComplete: () => {
-              letter.textContent = originalChar;
-            }
-          }, i * 0.1);
-        });
-        
-        tl.to({}, { duration: 2 });
-      }
-      
-      createDecoderAnimation();
+      return () => {
+        // Cleanup animation if needed
+      };
     }
   }, []);
 
@@ -194,16 +142,10 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   return (
     <div className="min-h-screen bg-white">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
-        .navbar-svg-container {
+        .navbar-3d-text {
           position: relative;
           display: inline-block;
-          width: 120px;
-          height: auto;
-        }
-        .navbar-svg-container svg {
-          width: 100%;
-          height: auto;
+          overflow: hidden;
         }
         .fade-in-up {
           opacity: 0;
@@ -213,21 +155,6 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
         .fade-in-up.is-visible {
           opacity: 1;
           transform: translateY(0);
-        }
-        .decoder-text {
-          font-family: 'Share Tech Mono', monospace;
-          font-weight: 400;
-          position: relative;
-          color: #00ff99;
-          text-shadow: 0 0 5px #00ff99, 0 0 15px #00ff99, 0 0 30px #00ff99;
-          text-transform: uppercase;
-          white-space: nowrap;
-        }
-        .decoder-text span {
-          display: inline-block;
-          position: relative;
-          min-width: 0.5ch;
-          will-change: contents;
         }
       `}</style>
       {/* ── Navbar ── */}
@@ -244,52 +171,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                   <span className="text-white font-bold text-sm">POS</span>
                 </div>
               )}
-              <div ref={navbarSvgRef} className="navbar-svg-container">
-                <svg id="mainSVG" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
-                  <defs>
-                    <clipPath id="lightTextMask">
-                      <path d="m313.26,268.73v39.85h18.23v121.36h-31.76v-161.21h13.54Z" fill="#fcee21"/>
-                      <path d="m336.4,429.94v-161.21h13.54v161.21h-13.54Z" fill="#fcee21"/>
-                      <path d="m445.52,288.32v-19.59h13.46v161.21h-13.46v-128.62h-14.9v128.62h-13.54v-161.21h13.54v19.59h14.9Z" fill="#fcee21"/>
-                      <path d="m463.97,268.73h39.7v13.08h-13.08v148.13h-13.54v-148.13h-13.08v-13.08Z" fill="#fcee21"/>
-                      <path d="m384.12,291.34v18.58c-4.46-.13-7.97-1.52-10.51-4.21-2.62-2.77-3.93-6.23-3.93-10.36s1.33-7.66,4.01-10.44c2.67-2.72,6.1-4.08,10.29-4.08,2.52,0,4.81.5,6.88,1.51,2.07,1.01,3.63,2.34,4.69,4.01l11.49-6.58c-2.37-3.73-5.6-6.68-9.68-8.85-4.13-2.22-8.65-3.33-13.54-3.33-7.82,0-14.37,2.67-19.66,8.02-5.29,5.4-7.94,11.95-7.94,19.66v134.29l54.6.76v-138.98h-26.69Z" fill="#fcee21"/>
-                    </clipPath>
-                    <filter id="glow" x="-100%" y="-100%" width="550%" height="550%">
-                      <feGaussianBlur stdDeviation="0 19" result="coloredBlur" />
-                      <feOffset dx="0" dy="0" result="offsetblur"></feOffset>
-                      <feFlood id="glowAlpha" flood-color="#FEFFD9" flood-opacity="0.5"></feFlood>
-                      <feComposite in2="offsetblur" operator="in"></feComposite>
-                      <feMerge>
-                        <feMergeNode/>          
-                        <feMergeNode in="SourceGraphic"></feMergeNode>
-                      </feMerge>
-                    </filter>	
-                    <mask id="lightMask">
-                      <path id="lamp" d="m383,275.25l-29.1,37.09c-1.06,1.34-.1,3.31,1.61,3.31h88.99c1.71,0,2.67-1.97,1.61-3.31l-29.1-37.09c-8.65-11.03-25.35-11.03-34,0Z" fill="#FFF"/>
-                    </mask>
-                  </defs>
-                  <g class="lightGroup" fill="#454545">
-                    <path d="m313.26,268.73v39.85h18.23v13.08h-31.76v-52.94h13.54Z"/>
-                    <path d="m336.4,321.67v-52.94h13.54v52.94h-13.54Z"/>
-                    <path d="m384.12,291.34h26.69v5.37c0,7.76-2.45,14.06-7.34,18.9-4.89,4.79-11.19,7.18-18.91,7.18-8.22,0-15.02-2.65-20.42-7.94-5.29-5.29-7.94-11.82-7.94-19.59s2.65-14.27,7.94-19.66c5.29-5.34,11.85-8.02,19.66-8.02,4.89,0,9.4,1.11,13.54,3.33,4.08,2.17,7.31,5.12,9.68,8.85l-11.49,6.58c-1.06-1.66-2.62-3-4.69-4.01-2.07-1.01-4.36-1.51-6.88-1.51-4.19,0-7.61,1.36-10.29,4.08-2.67,2.77-4.01,6.25-4.01,10.44s1.31,7.59,3.93,10.36c2.67,2.82,6.4,4.24,11.19,4.24,6.15,0,10.21-2.32,12.17-6.96h-12.86v-11.65Z"/>
-                    <path d="m445.52,288.32v-19.59h13.46v52.94h-13.46v-20.34h-14.9v20.34h-13.54v-52.94h13.54v19.59h14.9Z"/>
-                    <path d="m463.97,268.73h39.7v13.08h-13.08v39.85h-13.54v-39.85h-13.08v-13.08Z"/>
-                  </g>	
-                  <g clip-path="url(#lightTextMask)">
-                    <g filter="url(#glow)">
-                      <g mask="url(#lightMask)">
-                        <g class="lightGroup" fill="#F5F5F5">
-                          <path d="m313.26,268.73v39.85h18.23v13.08h-31.76v-52.94h13.54Z"/>
-                          <path d="m336.4,321.67v-52.94h13.54v52.94h-13.54Z"/>
-                          <path d="m384.12,291.34h26.69v5.37c0,7.76-2.45,14.06-7.34,18.9-4.89,4.79-11.19,7.18-18.91,7.18-8.22,0-15.02-2.65-20.42-7.94-5.29-5.29-7.94-11.82-7.94-19.59s2.65-14.27,7.94-19.66c5.29-5.34,11.85-8.02,19.66-8.02,4.89,0,9.4,1.11,13.54,3.33,4.08,2.17,7.31,5.12,9.68,8.85l-11.49,6.58c-1.06-1.66-2.62-3-4.69-4.01-2.07-1.01-4.36-1.51-6.88-1.51-4.19,0-7.61,1.36-10.29,4.08-2.67,2.77-4.01,6.25-4.01,10.44s1.31,7.59,3.93,10.36c2.67,2.82,6.4,4.24,11.19,4.24,6.15,0,10.21-2.32,12.17-6.96h-12.86v-11.65Z"/>
-                          <path d="m445.52,288.32v-19.59h13.46v52.94h-13.46v-20.34h-14.9v20.34h-13.54v-52.94h13.54v19.59h14.9Z"/>
-                          <path d="m463.97,268.73h39.7v13.08h-13.08v39.85h-13.54v-39.85h-13.08v-13.08Z"/>
-                        </g>
-                      </g>
-                    </g>
-                  </g>
-                </svg>
-              </div>
+              <p ref={navbarTextRef} className="text-gray-900 font-bold text-2xl navbar-3d-text">Codexxaa-Solutions</p>
             </div>
 
             {/* Desktop Navigation Links */}
@@ -582,7 +464,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
         {/* Comprehensive Features Section */}
         <div className="mb-24">
           <div className="text-center mb-16">
-            <h2 id="decoderText" className="decoder-text text-4xl font-bold mb-4" style={{ fontSize: 'clamp(1.5rem, 4vw, 3rem)' }}></h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Complete Feature List</h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Everything you need to manage your business efficiently
             </p>
