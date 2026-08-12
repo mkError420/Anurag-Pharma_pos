@@ -78,10 +78,16 @@ export default function Investments() {
     }
   };
 
+  const clearDateFilter = () => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    setStartDate(firstDay.toISOString().split('T')[0]);
+    setEndDate(lastDay.toISOString().split('T')[0]);
+  };
+
   useEffect(() => {
-    if (startDate || endDate) {
-      fetchInvestmentData();
-    }
+    fetchInvestmentData();
   }, [startDate, endDate]);
 
   const handleSubmit = async (e) => {
@@ -500,6 +506,14 @@ export default function Investments() {
                 className="text-sm border border-slate-200 rounded-lg px-2 py-1 focus:ring-1 focus:ring-indigo-500 outline-none bg-white"
               />
             </div>
+            <button
+              type="button"
+              onClick={clearDateFilter}
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+              title="Reset to current month"
+            >
+              Clear
+            </button>
           </div>
         </div>
 
