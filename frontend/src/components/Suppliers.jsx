@@ -69,6 +69,11 @@ export default function Suppliers() {
   const [supplierSearchFocusedIndex, setSupplierSearchFocusedIndex] = useState(-1);
   const [productSearchFocusedIndex, setProductSearchFocusedIndex] = useState(-1);
 
+  // Purchase Order CSV upload states
+  const [poCsvFile, setPoCsvFile] = useState(null);
+  const [poCsvUploading, setPoCsvUploading] = useState(false);
+  const [showPoCsvUpload, setShowPoCsvUpload] = useState(false);
+
   // Filtered PO state
   const [poStartDate, setPoStartDate] = useState('');
   const [poEndDate, setPoEndDate] = useState('');
@@ -1304,6 +1309,118 @@ export default function Suppliers() {
       triggerAlert('error', err.message);
     } finally {
       setSupplierCsvUploading(false);
+    }
+  };
+
+  // Parse CSV and add products to PO cart
+  const handlePoCsvUpload = async (e) => {
+    e.preventDefault();
+    if (!poCsvFile) {
+      triggerAlert('error', 'Please select a CSV file.');
+      return;
+    }
+
+    setPoCsvUploading(true);
+    try {
+      const text = await poCsvFile.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        throw new Error('CSV file must contain at least a header row and one data row.');
+      }
+
+      // Parse header row
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z_]/g, ''));
+      
+      // Expected CSV columns: product_name, sku, category, cost_price, selling_price, quantity_ordered, expiry_date, unit
+      const expectedColumns = ['product_name', 'sku', 'category', 'cost_price', 'selling_price', 'quantity_ordered', 'expiry_date', 'unit'];
+      
+      // Find column indices
+      const colIndices = {};
+      expectedColumns.forEach(col => {
+        const idx = headers.findIndex(h => h.includes(col));
+        colIndices[col] = idx >= 0 ? idx : -1;
+      });
+
+      // Validate required columns
+      if (colIndices.product_name === -1 || colIndices.cost_price === -1 || colIndices.quantity_ordered === -1) {
+        throw new Error('CSV must contain columns: product_name, cost_price, quantity_ordered');
+      }
+
+      const newItems = [];
+      const errors = [];
+
+      // Parse data rows
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        
+        try {
+          const productName = values[colIndices.product_name];
+          const costPrice = parseFloat(values[colIndices.cost_price]);
+          const quantity = parseFloat(values[colIndices.quantity_ordered]);
+          const sku = colIndices.sku >= 0 ? values[colIndices.sku] : '';
+          const category = colIndices.category >= 0 ? values[colIndices.category] : '';
+          const sellingPrice = colIndices.selling_price >= 0 ? parseFloat(values[colIndices.selling_price]) : 0;
+          const expiryDate = colIndices.expiry_date >= 0 ? values[colIndices.expiry_date] : '';
+          const unit = colIndices.unit >= 0 ? values[colIndices.unit] : 'piece';
+
+          if (!productName) {
+            errors.push(`Row ${i + 1}: Product name is required`);
+            continue;
+          }
+
+          if (isNaN(costPrice) || costPrice < 0) {
+            errors.push(`Row ${i + 1}: Invalid cost price`);
+            continue;
+          }
+
+          if (isNaN(quantity) || quantity <= 0) {
+            errors.push(`Row ${i + 1}: Invalid quantity`);
+            continue;
+          }
+
+          // Auto-generate SKU if not provided
+          const finalSku = sku ? sku : `SKU-${productName.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X')}-${Math.floor(100 + Math.random() * 900)}`;
+
+          newItems.push({
+            product_id: null,
+            is_new: true,
+            name: productName,
+            sku: finalSku,
+            category: category || '',
+            cost_price: costPrice,
+            selling_price: sellingPrice || 0,
+            quantity_ordered: quantity,
+            expiry_date: expiryDate || null,
+            unit: unit || 'piece',
+            low_stock_threshold: 10
+          });
+        } catch (err) {
+          errors.push(`Row ${i + 1}: ${err.message}`);
+        }
+      }
+
+      if (newItems.length === 0) {
+        throw new Error('No valid products found in CSV');
+      }
+
+      // Add items to cart
+      setPoCart(prev => [...prev, ...newItems]);
+      
+      // Show results
+      if (errors.length > 0) {
+        triggerAlert('warning', `Added ${newItems.length} products to cart. ${errors.length} errors:\n${errors.slice(0, 5).join('\n')}`);
+      } else {
+        triggerAlert('success', `Successfully added ${newItems.length} products to cart!`);
+      }
+
+      // Reset CSV upload
+      setPoCsvFile(null);
+      setShowPoCsvUpload(false);
+    } catch (err) {
+      triggerAlert('error', err.message);
+    } finally {
+      setPoCsvUploading(false);
     }
   };
 
@@ -4007,10 +4124,51 @@ export default function Suppliers() {
                 className="flex-1 bg-gray-600 hover:bg-yellow-600 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center space-x-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={editingCartItemIndex !== null ? "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" : "M12 6v6m0 0v6m0-6h6m-6 0H6"} />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={editingCartItemIndex !== null ? "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.001 0 01-15.357-2m15.357 2H15" : "M12 6v6m0 0v6m0-6h6m-6 0H6"} />
                 </svg>
                 <span>{editingCartItemIndex !== null ? 'Update Product in Cart' : 'Add Product to Cart'}</span>
               </button>
+            </div>
+
+            {/* CSV Upload Section */}
+            <div className="border-t border-slate-200 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-bold text-slate-700">Or Upload Products via CSV</h4>
+                <button
+                  type="button"
+                  onClick={() => setShowPoCsvUpload(!showPoCsvUpload)}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
+                >
+                  {showPoCsvUpload ? 'Hide' : 'Show CSV Upload'}
+                </button>
+              </div>
+              
+              {showPoCsvUpload && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <div className="text-xs text-slate-600">
+                    <p className="font-semibold mb-1">CSV Format (columns):</p>
+                    <code className="bg-slate-200 px-2 py-1 rounded text-xs">product_name, sku, category, cost_price, selling_price, quantity_ordered, expiry_date, unit</code>
+                    <p className="mt-2 text-slate-500">Required: product_name, cost_price, quantity_ordered</p>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => setPoCsvFile(e.target.files[0])}
+                      className="flex-1 text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={handlePoCsvUpload}
+                      disabled={!poCsvFile || poCsvUploading}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {poCsvUploading ? 'Uploading...' : 'Upload CSV'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Cart Display */}
