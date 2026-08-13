@@ -48,6 +48,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
   const barcodeInputRef = useRef(null);
   const customerInputRef = useRef(null);
   const searchInputRef = useRef(null);
+  const productTableBodyRef = useRef(null);
 
   // Virtual Keyboard / Numpad Pad States
   const [showKeyboardModal, setShowKeyboardModal] = useState(false);
@@ -1631,10 +1632,26 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowDown') {
                     e.preventDefault();
-                    setSearchFocusedIndex(prev => (prev < products.length - 1 ? prev + 1 : prev));
+                    const newIndex = searchFocusedIndex < products.length - 1 ? searchFocusedIndex + 1 : searchFocusedIndex;
+                    setSearchFocusedIndex(newIndex);
+                    // Scroll to keep the focused item visible
+                    setTimeout(() => {
+                      const focusedRow = productTableBodyRef.current?.children[newIndex];
+                      if (focusedRow) {
+                        focusedRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                      }
+                    }, 0);
                   } else if (e.key === 'ArrowUp') {
                     e.preventDefault();
-                    setSearchFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
+                    const newIndex = searchFocusedIndex > 0 ? searchFocusedIndex - 1 : searchFocusedIndex;
+                    setSearchFocusedIndex(newIndex);
+                    // Scroll to keep the focused item visible
+                    setTimeout(() => {
+                      const focusedRow = productTableBodyRef.current?.children[newIndex];
+                      if (focusedRow) {
+                        focusedRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                      }
+                    }, 0);
                   } else if (e.key === 'Enter') {
                     e.preventDefault();
                     if (searchFocusedIndex >= 0 && products[searchFocusedIndex]) {
@@ -1706,11 +1723,11 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                 No items found. Create items in inventory to begin.
               </div>
             ) : (
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                <div className="overflow-x-auto">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs flex flex-col" style={{ maxHeight: 'calc(100vh - 320px)' }}>
+                <div className="overflow-x-auto flex-1 overflow-y-auto">
                   <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                    <thead className="sticky top-0 z-10 bg-slate-50/50">
+                      <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
                         <th className="p-3 pl-4">Product Name</th>
                         <th className="p-3 text-right">Price</th>
                         <th className="p-3 text-center">Expiry</th>
@@ -1718,7 +1735,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                         <th className="p-3 text-center">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm">
+                    <tbody ref={productTableBodyRef} className="divide-y divide-slate-100 text-sm">
                       {(() => {
                         const sortedProducts = [...products].sort((a, b) => {
                           const aOut = parseFloat(a.stock_quantity || 0) <= 0 ? 1 : 0;
@@ -1802,8 +1819,15 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                                 onClick={() => !isDisabled && addToCart(product)}
                                 title={isExpired ? `Expired on ${product.expiry_date}` : (isOutOfStock ? 'Out of stock' : 'Click to add to cart')}
                               >
-                                {product.name}
-                                {isExpired && <span className="ml-2 text-xs text-rose-600 font-bold">(Expired)</span>}
+                                <div>
+                                  {product.name}
+                                  {isExpired && <span className="ml-2 text-xs text-rose-600 font-bold">(Expired)</span>}
+                                </div>
+                                {product.supplier_name && (
+                                  <div className="text-xs text-slate-500 font-normal mt-0.5">
+                                    {product.supplier_name}
+                                  </div>
+                                )}
                               </td>
                               <td className="p-3 text-right font-extrabold text-slate-700">৳{parseFloat(product.price).toFixed(3)}</td>
                               <td className="p-3 text-center">{expiryBadge}</td>

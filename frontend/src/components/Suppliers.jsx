@@ -66,6 +66,10 @@ export default function Suppliers() {
   const [showSupplierCsvModal, setShowSupplierCsvModal] = useState(false);
   const [supplierCsvFile, setSupplierCsvFile] = useState(null);
   const [supplierCsvUploading, setSupplierCsvUploading] = useState(false);
+  const [supplierCsvUploadProgress, setSupplierCsvUploadProgress] = useState(0);
+  const [supplierCsvUploadCurrentRow, setSupplierCsvUploadCurrentRow] = useState(0);
+  const [supplierCsvUploadTotalRows, setSupplierCsvUploadTotalRows] = useState(0);
+  const [supplierCsvUploadStatus, setSupplierCsvUploadStatus] = useState('');
   const [selectedSupplierIds, setSelectedSupplierIds] = useState([]);
   const [selectedPoIds, setSelectedPoIds] = useState([]);
   const [poSearchFocusedIndex, setPoSearchFocusedIndex] = useState(-1);
@@ -1363,6 +1367,11 @@ export default function Suppliers() {
     }
 
     setSupplierCsvUploading(true);
+    setSupplierCsvUploadProgress(0);
+    setSupplierCsvUploadCurrentRow(0);
+    setSupplierCsvUploadTotalRows(0);
+    setSupplierCsvUploadStatus('Reading CSV file...');
+    
     try {
       const text = await supplierCsvFile.text();
       const lines = text.split('\n').filter(line => line.trim());
@@ -1370,6 +1379,11 @@ export default function Suppliers() {
       if (lines.length < 2) {
         throw new Error('CSV file must contain at least a header row and one data row.');
       }
+
+      // Set total rows for progress tracking
+      const totalRows = lines.length - 1; // Exclude header
+      setSupplierCsvUploadTotalRows(totalRows);
+      setSupplierCsvUploadStatus('Parsing CSV header...');
 
       // Parse header row
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z_]/g, ''));
@@ -1392,8 +1406,16 @@ export default function Suppliers() {
       const suppliersToCreate = [];
       const errors = [];
 
+      setSupplierCsvUploadStatus('Processing supplier rows...');
+
       // Parse data rows
       for (let i = 1; i < lines.length; i++) {
+        // Update progress
+        setSupplierCsvUploadCurrentRow(i);
+        const progress = ((i - 1) / totalRows) * 50; // First 50% for parsing
+        setSupplierCsvUploadProgress(progress);
+        setSupplierCsvUploadStatus(`Processing row ${i} of ${totalRows}...`);
+        
         const values = lines[i].split(',').map(v => v.trim());
         
         // Skip rows that don't have enough columns
@@ -1443,11 +1465,19 @@ export default function Suppliers() {
       }
 
       // Create suppliers
+      setSupplierCsvUploadStatus('Creating suppliers...');
       let createdCount = 0;
       let failedCount = 0;
       const token = localStorage.getItem('token');
 
-      for (const supplierData of suppliersToCreate) {
+      for (let i = 0; i < suppliersToCreate.length; i++) {
+        const supplierData = suppliersToCreate[i];
+        
+        // Update progress for creation phase (50% to 90%)
+        const progress = 50 + ((i / suppliersToCreate.length) * 40);
+        setSupplierCsvUploadProgress(progress);
+        setSupplierCsvUploadStatus(`Creating supplier ${i + 1} of ${suppliersToCreate.length}...`);
+        
         try {
           const response = await fetch(`${API_BASE_URL}/suppliers`, {
             method: 'POST',
@@ -1483,6 +1513,9 @@ export default function Suppliers() {
       }
 
       // Show results
+      setSupplierCsvUploadStatus('Completing upload...');
+      setSupplierCsvUploadProgress(100);
+      
       let message = `Successfully created ${createdCount} supplier(s)!`;
       if (failedCount > 0) {
         message += ` Failed to create ${failedCount} supplier(s).`;
@@ -1506,6 +1539,10 @@ export default function Suppliers() {
       triggerAlert('error', err.message);
     } finally {
       setSupplierCsvUploading(false);
+      setSupplierCsvUploadProgress(0);
+      setSupplierCsvUploadCurrentRow(0);
+      setSupplierCsvUploadTotalRows(0);
+      setSupplierCsvUploadStatus('');
     }
   };
 
@@ -4131,6 +4168,21 @@ export default function Suppliers() {
                   </div>
                 )}
               </div>
+
+              {supplierCsvUploading && (
+                <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+                  <div className="text-xs font-semibold text-indigo-700 mb-2">{supplierCsvUploadStatus}</div>
+                  <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${supplierCsvUploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-center text-xs font-bold text-indigo-600 mt-1">
+                    {supplierCsvUploadProgress.toFixed(0)}%
+                  </div>
+                </div>
+              )}
 
               <div className="pt-4 border-t border-slate-100 flex space-x-3 justify-end">
                 <button
