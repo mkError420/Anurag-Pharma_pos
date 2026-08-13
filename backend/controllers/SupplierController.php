@@ -1438,6 +1438,116 @@ class SupplierController {
         }
     }
 
+    public static function bulkDeletePurchaseOrders($requestData) {
+        Auth::authenticate();
+        Auth::enforceTenant();
+        Auth::authorize(['shop_admin']);
+
+        $shopId = Auth::$shopId;
+        $ids = $requestData['ids'] ?? [];
+
+        if (!is_array($ids) || empty($ids)) {
+            Auth::jsonError('No purchase orders selected for deletion.', 400);
+        }
+
+        // Validate IDs are integers
+        $ids = array_map('intval', $ids);
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+        try {
+            DB::beginTransaction();
+
+            // Fetch all POs to be deleted
+            $sql = "SELECT id, status, supplier_id, payment_basis, due_amount FROM purchase_orders WHERE shop_id = ? AND id IN ($placeholders)";
+            $params = array_merge([$shopId], $ids);
+            $stmt = DB::query($sql, $params);
+            $pos = $stmt->fetchAll();
+
+            if (empty($pos)) {
+                DB::rollBack();
+                Auth::jsonError('No valid purchase orders found.', 404);
+            }
+
+            foreach ($pos as $po) {
+                $poId = (int)$po['id'];
+                $poStatus = $po['status'];
+
+                // Revert product stocks if received
+                if ($poStatus === 'received') {
+                    $stmt = DB::query(
+                        'SELECT product_id, quantity_received FROM purchase_order_items WHERE purchase_order_id = ? AND shop_id = ?',
+                        [$poId, $shopId]
+                    );
+                    $items = $stmt->fetchAll();
+
+                    foreach ($items as $item) {
+                        if ((int)$item['quantity_received'] > 0) {
+                            DB::query(
+                                'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND shop_id = ?',
+                                [(int)$item['quantity_received'], (int)$item['product_id'], $shopId]
+                            );
+                        }
+                    }
+                }
+
+                // Revert supplier balance
+                if (($poStatus === 'ordered' || $poStatus === 'received') && $po['payment_basis'] === 'credit' && (float)$po['due_amount'] > 0) {
+                    DB::query(
+                        'UPDATE suppliers SET due_balance = GREATEST(due_balance - ?, 0) WHERE id = ? AND shop_id = ?',
+                        [(float)$po['due_amount'], (int)$po['supplier_id'], $shopId]
+                    );
+                }
+
+                // Revert supplier total_spent if PO was received (if column exists)
+                if ($poStatus === 'received') {
+                    $columnCheck = DB::query("SHOW COLUMNS FROM suppliers LIKE 'total_spent'");
+                    if ($columnCheck->fetch() !== false) {
+                        DB::query(
+                            'UPDATE suppliers s SET total_spent = (
+                                 SELECT COALESCE(SUM(stock_quantity * cost_price), 0)
+                                 FROM products
+                                 WHERE supplier_id = s.id AND shop_id = s.shop_id
+                             ) WHERE id = ? AND shop_id = ?',
+                            [(int)$po['supplier_id'], $shopId]
+                        );
+                    }
+
+                    // Revert cost price and delete cost price logs associated with this PO
+                    $logStmt = DB::query(
+                        'SELECT product_id, old_cost_price FROM cost_price_logs WHERE shop_id = ? AND reason = ?',
+                        [$shopId, "PO Received #$poId"]
+                    );
+                    $logs = $logStmt->fetchAll();
+
+                    foreach ($logs as $log) {
+                        DB::query(
+                            'UPDATE products SET cost_price = ? WHERE id = ? AND shop_id = ?',
+                            [(float)$log['old_cost_price'], (int)$log['product_id'], $shopId]
+                        );
+                    }
+
+                    DB::query(
+                        'DELETE FROM cost_price_logs WHERE shop_id = ? AND reason = ?',
+                        [$shopId, "PO Received #$poId"]
+                    );
+                }
+            }
+
+            // Delete all POs
+            $sqlDelete = "DELETE FROM purchase_orders WHERE shop_id = ? AND id IN ($placeholders)";
+            DB::query($sqlDelete, $params);
+
+            DB::commit();
+            header('Content-Type: application/json');
+            echo json_encode(['message' => count($pos) . ' purchase orders deleted successfully.']);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            error_log('Bulk delete purchase orders error: ' . $e->getMessage());
+            Auth::jsonError('Server error deleting purchase orders.', 500);
+        }
+    }
+
     public static function deletePurchaseOrderItem($id, $productId) {
         Auth::authenticate();
         Auth::enforceTenant();

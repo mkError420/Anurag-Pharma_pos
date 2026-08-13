@@ -431,6 +431,7 @@ $routes = [
         '/^suppliers$/' => function($args, $data) { SupplierController::createSupplier($data); },
         '/^suppliers\/bulk-delete$/' => function($args, $data) { SupplierController::bulkDeleteSuppliers($data); },
         '/^suppliers\/purchase-orders$/' => function($args, $data) { SupplierController::createPurchaseOrder($data); },
+        '/^suppliers\/purchase-orders\/bulk-delete$/' => function($args, $data) { SupplierController::bulkDeletePurchaseOrders($data); },
         '/^suppliers\/(\d+)\/returns$/' => function($args, $data) { SupplierController::createSupplierReturn($args[0], $data); },
         // Sales
         '/^sales$/' => function($args, $data) { SaleController::createSale($data); },
