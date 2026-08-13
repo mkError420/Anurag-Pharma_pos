@@ -24,6 +24,9 @@ export default function Suppliers() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentSupplier, setCurrentSupplier] = useState(null);
+  
+  // Toggle between single and bulk supplier creation
+  const [isBulkSupplierMode, setIsBulkSupplierMode] = useState(false);
 
   const [showAddPoModal, setShowAddPoModal] = useState(false);
   const [isEditPoMode, setIsEditPoMode] = useState(false);
@@ -73,6 +76,10 @@ export default function Suppliers() {
   const [poCsvFile, setPoCsvFile] = useState(null);
   const [poCsvUploading, setPoCsvUploading] = useState(false);
   const [showPoCsvUpload, setShowPoCsvUpload] = useState(false);
+  const [csvUploadProgress, setCsvUploadProgress] = useState(0);
+  const [csvUploadCurrentRow, setCsvUploadCurrentRow] = useState(0);
+  const [csvUploadTotalRows, setCsvUploadTotalRows] = useState(0);
+  const [csvUploadStatus, setCsvUploadStatus] = useState('');
 
   // Filtered PO state
   const [poStartDate, setPoStartDate] = useState('');
@@ -1312,17 +1319,17 @@ export default function Suppliers() {
     }
   };
 
-  // Parse CSV and add products to PO cart
-  const handlePoCsvUpload = async (e) => {
+  // Handle bulk supplier CSV upload for Add Supplier modal
+  const handleBulkSupplierCsvUpload = async (e) => {
     e.preventDefault();
-    if (!poCsvFile) {
+    if (!supplierCsvFile) {
       triggerAlert('error', 'Please select a CSV file.');
       return;
     }
 
-    setPoCsvUploading(true);
+    setSupplierCsvUploading(true);
     try {
-      const text = await poCsvFile.text();
+      const text = await supplierCsvFile.text();
       const lines = text.split('\n').filter(line => line.trim());
       
       if (lines.length < 2) {
@@ -1332,8 +1339,8 @@ export default function Suppliers() {
       // Parse header row
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z_]/g, ''));
       
-      // Expected CSV columns: product_name, sku, category, cost_price, selling_price, quantity_ordered, expiry_date, unit
-      const expectedColumns = ['product_name', 'sku', 'category', 'cost_price', 'selling_price', 'quantity_ordered', 'expiry_date', 'unit'];
+      // Expected CSV columns: name, contact_name, email, phone
+      const expectedColumns = ['name', 'contact_name', 'email', 'phone'];
       
       // Find column indices
       const colIndices = {};
@@ -1343,26 +1350,216 @@ export default function Suppliers() {
       });
 
       // Validate required columns
-      if (colIndices.product_name === -1 || colIndices.cost_price === -1 || colIndices.quantity_ordered === -1) {
-        throw new Error('CSV must contain columns: product_name, cost_price, quantity_ordered');
+      if (colIndices.name === -1) {
+        throw new Error('CSV must contain column: name');
       }
 
-      const newItems = [];
+      const suppliersToCreate = [];
       const errors = [];
 
       // Parse data rows
       for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim());
         
+        // Skip rows that don't have enough columns
+        if (values.length < Math.max(...Object.values(colIndices).filter(idx => idx >= 0)) + 1) {
+          errors.push(`Row ${i + 1}: Not enough columns in row`);
+          continue;
+        }
+        
         try {
-          const productName = values[colIndices.product_name];
-          const costPrice = parseFloat(values[colIndices.cost_price]);
-          const quantity = parseFloat(values[colIndices.quantity_ordered]);
-          const sku = colIndices.sku >= 0 ? values[colIndices.sku] : '';
-          const category = colIndices.category >= 0 ? values[colIndices.category] : '';
-          const sellingPrice = colIndices.selling_price >= 0 ? parseFloat(values[colIndices.selling_price]) : 0;
-          const expiryDate = colIndices.expiry_date >= 0 ? values[colIndices.expiry_date] : '';
-          const unit = colIndices.unit >= 0 ? values[colIndices.unit] : 'piece';
+          const name = colIndices.name >= 0 && colIndices.name < values.length ? values[colIndices.name] : '';
+          const contactName = colIndices.contact_name >= 0 && colIndices.contact_name < values.length ? values[colIndices.contact_name] : '';
+          const email = colIndices.email >= 0 && colIndices.email < values.length ? values[colIndices.email] : '';
+          const phone = colIndices.phone >= 0 && colIndices.phone < values.length ? values[colIndices.phone] : '';
+
+          if (!name) {
+            errors.push(`Row ${i + 1}: Supplier name is required`);
+            continue;
+          }
+
+          // Check if supplier already exists
+          const nameNormalized = name.toLowerCase().trim();
+          const existingSupplier = suppliers.find(s => {
+            const supplierNameInSystem = s.name.toLowerCase().trim();
+            return supplierNameInSystem === nameNormalized ||
+                   supplierNameInSystem.includes(nameNormalized) ||
+                   nameNormalized.includes(supplierNameInSystem);
+          });
+
+          if (existingSupplier) {
+            errors.push(`Row ${i + 1}: Supplier "${name}" already exists`);
+            continue;
+          }
+
+          suppliersToCreate.push({
+            name,
+            contact_name: contactName || '',
+            email: email || '',
+            phone: phone || ''
+          });
+        } catch (err) {
+          errors.push(`Row ${i + 1}: ${err.message}`);
+        }
+      }
+
+      if (suppliersToCreate.length === 0) {
+        throw new Error('No valid suppliers found in CSV');
+      }
+
+      // Create suppliers
+      let createdCount = 0;
+      let failedCount = 0;
+      const token = localStorage.getItem('token');
+
+      for (const supplierData of suppliersToCreate) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/suppliers`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(supplierData)
+          });
+
+          if (!response.ok) {
+            let errorMessage = 'Failed to create supplier';
+            try {
+              const contentType = response.headers.get('content-type');
+              if (contentType && contentType.includes('application/json')) {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+              } else {
+                const errorText = await response.text();
+                errorMessage = `Server error (${response.status}): ${errorText.substring(0, 100)}`;
+              }
+            } catch (parseErr) {
+              errorMessage = `Server error (${response.status})`;
+            }
+            throw new Error(errorMessage);
+          }
+
+          createdCount++;
+        } catch (err) {
+          failedCount++;
+          errors.push(`Failed to create supplier "${supplierData.name}": ${err.message}`);
+        }
+      }
+
+      // Show results
+      let message = `Successfully created ${createdCount} supplier(s)!`;
+      if (failedCount > 0) {
+        message += ` Failed to create ${failedCount} supplier(s).`;
+      }
+      if (errors.length > 0) {
+        triggerAlert('warning', `${message}\n\nErrors:\n${errors.slice(0, 5).join('\n')}`);
+      } else {
+        triggerAlert('success', message);
+      }
+
+      // Refresh suppliers list
+      fetchSuppliers();
+
+      // Reset and close
+      setSupplierCsvFile(null);
+      setIsBulkSupplierMode(false);
+      setShowAddModal(false);
+
+    } catch (err) {
+      console.error('Supplier CSV Upload Error:', err);
+      triggerAlert('error', err.message);
+    } finally {
+      setSupplierCsvUploading(false);
+    }
+  };
+
+  // Parse CSV and add products to PO cart
+  const handlePoCsvUpload = async (e) => {
+    e.preventDefault();
+    if (!poCsvFile) {
+      triggerAlert('error', 'Please select a CSV file.');
+      return;
+    }
+
+    setPoCsvUploading(true);
+    setCsvUploadProgress(0);
+    setCsvUploadCurrentRow(0);
+    setCsvUploadTotalRows(0);
+    setCsvUploadStatus('Reading CSV file...');
+    
+    try {
+      const text = await poCsvFile.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      console.log('CSV Lines:', lines);
+      console.log('Total lines:', lines.length);
+      console.log('Available suppliers in system:', suppliers.map(s => ({ id: s.id, name: s.name })));
+      
+      if (lines.length < 2) {
+        throw new Error('CSV file must contain at least a header row and one data row.');
+      }
+
+      // Set total rows for progress tracking
+      const totalRows = lines.length - 1; // Exclude header
+      setCsvUploadTotalRows(totalRows);
+      setCsvUploadStatus('Parsing CSV header...');
+
+      // Parse header row
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z_]/g, ''));
+      console.log('Parsed headers:', headers);
+      
+      // Expected CSV columns: supplier_name, product_name, sku, category, cost_price, selling_price, quantity_ordered, expiry_date, unit
+      const expectedColumns = ['supplier_name', 'product_name', 'sku', 'category', 'cost_price', 'selling_price', 'quantity_ordered', 'expiry_date', 'unit'];
+      
+      // Find column indices
+      const colIndices = {};
+      expectedColumns.forEach(col => {
+        const idx = headers.findIndex(h => h.includes(col));
+        colIndices[col] = idx >= 0 ? idx : -1;
+      });
+      console.log('Column indices:', colIndices);
+
+      // Validate required columns
+      if (colIndices.supplier_name === -1 || colIndices.product_name === -1 || colIndices.cost_price === -1 || colIndices.quantity_ordered === -1) {
+        throw new Error('CSV must contain columns: supplier_name, product_name, cost_price, quantity_ordered');
+      }
+
+      const newItems = [];
+      const errors = [];
+      const newSuppliersCreated = [];
+
+      setCsvUploadStatus('Processing product rows...');
+
+      // Parse data rows
+      for (let i = 1; i < lines.length; i++) {
+        // Update progress
+        setCsvUploadCurrentRow(i);
+        const progress = ((i - 1) / totalRows) * 100;
+        setCsvUploadProgress(progress);
+        setCsvUploadStatus(`Processing row ${i} of ${totalRows}...`);
+        const values = lines[i].split(',').map(v => v.trim());
+        console.log(`Row ${i + 1} values:`, values);
+        console.log(`Row ${i + 1} values length: ${values.length}, colIndices:`, colIndices);
+        
+        // Skip rows that don't have enough columns
+        if (values.length < Math.max(...Object.values(colIndices).filter(idx => idx >= 0)) + 1) {
+          errors.push(`Row ${i + 1}: Not enough columns in row`);
+          continue;
+        }
+        
+        try {
+          const supplierName = colIndices.supplier_name >= 0 && colIndices.supplier_name < values.length ? values[colIndices.supplier_name] : '';
+          const productName = colIndices.product_name >= 0 && colIndices.product_name < values.length ? values[colIndices.product_name] : '';
+          const costPrice = colIndices.cost_price >= 0 && colIndices.cost_price < values.length ? parseFloat(values[colIndices.cost_price]) : NaN;
+          const quantity = colIndices.quantity_ordered >= 0 && colIndices.quantity_ordered < values.length ? parseFloat(values[colIndices.quantity_ordered]) : NaN;
+          const sku = colIndices.sku >= 0 && colIndices.sku < values.length ? values[colIndices.sku] : '';
+          const category = colIndices.category >= 0 && colIndices.category < values.length ? values[colIndices.category] : '';
+          const sellingPrice = colIndices.selling_price >= 0 && colIndices.selling_price < values.length ? parseFloat(values[colIndices.selling_price]) : 0;
+          const expiryDate = colIndices.expiry_date >= 0 && colIndices.expiry_date < values.length ? values[colIndices.expiry_date] : '';
+          const unit = colIndices.unit >= 0 && colIndices.unit < values.length ? values[colIndices.unit] : 'piece';
+
+          console.log(`Row ${i + 1} parsed:`, { supplierName, productName, costPrice, quantity });
 
           if (!productName) {
             errors.push(`Row ${i + 1}: Product name is required`);
@@ -1382,6 +1579,70 @@ export default function Suppliers() {
           // Auto-generate SKU if not provided
           const finalSku = sku ? sku : `SKU-${productName.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X')}-${Math.floor(100 + Math.random() * 900)}`;
 
+          // Find supplier by name (more flexible matching)
+          if (!supplierName || supplierName === '') {
+            errors.push(`Row ${i + 1}: Supplier name is required or empty`);
+            continue;
+          }
+          
+          const supplierNameNormalized = supplierName.toLowerCase().trim();
+          let supplier = suppliers.find(s => {
+            const supplierNameInSystem = s.name.toLowerCase().trim();
+            return supplierNameInSystem === supplierNameNormalized ||
+                   supplierNameInSystem.includes(supplierNameNormalized) ||
+                   supplierNameNormalized.includes(supplierNameInSystem);
+          });
+          console.log(`Row ${i + 1} looking for supplier: "${supplierName}" (normalized: "${supplierNameNormalized}"), found:`, supplier);
+          
+          // If supplier not found, create new supplier
+          if (!supplier) {
+            console.log(`Row ${i + 1}: Creating new supplier "${supplierName}"`);
+            try {
+              const token = localStorage.getItem('token');
+              const response = await fetch(`${API_BASE_URL}/suppliers`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  name: supplierName,
+                  contact_name: '',
+                  email: '',
+                  phone: ''
+                })
+              });
+
+              if (!response.ok) {
+                // Try to get error message from response
+                let errorMessage = 'Failed to create supplier';
+                try {
+                  const contentType = response.headers.get('content-type');
+                  if (contentType && contentType.includes('application/json')) {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                  } else {
+                    const errorText = await response.text();
+                    errorMessage = `Server error (${response.status}): ${errorText.substring(0, 100)}`;
+                  }
+                } catch (parseErr) {
+                  errorMessage = `Server error (${response.status})`;
+                }
+                throw new Error(errorMessage);
+              }
+
+              const resData = await response.json();
+              supplier = resData;
+              suppliers.push(supplier); // Add to local suppliers list
+              newSuppliersCreated.push(supplierName);
+              console.log(`Row ${i + 1}: Successfully created supplier "${supplierName}" with ID ${supplier.id}`);
+            } catch (err) {
+              console.error(`Row ${i + 1}: Failed to create supplier`, err);
+              errors.push(`Row ${i + 1}: Failed to create supplier "${supplierName}": ${err.message}`);
+              continue;
+            }
+          }
+
           newItems.push({
             product_id: null,
             is_new: true,
@@ -1393,34 +1654,117 @@ export default function Suppliers() {
             quantity_ordered: quantity,
             expiry_date: expiryDate || null,
             unit: unit || 'piece',
-            low_stock_threshold: 10
+            low_stock_threshold: 10,
+            supplier_id: supplier.id,
+            supplier_name: supplierName
           });
         } catch (err) {
+          console.error(`Row ${i + 1} error:`, err);
           errors.push(`Row ${i + 1}: ${err.message}`);
         }
       }
+
+      console.log('New items:', newItems);
+      console.log('Errors:', errors);
+      console.log('New suppliers created:', newSuppliersCreated);
 
       if (newItems.length === 0) {
         throw new Error('No valid products found in CSV');
       }
 
-      // Add items to cart
-      setPoCart(prev => [...prev, ...newItems]);
+      // Group items by supplier
+      const itemsBySupplier = {};
+      newItems.forEach(item => {
+        if (!itemsBySupplier[item.supplier_id]) {
+          itemsBySupplier[item.supplier_id] = [];
+        }
+        itemsBySupplier[item.supplier_id].push(item);
+      });
+
+      // Create separate purchase orders for each supplier
+      const uniqueSuppliers = Object.keys(itemsBySupplier);
+      let posCreated = 0;
+      let posFailed = 0;
+
+      setCsvUploadStatus('Creating purchase orders...');
+      setCsvUploadProgress(90);
+
+      for (let i = 0; i < uniqueSuppliers.length; i++) {
+        const supplierId = uniqueSuppliers[i];
+        const supplierItems = itemsBySupplier[supplierId];
+        const supplier = suppliers.find(s => s.id === parseInt(supplierId));
+        
+        setCsvUploadStatus(`Creating purchase order ${i + 1} of ${uniqueSuppliers.length}...`);
+        
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${API_BASE_URL}/suppliers/purchase-orders`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              supplier_id: parseInt(supplierId),
+              order_date: new Date().toISOString().split('T')[0],
+              notes: `Created from CSV upload with ${supplierItems.length} product(s)`,
+              status: 'draft',
+              payment_basis: 'cash',
+              items: supplierItems
+            })
+          });
+
+          const resData = await response.json();
+          if (!response.ok) {
+            throw new Error(resData.error || 'Failed to create purchase order');
+          }
+          posCreated++;
+        } catch (err) {
+          console.error(`Failed to create PO for supplier ${supplier?.name || supplierId}:`, err);
+          posFailed++;
+          errors.push(`Failed to create PO for supplier ${supplier?.name || supplierId}: ${err.message}`);
+        }
+      }
       
       // Show results
-      if (errors.length > 0) {
-        triggerAlert('warning', `Added ${newItems.length} products to cart. ${errors.length} errors:\n${errors.slice(0, 5).join('\n')}`);
-      } else {
-        triggerAlert('success', `Successfully added ${newItems.length} products to cart!`);
+      setCsvUploadStatus('Completing upload...');
+      setCsvUploadProgress(100);
+      
+      let message = `Successfully created ${posCreated} purchase order(s) with ${newItems.length} product(s)!`;
+      if (newSuppliersCreated.length > 0) {
+        message += ` Created ${newSuppliersCreated.length} new supplier(s): ${newSuppliersCreated.join(', ')}`;
       }
+      if (posFailed > 0) {
+        message += ` Failed to create ${posFailed} purchase order(s).`;
+      }
+      if (errors.length > 0) {
+        triggerAlert('warning', `${message}\n\nErrors:\n${errors.slice(0, 5).join('\n')}`);
+      } else {
+        triggerAlert('success', message);
+      }
+
+      // Refresh suppliers list if new suppliers were created
+      if (newSuppliersCreated.length > 0) {
+        setCsvUploadStatus('Refreshing suppliers list...');
+        await fetchSuppliers();
+      }
+
+      // Refresh purchase orders list
+      setCsvUploadStatus('Refreshing purchase orders...');
+      await fetchPurchaseOrders();
 
       // Reset CSV upload
       setPoCsvFile(null);
       setShowPoCsvUpload(false);
     } catch (err) {
+      console.error('CSV Upload Error:', err);
       triggerAlert('error', err.message);
     } finally {
       setPoCsvUploading(false);
+      setCsvUploadProgress(0);
+      setCsvUploadCurrentRow(0);
+      setCsvUploadTotalRows(0);
+      setCsvUploadStatus('');
     }
   };
 
@@ -3655,7 +3999,10 @@ export default function Suppliers() {
               {isEdit ? `Edit Supplier: ${currentSupplier?.name}` : 'Add New Supplier'}
             </h3>
             <button
-              onClick={() => isEdit ? setShowEditModal(false) : setShowAddModal(false)}
+              onClick={() => {
+                isEdit ? setShowEditModal(false) : setShowAddModal(false);
+                setIsBulkSupplierMode(false);
+              }}
               className="text-slate-400 hover:text-slate-600"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3664,72 +4011,181 @@ export default function Suppliers() {
             </button>
           </div>
 
-          <form onSubmit={isEdit ? handleEditSubmit : handleAddSubmit} className="mt-4 space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Company / Vendor Name *</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                required
-                placeholder="e.g. Acme Wholesale Corp"
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Contact Rep Name</label>
-              <input
-                type="text"
-                name="contact_name"
-                value={formData.contact_name}
-                onChange={handleInputChange}
-                placeholder="e.g. John Doe"
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Email Address</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="johndoe@acme.com"
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Phone Number</label>
-              <input
-                type="text"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                placeholder="555-0120"
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="pt-4 border-t border-slate-100 flex space-x-3 justify-end">
+          {!isEdit && (
+            <div className="flex space-x-2 mt-4 bg-slate-100 p-1 rounded-lg">
               <button
                 type="button"
-                onClick={() => isEdit ? setShowEditModal(false) : setShowAddModal(false)}
-                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+                onClick={() => setIsBulkSupplierMode(false)}
+                className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
+                  !isBulkSupplierMode
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
               >
-                Cancel
+                Single Supplier
               </button>
               <button
-                type="submit"
-                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-semibold transition-colors shadow"
+                type="button"
+                onClick={() => setIsBulkSupplierMode(true)}
+                className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${
+                  isBulkSupplierMode
+                    ? 'bg-white text-slate-800 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
               >
-                {isEdit ? 'Save Changes' : 'Create Supplier'}
+                Bulk Upload (CSV)
               </button>
             </div>
-          </form>
+          )}
+
+          {isBulkSupplierMode && !isEdit ? (
+            // CSV Upload Mode
+            <form onSubmit={handleBulkSupplierCsvUpload} className="mt-4 space-y-4">
+              <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-100/50 text-xs text-indigo-800 space-y-2">
+                <span className="font-bold uppercase tracking-wider block text-[10px] text-indigo-600">CSV Requirements:</span>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>Required: <strong>name</strong> (Company/Vendor name)</li>
+                  <li>Optional: <strong>contact_name</strong>, <strong>email</strong>, <strong>phone</strong></li>
+                  <li>Duplicate suppliers will be skipped</li>
+                </ul>
+              </div>
+
+              <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                <svg className="w-10 h-10 text-slate-400 mb-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 13h6m-3-3v6m-9 1V4a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                </svg>
+                {supplierCsvFile ? (
+                  <div className="text-center">
+                    <span className="text-sm font-semibold text-slate-800 block truncate max-w-[280px]">
+                      {supplierCsvFile.name}
+                    </span>
+                    <span className="text-xs text-slate-400 block mt-0.5">
+                      {(supplierCsvFile.size / 1024).toFixed(1)} KB
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSupplierCsvFile(null)}
+                      className="text-xs text-rose-500 hover:text-rose-700 underline font-semibold mt-2.5 block mx-auto"
+                    >
+                      Remove File
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <label className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-2 px-4 rounded-xl text-xs transition-colors cursor-pointer inline-block">
+                      <span>Choose CSV File</span>
+                      <input
+                        type="file"
+                        accept=".csv"
+                        onChange={(e) => setSupplierCsvFile(e.target.files[0] || null)}
+                        className="hidden"
+                      />
+                    </label>
+                    <span className="text-[11px] text-slate-400 block mt-2">Maximum file size: 5MB</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex space-x-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setIsBulkSupplierMode(false);
+                    setSupplierCsvFile(null);
+                  }}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={supplierCsvUploading || !supplierCsvFile}
+                  className="px-5 py-2 bg-slate-100 hover:bg-slate-200 disabled:bg-slate-50 text-slate-800 rounded-xl text-sm font-semibold transition-colors shadow flex items-center space-x-1.5"
+                >
+                  {supplierCsvUploading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-slate-600 mr-1"></div>
+                      <span>Uploading...</span>
+                    </>
+                  ) : (
+                    <span>Upload CSV</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          ) : (
+            // Single Supplier Form Mode
+            <form onSubmit={isEdit ? handleEditSubmit : handleAddSubmit} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Company / Vendor Name *</label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="e.g. Acme Wholesale Corp"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Contact Rep Name</label>
+                <input
+                  type="text"
+                  name="contact_name"
+                  value={formData.contact_name}
+                  onChange={handleInputChange}
+                  placeholder="e.g. John Doe"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Email Address</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="johndoe@acme.com"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Phone Number</label>
+                <input
+                  type="text"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  placeholder="555-0120"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex space-x-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    isEdit ? setShowEditModal(false) : setShowAddModal(false);
+                    setIsBulkSupplierMode(false);
+                  }}
+                  className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-sm font-semibold transition-colors shadow"
+                >
+                  {isEdit ? 'Save Changes' : 'Create Supplier'}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     );
@@ -4147,8 +4603,8 @@ export default function Suppliers() {
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                   <div className="text-xs text-slate-600">
                     <p className="font-semibold mb-1">CSV Format (columns):</p>
-                    <code className="bg-slate-200 px-2 py-1 rounded text-xs">product_name, sku, category, cost_price, selling_price, quantity_ordered, expiry_date, unit</code>
-                    <p className="mt-2 text-slate-500">Required: product_name, cost_price, quantity_ordered</p>
+                    <code className="bg-slate-200 px-2 py-1 rounded text-xs">supplier_name, product_name, sku, category, cost_price, selling_price, quantity_ordered, expiry_date, unit</code>
+                    <p className="mt-2 text-slate-500">Required: supplier_name, product_name, cost_price, quantity_ordered</p>
                   </div>
                   
                   <div className="flex gap-2">
@@ -4156,7 +4612,8 @@ export default function Suppliers() {
                       type="file"
                       accept=".csv"
                       onChange={(e) => setPoCsvFile(e.target.files[0])}
-                      className="flex-1 text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                      disabled={poCsvUploading}
+                      className="flex-1 text-xs text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 disabled:opacity-50"
                     />
                     <button
                       type="button"
@@ -4167,6 +4624,27 @@ export default function Suppliers() {
                       {poCsvUploading ? 'Uploading...' : 'Upload CSV'}
                     </button>
                   </div>
+
+                  {/* Progress Bar */}
+                  {poCsvUploading && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-slate-700">{csvUploadStatus || 'Processing...'}</span>
+                        <span className="text-slate-500">
+                          {csvUploadCurrentRow} / {csvUploadTotalRows} rows
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                        <div
+                          className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+                          style={{ width: `${csvUploadProgress}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-center text-xs font-bold text-indigo-600">
+                        {csvUploadProgress.toFixed(0)}%
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -4423,8 +4901,8 @@ export default function Suppliers() {
     if (!selectedPo) return null;
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-        <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col max-h-[85vh]">
-          <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+        <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl flex flex-col max-h-[85vh]">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-3 border-b border-slate-100 gap-3">
             <div>
               <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Purchase Order Detail</span>
               <h3 className="text-lg font-black text-slate-800">#PO-{selectedPo.id}</h3>
@@ -4459,10 +4937,10 @@ export default function Suppliers() {
           </div>
 
           <div className="mt-4 space-y-4 overflow-y-auto flex-1 pr-1 text-sm">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
               <div>
                 <span className="block text-xs font-bold text-slate-400">SUPPLIER</span>
-                <span className="font-semibold text-slate-700">{selectedPo.supplier_name}</span>
+                <span className="font-semibold text-slate-700 block">{selectedPo.supplier_name}</span>
                 <span className="block text-xs text-slate-500">{selectedPo.supplier_phone} · {selectedPo.supplier_email}</span>
               </div>
               <div>
@@ -4497,7 +4975,7 @@ export default function Suppliers() {
                 </span>
               </div>
               {selectedPo.notes && (
-                <div className="col-span-2 md:col-span-3">
+                <div className="col-span-1 sm:col-span-2 lg:col-span-3">
                   <span className="block text-xs font-bold text-slate-400">NOTES</span>
                   <span className="font-medium text-slate-650 italic">"{selectedPo.notes}"</span>
                 </div>
@@ -4508,47 +4986,35 @@ export default function Suppliers() {
             <div>
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Order Line Items</h4>
               <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                <table className="w-full text-left border-collapse text-xs">
+                <table className="w-full text-left border-collapse text-xs min-w-[800px]">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      <th className="p-3">SKU</th>
-                      <th className="p-3">Product Name</th>
-                      <th className="p-3">Cost Price</th>
-                      <th className="p-3">Sale Price</th>
-                      <th className="p-3">Qty Ordered</th>
-                      <th className="p-3">Qty Received</th>
-                      <th className="p-3">Expiry Date</th>
-                      <th className="p-3 text-right">Subtotal</th>
+                      <th className="p-3 whitespace-nowrap">SKU</th>
+                      <th className="p-3 whitespace-nowrap">Product Name</th>
+                      <th className="p-3 whitespace-nowrap">Cost Price</th>
+                      <th className="p-3 whitespace-nowrap hidden sm:table-cell">Sale Price</th>
+                      <th className="p-3 whitespace-nowrap">Qty Ordered</th>
+                      <th className="p-3 whitespace-nowrap">Qty Received</th>
+                      <th className="p-3 whitespace-nowrap hidden md:table-cell">Expiry Date</th>
+                      <th className="p-3 whitespace-nowrap text-right">Subtotal</th>
                       {['draft', 'ordered'].includes(selectedPo.status) && (
-                        <th className="p-3 text-center">Action</th>
+                        <th className="p-3 whitespace-nowrap text-center">Action</th>
                       )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {selectedPo.items.map((item) => (
                       <tr key={item.id}>
-                        <td className="p-3 font-mono font-bold text-slate-500">{item.product_sku}</td>
+                        <td className="p-3 font-mono font-bold text-slate-500 whitespace-nowrap">{item.product_sku}</td>
                         <td className="p-3 font-semibold text-slate-800">
-                          <div>{item.product_name}</div>
-                          {/*                       <div className="flex flex-wrap gap-1 items-center mt-0.5">
-                            {item.product_category && (
-                              <span className="inline-block bg-indigo-50 text-indigo-700 text-[9px] font-bold px-1.5 py-0.25 rounded border border-indigo-100">
-                                {item.product_category}
-                              </span>
-                            )}
-                            {item.product_unit && (
-                              <span className="inline-block bg-emerald-50 text-emerald-700 text-[9px] font-bold px-1.5 py-0.25 rounded border border-emerald-100">
-                                {item.product_unit}
-                              </span>
-                            )}
-                          </div> */}
+                          <div className="max-w-xs">{item.product_name}</div>
                         </td>
-                        <td className="p-3 text-slate-650">{formatCurrency(item.cost_price !== undefined ? item.cost_price : item.unit_price)}</td>
-                        <td className="p-3 text-slate-650">{formatCurrency(item.selling_price || 0)}</td>
-                        <td className="p-3 text-slate-700 font-semibold">
+                        <td className="p-3 text-slate-650 whitespace-nowrap">{formatCurrency(item.cost_price !== undefined ? item.cost_price : item.unit_price)}</td>
+                        <td className="p-3 text-slate-650 whitespace-nowrap hidden sm:table-cell">{formatCurrency(item.selling_price || 0)}</td>
+                        <td className="p-3 text-slate-700 font-semibold whitespace-nowrap">
                           {item.quantity_ordered !== undefined ? item.quantity_ordered : item.quantity} {item.product_unit && <span className="text-xs font-normal text-slate-500">{item.product_unit}</span>}
                         </td>
-                        <td className="p-3 text-slate-750">
+                        <td className="p-3 text-slate-750 whitespace-nowrap">
                           {selectedPo.status === 'received' ? (
                             <span className="text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
                               {item.quantity_received} {item.product_unit && <span className="font-normal">{item.product_unit}</span>}
@@ -4557,7 +5023,7 @@ export default function Suppliers() {
                             <span className="text-slate-400">-</span>
                           )}
                         </td>
-                        <td className="p-3 text-slate-600">
+                        <td className="p-3 text-slate-600 whitespace-nowrap hidden md:table-cell">
                           {item.expiry_date ? (
                             <span className="bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-amber-100">
                               {new Date(item.expiry_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
@@ -4566,11 +5032,11 @@ export default function Suppliers() {
                             <span className="text-slate-400 font-medium">-</span>
                           )}
                         </td>
-                        <td className="p-3 text-right font-extrabold text-slate-800">
+                        <td className="p-3 text-right font-extrabold text-slate-800 whitespace-nowrap">
                           {formatCurrency((item.quantity_ordered !== undefined ? item.quantity_ordered : item.quantity) * (item.cost_price !== undefined ? item.cost_price : item.unit_price))}
                         </td>
                         {['draft', 'ordered'].includes(selectedPo.status) && (
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => handleDeletePoItem(selectedPo.id, item.product_id)}
@@ -4591,7 +5057,7 @@ export default function Suppliers() {
               {selectedPo.payment_basis === 'credit' && parseFloat(selectedPo.due_amount) > 0 && ['ordered', 'received'].includes(selectedPo.status) && (
                 <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 flex-1">
                   <h4 className="text-xs font-bold text-rose-700 uppercase tracking-wider mb-2">Record Payment to Supplier</h4>
-                  <form onSubmit={handlePayPoDue} className="flex items-center space-x-3">
+                  <form onSubmit={handlePayPoDue} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <div className="relative flex-1 max-w-xs">
                       <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 text-xs">৳</span>
                       <input
@@ -4616,12 +5082,13 @@ export default function Suppliers() {
                 </div>
               )}
               <div className="text-right text-sm font-bold text-slate-700 md:ml-auto self-end">
-                Total Order Value: <span className="text-lg font-black text-slate-800">{formatCurrency(selectedPo.items.reduce((sum, item) => sum + ((item.quantity_ordered !== undefined ? item.quantity_ordered : item.quantity) * (item.cost_price !== undefined ? item.cost_price : item.unit_price)), 0))}</span>
+                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Order Value</div>
+                <span className="text-lg font-black text-slate-800">{formatCurrency(selectedPo.items.reduce((sum, item) => sum + ((item.quantity_ordered !== undefined ? item.quantity_ordered : item.quantity) * (item.cost_price !== undefined ? item.cost_price : item.unit_price)), 0))}</span>
               </div>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-100 flex justify-end space-x-3">
+          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row justify-end gap-3">
             <button
               onClick={() => setShowPoDetailsModal(false)}
               className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition-colors"

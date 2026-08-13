@@ -48,6 +48,8 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
   const barcodeInputRef = useRef(null);
   const customerInputRef = useRef(null);
   const searchInputRef = useRef(null);
+  const productScrollContainerRef = useRef(null);
+  const productRowRefs = useRef([]);
 
   // Virtual Keyboard / Numpad Pad States
   const [showKeyboardModal, setShowKeyboardModal] = useState(false);
@@ -240,6 +242,26 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
     return () => clearTimeout(delayDebounceFn);
   }, [search]);
+
+  // Scroll focused product row into view when searchFocusedIndex changes
+  useEffect(() => {
+    if (searchFocusedIndex >= 0 && productRowRefs.current[searchFocusedIndex]) {
+      const row = productRowRefs.current[searchFocusedIndex];
+      const container = productScrollContainerRef.current;
+      
+      if (row && container) {
+        row.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest'
+        });
+      }
+    }
+  }, [searchFocusedIndex]);
+
+  // Reset product row refs when products change to avoid stale references
+  useEffect(() => {
+    productRowRefs.current = [];
+  }, [products]);
 
   // Handle resuming a held bill passed from the parent state (sidebar navigation)
   useEffect(() => {
@@ -1696,7 +1718,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
           </div>
 
           {/* Product Items Scrolling Container */}
-          <div className="flex-1 overflow-y-auto pr-1">
+          <div ref={productScrollContainerRef} className="flex-1 overflow-y-auto pr-1">
             {loading ? (
               <div className="flex justify-center items-center h-48">
                 <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-600"></div>
@@ -1796,7 +1818,11 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                           const isDisabled = isOutOfStock || isExpired;
 
                           return (
-                            <tr key={product.id} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''} ${isExpired ? 'bg-rose-50/60' : ''}`}>
+                            <tr 
+                              key={product.id} 
+                              ref={(el) => productRowRefs.current[index] = el}
+                              className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''} ${isExpired ? 'bg-rose-50/60' : ''}`}
+                            >
                               <td
                                 className={`p-3 pl-4 font-semibold transition-colors ${isDisabled ? 'text-slate-400 cursor-not-allowed' : 'text-slate-800 cursor-pointer hover:text-indigo-600'}`}
                                 onClick={() => !isDisabled && addToCart(product)}

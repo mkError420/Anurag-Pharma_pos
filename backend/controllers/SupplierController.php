@@ -51,6 +51,30 @@ class SupplierController {
         }
 
         try {
+            // Check if supplier already exists (case-insensitive match)
+            $stmt = DB::query(
+                'SELECT id, name, contact_name, email, phone FROM suppliers WHERE shop_id = ? AND LOWER(name) = LOWER(?)',
+                [$shopId, $name]
+            );
+            $existingSupplier = $stmt->fetch();
+
+            if ($existingSupplier) {
+                // Return existing supplier
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'message' => 'Supplier already exists.',
+                    'supplierId' => (int)$existingSupplier['id'],
+                    'id' => (int)$existingSupplier['id'],
+                    'name' => $existingSupplier['name'],
+                    'contact_name' => $existingSupplier['contact_name'],
+                    'email' => $existingSupplier['email'],
+                    'phone' => $existingSupplier['phone'],
+                    'due_balance' => (float)($existingSupplier['due_balance'] ?? 0)
+                ]);
+                return;
+            }
+
+            // Create new supplier
             DB::query(
                 'INSERT INTO suppliers (shop_id, name, contact_name, email, phone) VALUES (?, ?, ?, ?, ?)',
                 [$shopId, $name, empty($contactName) ? null : $contactName, empty($email) ? null : $email, empty($phone) ? null : $phone]
@@ -61,12 +85,18 @@ class SupplierController {
             http_response_code(201);
             echo json_encode([
                 'message' => 'Supplier created successfully.',
-                'supplierId' => (int)$newSupplierId
+                'supplierId' => (int)$newSupplierId,
+                'id' => (int)$newSupplierId,
+                'name' => $name,
+                'contact_name' => $contactName,
+                'email' => $email,
+                'phone' => $phone,
+                'due_balance' => 0
             ]);
 
         } catch (\Exception $e) {
             error_log('Create supplier error: ' . $e->getMessage());
-            Auth::jsonError('Server error creating supplier.', 500);
+            Auth::jsonError('Server error creating supplier: ' . $e->getMessage(), 500);
         }
     }
 

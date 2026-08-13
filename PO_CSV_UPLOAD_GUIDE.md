@@ -11,6 +11,7 @@ This guide explains how to upload product lists via CSV file for purchase orders
 ## CSV Format
 
 ### Required Columns
+- `supplier_name` - Name of the supplier (required, will be auto-created if not found in system)
 - `product_name` - Name of the product (required)
 - `cost_price` - Purchase cost price per unit (required, must be a positive number)
 - `quantity_ordered` - Quantity to order (required, must be a positive number)
@@ -25,23 +26,25 @@ This guide explains how to upload product lists via CSV file for purchase orders
 ## Example CSV File
 
 ```csv
-product_name,sku,category,cost_price,selling_price,quantity_ordered,expiry_date,unit
-Paracetamol 500mg,PAR-001,Medicine,5.00,8.00,100,2025-12-31,tablet
-Amoxicillin 250mg,AMX-002,Medicine,12.50,20.00,50,2025-06-30,capsule
-Vitamin C 1000mg,VIT-003,Supplements,8.00,15.00,200,2026-01-15,tablet
-Bandage 5cm,BAN-004,Medical Supplies,2.00,5.00,100,,piece
-Hand Sanitizer 500ml,HAN-005,Hygiene,15.00,25.00,30,2025-08-20,bottle
+supplier_name,product_name,sku,category,cost_price,selling_price,quantity_ordered,expiry_date,unit
+MediCorp Supply,Paracetamol 500mg,PAR-001,Medicine,5.00,8.00,100,2025-12-31,tablet
+MediCorp Supply,Amoxicillin 250mg,AMX-002,Medicine,12.50,20.00,50,2025-06-30,capsule
+MediCorp Supply,Vitamin C 1000mg,VIT-003,Supplements,8.00,15.00,200,2026-01-15,tablet
+MediCorp Supply,Bandage 5cm,BAN-004,Medical Supplies,2.00,5.00,100,,piece
+MediCorp Supply,Hand Sanitizer 500ml,HAN-005,Hygiene,15.00,25.00,30,2025-08-20,bottle
 ```
 
 ## Important Notes
 
 1. **Column Order**: The columns can be in any order, but headers must match the column names listed above
 2. **Case Insensitive**: Column headers are case-insensitive (e.g., "Product_Name" or "PRODUCT_NAME" both work)
-3. **Required Fields**: Only `product_name`, `cost_price`, and `quantity_ordered` are required
-4. **Auto-SKU**: If SKU is not provided, it will be auto-generated using the product name
-5. **Validation**: The system will validate each row and report any errors
-6. **Cart Addition**: Valid products are added to the purchase order cart automatically
-7. **Error Handling**: If some rows have errors, valid rows will still be added to the cart
+3. **Required Fields**: `supplier_name`, `product_name`, `cost_price`, and `quantity_ordered` are required
+4. **Auto-Create Supplier**: If the supplier_name doesn't exist in the system, it will be automatically created with basic information
+5. **Supplier Matching**: Supplier names are matched case-insensitively and support partial matching
+6. **Auto-SKU**: If SKU is not provided, it will be auto-generated using the product name
+7. **Validation**: The system will validate each row and report any errors
+8. **Cart Addition**: Valid products are added to the purchase order cart automatically
+9. **Error Handling**: If some rows have errors, valid rows will still be added to the cart
 
 ## CSV Upload Process
 
@@ -57,7 +60,9 @@ Hand Sanitizer 500ml,HAN-005,Hygiene,15.00,25.00,30,2025-08-20,bottle
 
 Common errors you might encounter:
 - "CSV file must contain at least a header row and one data row"
-- "CSV must contain columns: product_name, cost_price, quantity_ordered"
+- "CSV must contain columns: supplier_name, product_name, cost_price, quantity_ordered"
+- "Row X: Supplier name is required"
+- "Row X: Supplier 'X' not found in system"
 - "Row X: Product name is required"
 - "Row X: Invalid cost price"
 - "Row X: Invalid quantity"
