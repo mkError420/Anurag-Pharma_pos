@@ -212,18 +212,98 @@ export default function TotalRevenue() {
     try {
       const doc = new jsPDF();
       const selectedShop = shops.find(s => String(s.id) === String(selectedShopId));
-      const shopName = selectedShop ? selectedShop.name : 'All Shops';
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // ── Determine shop details based on user role ──
+      let shopName, shopEmail, shopPhone, shopAddress, shopLogo;
+
+      if (isSuperAdmin) {
+        if (selectedShop) {
+          shopName = selectedShop.name || 'Shop';
+          shopEmail = selectedShop.email || '';
+          shopPhone = selectedShop.phone || '';
+          shopAddress = selectedShop.address || '';
+          shopLogo = selectedShop.logo || '';
+        } else {
+          shopName = 'All Shops (Consolidated)';
+          shopEmail = '';
+          shopPhone = '';
+          shopAddress = '';
+          shopLogo = '';
+        }
+      } else {
+        shopName = userObj.shop_name || 'My Shop';
+        shopEmail = userObj.shop_email || '';
+        shopPhone = userObj.shop_phone || '';
+        shopAddress = userObj.shop_address || '';
+        shopLogo = userObj.logo || '';
+      }
+
       const startStr = startDate ? formatDate(startDate) : 'All Time';
       const endStr = endDate ? formatDate(endDate) : 'All Time';
 
-      // Title
-      doc.setFontSize(18);
-      doc.text('Financial Report - Total Revenue & Profits', 14, 20);
-      doc.setFontSize(10);
-      doc.text(`Shop: ${shopName}`, 14, 28);
-      doc.text(`Period: ${startStr} to ${endStr}`, 14, 34);
+      let currentY = 12;
 
-      // Main Financial Data Table
+      // ── Shop Logo & Details Header ──
+      const renderShopDetails = (startX, detailStartY) => {
+        doc.setFontSize(8.5);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(100, 116, 139);
+        let dy = detailStartY;
+        if (shopAddress) { doc.text(shopAddress, startX, dy); dy += 4.5; }
+        if (shopPhone) { doc.text(`Phone: ${shopPhone}`, startX, dy); dy += 4.5; }
+        if (shopEmail) { doc.text(`Email: ${shopEmail}`, startX, dy); dy += 4.5; }
+        return dy;
+      };
+
+      if (shopLogo) {
+        try {
+          doc.addImage(shopLogo, 'AUTO', 14, currentY, 22, 22);
+          doc.setFontSize(16);
+          doc.setFont(undefined, 'bold');
+          doc.setTextColor(30, 41, 59);
+          doc.text(shopName, 42, currentY + 7);
+          renderShopDetails(42, currentY + 13);
+          currentY += 28;
+        } catch (imgErr) {
+          doc.setFontSize(16);
+          doc.setFont(undefined, 'bold');
+          doc.setTextColor(30, 41, 59);
+          doc.text(shopName, 14, currentY + 7);
+          renderShopDetails(14, currentY + 13);
+          currentY += 24;
+        }
+      } else {
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text(shopName, 14, currentY + 5);
+        const endY = renderShopDetails(14, currentY + 11);
+        currentY = (shopAddress || shopPhone || shopEmail) ? endY + 4 : currentY + 12;
+      }
+
+      // Separator line
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.5);
+      doc.line(14, currentY, pageWidth - 14, currentY);
+      currentY += 8;
+
+      // ── Report Title & Period ──
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('Financial Report - Total Revenue & Profits', 14, currentY);
+      currentY += 6;
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Report Period: ${startStr} to ${endStr}`, 14, currentY);
+      currentY += 8;
+
+      // Reset text color
+      doc.setTextColor(0);
+
+      // ── Main Financial Data Table ──
       const tableData = [
         ['Sales Revenue (Accrual)', formatCurrency(revenueData.sales_revenue), 'Inflow'],
         ['Sales Revenue (Cash Collected)', formatCurrency(revenueData.sales_cash_received), 'Inflow'],
@@ -244,7 +324,7 @@ export default function TotalRevenue() {
       autoTable(doc, {
         head: [['Financial Indicator', 'Amount', 'Category']],
         body: tableData,
-        startY: 42,
+        startY: currentY,
         styles: { fontSize: 8, cellPadding: 2 },
         headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold' },
         alternateRowStyles: { fillColor: [245, 247, 250] },
@@ -253,10 +333,10 @@ export default function TotalRevenue() {
           1: { cellWidth: 35, halign: 'right' },
           2: { cellWidth: 25, halign: 'center' }
         },
-        margin: { top: 42, right: 10, bottom: 20, left: 10 }
+        margin: { top: currentY, right: 10, bottom: 20, left: 10 }
       });
 
-      // Net Profit Summary
+      // ── Net Profit Summary ──
       const summaryY = doc.lastAutoTable.finalY + 15;
       doc.setFontSize(12);
       doc.setFont(undefined, 'bold');
@@ -284,13 +364,13 @@ export default function TotalRevenue() {
         margin: { top: summaryY + 5, right: 10, bottom: 20, left: 10 }
       });
 
-      // Footer
+      // ── Footer ──
       const footerY = doc.lastAutoTable.finalY + 15;
       doc.setFontSize(8);
       doc.setTextColor(100);
       doc.text('Generated on: ' + new Date().toLocaleString(), 14, footerY);
 
-      const shopNameSlug = selectedShop ? selectedShop.name.toLowerCase().replace(/[^a-z0-9]+/g, '_') : 'all_shops';
+      const shopNameSlug = (shopName || 'report').toLowerCase().replace(/[^a-z0-9]+/g, '_');
       const startSlug = startDate ? startDate : 'all-time';
       const endSlug = endDate ? endDate : 'all-time';
       doc.save(`financial_report_${shopNameSlug}_${startSlug}_to_${endSlug}.pdf`);

@@ -485,7 +485,7 @@ export default function Login({
           </form>
 
           {/* Role Hint Cards */}
-           <div className="mt-6 pt-6 border-t border-slate-700/60">
+          <div className="mt-6 pt-6 border-t border-slate-700/60">
             <p className="text-xs text-slate-500 text-center mb-3 font-medium uppercase tracking-wider">Demo Credentials</p>
             <div className="grid grid-cols-1 gap-2">
               <button
@@ -495,22 +495,6 @@ export default function Login({
               >
                 <span className="text-xs font-bold bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full shrink-0">SUPER ADMIN</span>
                 <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">Restricted!!!</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEmail('alice@boutique.com'); setPassword('alice123'); }}
-                className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
-              >
-                <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP ADMIN</span>
-                <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">alice@boutique.com · alice123</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEmail('admin@mkfashion.com'); setPassword('mkfashion123'); }}
-                className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
-              >
-                <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP ADMIN</span>
-                <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">admin@mkfashion.com · mkfashion123</span>
               </button>
               <button
                 type="button"
@@ -530,6 +514,23 @@ export default function Login({
               </button>
               <button
                 type="button"
+                onClick={() => { setEmail('alice@boutique.com'); setPassword('alice123'); }}
+                className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
+              >
+                <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP ADMIN</span>
+                <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">alice@boutique.com · alice123</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail('admin@mkfashion.com'); setPassword('mkfashion123'); }}
+                className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
+              >
+                <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP ADMIN</span>
+                <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">admin@mkfashion.com · mkfashion123</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => { setEmail('staff1@mkfashion.com'); setPassword('staff123'); }}
                 className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
               >
@@ -537,7 +538,7 @@ export default function Login({
                 <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">staff1@mkfashion.com · staff123</span>
               </button>
             </div>
-          </div> 
+          </div>
         </div>
 
         <p className="text-center text-slate-600 dark:text-slate-500 text-xs mt-6">
