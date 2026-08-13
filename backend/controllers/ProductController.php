@@ -40,7 +40,7 @@ class ProductController {
             }
 
             if ($expiring === 'true') {
-                $alertConditions[] = "(p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0)";
+                $alertConditions[] = "(p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0 AND NOT EXISTS (SELECT 1 FROM products p2 WHERE TRIM(LOWER(p2.name)) = TRIM(LOWER(p.name)) AND (p2.shop_id = p.shop_id OR (p2.shop_id IS NULL AND p.shop_id IS NULL)) AND p2.stock_quantity > 0 AND (p2.expiry_date IS NULL OR p2.expiry_date = '' OR p2.expiry_date > DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY))))";
             }
 
             if (!empty($alertConditions)) {
