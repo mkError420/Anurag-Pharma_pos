@@ -172,22 +172,39 @@ export default function DashboardLayout({
                 }
               });
 
-              // Group expiry items by name, keeping the earliest expiry date
+              // Group expiry items by name, but only alert if ALL products with same name are expiring soon
               const uniqueExpiryItems = [];
               const expiryMap = new Map();
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const thirtyDaysFromNow = new Date(today);
+              thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+              // First, group all products by name
+              const productsByName = new Map();
               (expiryItems || []).forEach(item => {
                 if (!item.expiry_date) return;
                 const nameKey = (item.name || '').trim().toLowerCase();
-                if (!expiryMap.has(nameKey)) {
-                  expiryMap.set(nameKey, item);
-                  uniqueExpiryItems.push(item);
-                } else {
-                  const existing = expiryMap.get(nameKey);
-                  if (new Date(item.expiry_date) < new Date(existing.expiry_date)) {
-                    expiryMap.set(nameKey, item);
-                    const index = uniqueExpiryItems.findIndex(i => (i.name || '').trim().toLowerCase() === nameKey);
-                    uniqueExpiryItems[index] = item;
-                  }
+                if (!productsByName.has(nameKey)) {
+                  productsByName.set(nameKey, []);
+                }
+                productsByName.get(nameKey).push(item);
+              });
+
+              // Then, only include products where ALL variants are expiring within 30 days
+              productsByName.forEach((items, nameKey) => {
+                const allExpiringSoon = items.every(item => {
+                  const expiry = new Date(item.expiry_date);
+                  expiry.setHours(0, 0, 0, 0);
+                  return expiry.getTime() <= thirtyDaysFromNow.getTime();
+                });
+
+                if (allExpiringSoon) {
+                  // Find the item with the earliest expiry date
+                  const earliestItem = items.reduce((earliest, current) => {
+                    return new Date(current.expiry_date) < new Date(earliest.expiry_date) ? current : earliest;
+                  });
+                  uniqueExpiryItems.push(earliestItem);
                 }
               });
 
