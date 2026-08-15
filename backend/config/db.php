@@ -346,6 +346,32 @@ class DB {
                 }
             }
 
+            // Create subscriptions table if not exists
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `subscriptions` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `plan_id` INT NULL,
+                    `plan_name` VARCHAR(100) NOT NULL,
+                    `price` DECIMAL(10,2) NOT NULL,
+                    `currency` VARCHAR(10) DEFAULT 'BDT',
+                    `billing_period` VARCHAR(20) DEFAULT 'month',
+                    `subscriber_name` VARCHAR(100) NOT NULL,
+                    `shop_name` VARCHAR(100) NOT NULL,
+                    `email` VARCHAR(100) NOT NULL,
+                    `phone` VARCHAR(30) NOT NULL,
+                    `payment_method` VARCHAR(50) DEFAULT 'bKash',
+                    `transaction_id` VARCHAR(100) NULL,
+                    `status` ENUM('pending', 'approved', 'active', 'rejected', 'expired') DEFAULT 'pending',
+                    `start_date` DATE NULL,
+                    `end_date` DATE NULL,
+                    `notes` TEXT NULL,
+                    `admin_notes` TEXT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    CONSTRAINT `fk_subscriptions_plan` FOREIGN KEY (`plan_id`) REFERENCES `pricing_plans` (`id`) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
             // Create other_sales table if not exists
             $pdo->exec("
                 CREATE TABLE IF NOT EXISTS `other_sales` (

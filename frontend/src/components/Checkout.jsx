@@ -1545,9 +1545,6 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
             onClick={() => onNavigate('/manual-orders')}
             className="relative bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold py-2.5 px-3.5 sm:px-4 border border-indigo-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
           >
-            <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
             <span>Sales Orders</span>
           </button>
           <button
@@ -1555,9 +1552,6 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
             onClick={() => setShowHeldBillsModal(true)}
             className="relative bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 px-3.5 sm:px-4 border border-slate-200 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
           >
-            <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
             <span>Due Bills</span>
             {heldBills.filter(b => b.status === 'held').length > 0 && (
               <span className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border border-white animate-pulse">

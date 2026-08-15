@@ -414,6 +414,19 @@ $routes = [
                 $controller->getTeamMemberById($args[0]);
             });
         },
+        // Subscriptions (authenticated)
+        '/^subscriptions$/' => function() {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->getAllSubscriptions();
+            });
+        },
+        '/^subscriptions\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->getSubscriptionById($args[0]);
+            });
+        },
     ],
     'POST' => [
         // Auth
@@ -517,6 +530,18 @@ $routes = [
             $controller = new WebsiteContentController();
             $controller->createContactMessage();
         },
+        // Public Subscription Submission (no authentication required)
+        '/^public\/subscriptions$/' => function($args, $data) {
+            $controller = new WebsiteContentController();
+            $controller->createPublicSubscription();
+        },
+        // Subscriptions Management (authenticated)
+        '/^subscriptions$/' => function($args, $data) {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->createSubscription();
+            });
+        },
     ],
     'PUT' => [
         // Auth
@@ -597,6 +622,13 @@ $routes = [
                 $controller->updateContactMessageStatus($args[0]);
             });
         },
+        // Subscriptions
+        '/^subscriptions\/(\d+)$/' => function($args, $data) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->updateSubscription($args[0]);
+            });
+        },
     ],
     'DELETE' => [
         // Products
@@ -663,6 +695,13 @@ $routes = [
             AuthController::requireAuth(function() use ($args) {
                 $controller = new WebsiteContentController();
                 $controller->deletePricingPlan($args[0]);
+            });
+        },
+        // Subscriptions
+        '/^subscriptions\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->deleteSubscription($args[0]);
             });
         },
     ]

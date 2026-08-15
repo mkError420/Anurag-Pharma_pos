@@ -8,6 +8,7 @@ import HeroSlides from './components/HeroSlides';
 import ContactInformation from './components/ContactInformation';
 import ContactMessages from './components/ContactMessages';
 import PricingPlans from './components/PricingPlans';
+import SubscriptionManagement from './components/SubscriptionManagement';
 import DashboardLayout from './components/DashboardLayout';
 import Dashboard from './components/Dashboard';
 import Checkout from './components/Checkout';
@@ -66,6 +67,7 @@ export default function App() {
   const [resumedHeldBill, setResumedHeldBill] = useState(null);
   const [logoColor, setLogoColor] = useState('#C4A484'); // Default light brown color
   const [newContactMessagesCount, setNewContactMessagesCount] = useState(0);
+  const [pendingSubscriptionsCount, setPendingSubscriptionsCount] = useState(0);
 
   // On mount: verify existing token against the backend
   useEffect(() => {
@@ -205,13 +207,21 @@ export default function App() {
             setHeldBillsCount(heldData.filter(bill => bill.status === 'held').length);
           }
         } else {
-          // For super_admin, fetch new contact messages count
+          // For super_admin, fetch new contact messages count and pending subscriptions count
           const contactMessagesResponse = await fetch(`${API_BASE_URL}/contact-messages`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (contactMessagesResponse.ok) {
             const messages = await contactMessagesResponse.json();
             setNewContactMessagesCount(messages.filter(msg => msg.status === 'new').length);
+          }
+
+          const subscriptionsResponse = await fetch(`${API_BASE_URL}/subscriptions`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (subscriptionsResponse.ok) {
+            const subs = await subscriptionsResponse.json();
+            setPendingSubscriptionsCount(subs.filter(s => s.status === 'pending').length);
           }
         }
       } catch (e) {
@@ -236,6 +246,7 @@ export default function App() {
     setLowStockAlerts([]);
     setExpiryAlerts([]);
     setNewContactMessagesCount(0);
+    setPendingSubscriptionsCount(0);
     setSuspendedMessage('');
   };
 
@@ -260,6 +271,7 @@ export default function App() {
         case '/contact-information': return <ContactInformation />;
         case '/contact-messages': return <ContactMessages />;
         case '/pricing-plans': return <PricingPlans />;
+        case '/subscriptions': return <SubscriptionManagement />;
         case '/settings': return <Settings />;
         default: return <Dashboard />;
       }
@@ -365,6 +377,7 @@ export default function App() {
       expiryItems={expiryAlerts}
       heldBillsCount={heldBillsCount}
       newContactMessagesCount={newContactMessagesCount}
+      pendingSubscriptionsCount={pendingSubscriptionsCount}
       currentPath={currentPath}
       onNavigate={(path) => setCurrentPath(path)}
       onLogout={handleLogout}

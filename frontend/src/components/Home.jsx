@@ -27,6 +27,71 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [loginPassword, setLoginPassword] = useState('');
   const [selectedCred, setSelectedCred] = useState(null);
 
+  // Subscription modal state
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [selectedPlanForSub, setSelectedPlanForSub] = useState(null);
+  const [subForm, setSubForm] = useState({
+    subscriber_name: '',
+    shop_name: '',
+    email: '',
+    phone: '',
+    payment_method: 'bKash',
+    transaction_id: '',
+    notes: ''
+  });
+  const [subSubmitting, setSubSubmitting] = useState(false);
+  const [subSuccessMsg, setSubSuccessMsg] = useState('');
+  const [subErrorMsg, setSubErrorMsg] = useState('');
+
+  const handleOpenSubscriptionModal = (plan) => {
+    setSelectedPlanForSub(plan);
+    setSubForm({
+      subscriber_name: '',
+      shop_name: '',
+      email: '',
+      phone: '',
+      payment_method: 'bKash',
+      transaction_id: '',
+      notes: ''
+    });
+    setSubErrorMsg('');
+    setSubSuccessMsg('');
+    setShowSubscriptionModal(true);
+  };
+
+  const handleSubscribeSubmit = async (e) => {
+    e.preventDefault();
+    setSubSubmitting(true);
+    setSubErrorMsg('');
+    setSubSuccessMsg('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/public/subscriptions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plan_id: selectedPlanForSub?.id,
+          plan_name: selectedPlanForSub?.name,
+          price: selectedPlanForSub?.price,
+          currency: selectedPlanForSub?.currency || 'BDT',
+          billing_period: selectedPlanForSub?.billing_period || 'month',
+          ...subForm
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setSubSuccessMsg(`Thank you, ${subForm.subscriber_name}! Your subscription request for "${selectedPlanForSub?.name}" has been received. Our super admin team will verify and activate your shop subscription shortly.`);
+      } else {
+        setSubErrorMsg(data.error || 'Failed to submit subscription request.');
+      }
+    } catch (err) {
+      setSubErrorMsg('Network error. Failed to connect to server.');
+    } finally {
+      setSubSubmitting(false);
+    }
+  };
+
   const applyCredential = (email, pass) => {
     setLoginEmail(email);
     setLoginPassword(pass);
@@ -1152,9 +1217,10 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                       ))}
                     </ul>
                     <AnimatedButton 
+                      onClick={() => handleOpenSubscriptionModal(plan)}
                       style={{ width: '100%' }}
                     >
-                      {plan.button_text}
+                      {plan.button_text || 'Subscribe Now'}
                     </AnimatedButton>
                   </div>
                 </div>
@@ -1162,6 +1228,175 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             ))}
           </div>
         </div>
+
+        {/* Public Subscription Request Modal */}
+        {showSubscriptionModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100 my-8">
+              
+              {/* Modal Header */}
+              <div className="bg-slate-900 text-white p-6 relative">
+                <button
+                  onClick={() => setShowSubscriptionModal(false)}
+                  className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <div className="text-xs font-semibold text-sky-400 uppercase tracking-widest mb-1">
+                  Plan Subscription Request
+                </div>
+                <h2 className="text-2xl font-bold">{selectedPlanForSub?.name || 'Selected Plan'}</h2>
+                <div className="mt-2 inline-flex items-baseline gap-1 text-white">
+                  <span className="text-3xl font-extrabold">{selectedPlanForSub?.currency || 'BDT'} {selectedPlanForSub?.price}</span>
+                  <span className="text-slate-400 text-sm font-normal">/{selectedPlanForSub?.billing_period}</span>
+                </div>
+              </div>
+
+              {/* Form Content / Confirmation */}
+              <div className="p-6">
+                {subSuccessMsg ? (
+                  <div className="text-center py-6 space-y-4">
+                    <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900">Request Submitted!</h3>
+                    <p className="text-gray-600 text-sm leading-relaxed">{subSuccessMsg}</p>
+                    <button
+                      onClick={() => setShowSubscriptionModal(false)}
+                      className="px-6 py-2.5 bg-gray-900 text-white rounded-xl font-semibold text-sm hover:bg-gray-800 transition-colors shadow-md mt-4"
+                    >
+                      Done
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubscribeSubmit} className="space-y-4">
+                    {subErrorMsg && (
+                      <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">
+                        {subErrorMsg}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Your Full Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={subForm.subscriber_name}
+                        onChange={(e) => setSubForm({ ...subForm, subscriber_name: e.target.value })}
+                        placeholder="e.g. John Doe"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Shop / Company Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={subForm.shop_name}
+                        onChange={(e) => setSubForm({ ...subForm, shop_name: e.target.value })}
+                        placeholder="e.g. Modern Retail Store"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Email Address *</label>
+                        <input
+                          type="email"
+                          required
+                          value={subForm.email}
+                          onChange={(e) => setSubForm({ ...subForm, email: e.target.value })}
+                          placeholder="your@email.com"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Phone Number *</label>
+                        <input
+                          type="tel"
+                          required
+                          value={subForm.phone}
+                          onChange={(e) => setSubForm({ ...subForm, phone: e.target.value })}
+                          placeholder="+8801700000000"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Payment Method</label>
+                        <select
+                          value={subForm.payment_method}
+                          onChange={(e) => setSubForm({ ...subForm, payment_method: e.target.value })}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
+                        >
+                          <option value="bKash">bKash</option>
+                          <option value="Nagad">Nagad</option>
+                          <option value="Rocket">Rocket</option>
+                          <option value="Bank Transfer">Bank Transfer</option>
+                          <option value="Cash / Cheque">Cash / Cheque</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Transaction ID (Trx ID)</label>
+                        <input
+                          type="text"
+                          value={subForm.transaction_id}
+                          onChange={(e) => setSubForm({ ...subForm, transaction_id: e.target.value })}
+                          placeholder="e.g. TRX892348"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Special Requirements / Notes</label>
+                      <textarea
+                        rows="2"
+                        value={subForm.notes}
+                        onChange={(e) => setSubForm({ ...subForm, notes: e.target.value })}
+                        placeholder="Any additional notes or custom requirements for your shop..."
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm resize-none"
+                      />
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-end gap-3 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => setShowSubscriptionModal(false)}
+                        className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 text-sm font-semibold transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={subSubmitting}
+                        className="px-6 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-semibold text-sm transition-all shadow-lg flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {subSubmitting ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            Submitting...
+                          </>
+                        ) : (
+                          'Confirm Subscription'
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {/* Testimonials Section */}
         <div className="mb-24">

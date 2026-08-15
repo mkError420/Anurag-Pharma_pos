@@ -943,4 +943,266 @@ class WebsiteContentController {
             echo json_encode(['error' => 'Failed to delete pricing plan']);
         }
     }
+
+    // ============================================
+    // SUBSCRIPTIONS MANAGEMENT OPERATIONS
+    // ============================================
+
+    public function createPublicSubscription() {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            $planId = !empty($input['plan_id']) ? (int)$input['plan_id'] : null;
+            $planName = trim($input['plan_name'] ?? '');
+            $price = floatval($input['price'] ?? 0);
+            $currency = trim($input['currency'] ?? 'BDT');
+            $billingPeriod = trim($input['billing_period'] ?? 'month');
+            $subscriberName = trim($input['subscriber_name'] ?? '');
+            $shopName = trim($input['shop_name'] ?? '');
+            $email = trim($input['email'] ?? '');
+            $phone = trim($input['phone'] ?? '');
+            $paymentMethod = trim($input['payment_method'] ?? 'bKash');
+            $transactionId = trim($input['transaction_id'] ?? '');
+            $notes = trim($input['notes'] ?? '');
+
+            if (empty($planName) || empty($subscriberName) || empty($shopName) || empty($email) || empty($phone)) {
+                http_response_code(400);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Please fill in all required fields (Name, Shop Name, Email, Phone, Plan)']);
+                return;
+            }
+
+            $stmt = $this->db->prepare("
+                INSERT INTO subscriptions (
+                    plan_id, plan_name, price, currency, billing_period,
+                    subscriber_name, shop_name, email, phone,
+                    payment_method, transaction_id, status, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+            ");
+
+            $stmt->execute([
+                $planId, $planName, $price, $currency, $billingPeriod,
+                $subscriberName, $shopName, $email, $phone,
+                $paymentMethod, $transactionId, $notes
+            ]);
+
+            $id = $this->db->lastInsertId();
+
+            header('Content-Type: application/json');
+            http_response_code(201);
+            echo json_encode([
+                'success' => true,
+                'message' => 'Subscription request submitted successfully',
+                'subscription_id' => (int)$id
+            ]);
+        } catch (PDOException $e) {
+            error_log('Create public subscription error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to submit subscription request: ' . $e->getMessage()]);
+        }
+    }
+
+    public function getAllSubscriptions() {
+        try {
+            $status = $_GET['status'] ?? null;
+            $sql = "SELECT * FROM subscriptions";
+            $params = [];
+
+            if (!empty($status) && $status !== 'all') {
+                $sql .= " WHERE status = ?";
+                $params[] = $status;
+            }
+
+            $sql .= " ORDER BY created_at DESC";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            $subscriptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            header('Content-Type: application/json');
+            echo json_encode($subscriptions);
+        } catch (PDOException $e) {
+            error_log('Get all subscriptions error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to fetch subscriptions']);
+        }
+    }
+
+    public function getSubscriptionById($id) {
+        try {
+            $stmt = $this->db->prepare("SELECT * FROM subscriptions WHERE id = ?");
+            $stmt->execute([$id]);
+            $subscription = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$subscription) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Subscription not found']);
+                return;
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode($subscription);
+        } catch (PDOException $e) {
+            error_log('Get subscription by ID error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to fetch subscription']);
+        }
+    }
+
+    public function createSubscription() {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            $planId = !empty($input['plan_id']) ? (int)$input['plan_id'] : null;
+            $planName = trim($input['plan_name'] ?? '');
+            $price = floatval($input['price'] ?? 0);
+            $currency = trim($input['currency'] ?? 'BDT');
+            $billingPeriod = trim($input['billing_period'] ?? 'month');
+            $subscriberName = trim($input['subscriber_name'] ?? '');
+            $shopName = trim($input['shop_name'] ?? '');
+            $email = trim($input['email'] ?? '');
+            $phone = trim($input['phone'] ?? '');
+            $paymentMethod = trim($input['payment_method'] ?? 'bKash');
+            $transactionId = trim($input['transaction_id'] ?? '');
+            $status = trim($input['status'] ?? 'active');
+            $startDate = !empty($input['start_date']) ? $input['start_date'] : date('Y-m-d');
+            $endDate = !empty($input['end_date']) ? $input['end_date'] : date('Y-m-d', strtotime('+1 month'));
+            $notes = trim($input['notes'] ?? '');
+            $adminNotes = trim($input['admin_notes'] ?? '');
+
+            if (empty($planName) || empty($subscriberName) || empty($shopName) || empty($email) || empty($phone)) {
+                http_response_code(400);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'All core fields are required']);
+                return;
+            }
+
+            $stmt = $this->db->prepare("
+                INSERT INTO subscriptions (
+                    plan_id, plan_name, price, currency, billing_period,
+                    subscriber_name, shop_name, email, phone,
+                    payment_method, transaction_id, status, start_date, end_date, notes, admin_notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+
+            $stmt->execute([
+                $planId, $planName, $price, $currency, $billingPeriod,
+                $subscriberName, $shopName, $email, $phone,
+                $paymentMethod, $transactionId, $status, $startDate, $endDate, $notes, $adminNotes
+            ]);
+
+            $id = $this->db->lastInsertId();
+
+            header('Content-Type: application/json');
+            http_response_code(201);
+            echo json_encode([
+                'success' => true,
+                'message' => 'Subscription created successfully',
+                'id' => (int)$id
+            ]);
+        } catch (PDOException $e) {
+            error_log('Create subscription error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to create subscription: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateSubscription($id) {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            $stmt = $this->db->prepare("SELECT * FROM subscriptions WHERE id = ?");
+            $stmt->execute([$id]);
+            $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$existing) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Subscription not found']);
+                return;
+            }
+
+            $planName = isset($input['plan_name']) ? trim($input['plan_name']) : $existing['plan_name'];
+            $price = isset($input['price']) ? floatval($input['price']) : $existing['price'];
+            $currency = isset($input['currency']) ? trim($input['currency']) : $existing['currency'];
+            $billingPeriod = isset($input['billing_period']) ? trim($input['billing_period']) : $existing['billing_period'];
+            $subscriberName = isset($input['subscriber_name']) ? trim($input['subscriber_name']) : $existing['subscriber_name'];
+            $shopName = isset($input['shop_name']) ? trim($input['shop_name']) : $existing['shop_name'];
+            $email = isset($input['email']) ? trim($input['email']) : $existing['email'];
+            $phone = isset($input['phone']) ? trim($input['phone']) : $existing['phone'];
+            $paymentMethod = isset($input['payment_method']) ? trim($input['payment_method']) : $existing['payment_method'];
+            $transactionId = isset($input['transaction_id']) ? trim($input['transaction_id']) : $existing['transaction_id'];
+            $status = isset($input['status']) ? trim($input['status']) : $existing['status'];
+            $startDate = isset($input['start_date']) ? $input['start_date'] : $existing['start_date'];
+            $endDate = isset($input['end_date']) ? $input['end_date'] : $existing['end_date'];
+            $notes = isset($input['notes']) ? trim($input['notes']) : $existing['notes'];
+            $adminNotes = isset($input['admin_notes']) ? trim($input['admin_notes']) : $existing['admin_notes'];
+
+            // Auto set start date and end date if activating subscription without specified dates
+            if ($status === 'active' && empty($startDate)) {
+                $startDate = date('Y-m-d');
+            }
+            if ($status === 'active' && empty($endDate)) {
+                $months = $billingPeriod === 'year' ? 12 : 1;
+                $endDate = date('Y-m-d', strtotime("+$months month"));
+            }
+
+            $updateStmt = $this->db->prepare("
+                UPDATE subscriptions SET
+                    plan_name = ?, price = ?, currency = ?, billing_period = ?,
+                    subscriber_name = ?, shop_name = ?, email = ?, phone = ?,
+                    payment_method = ?, transaction_id = ?, status = ?,
+                    start_date = ?, end_date = ?, notes = ?, admin_notes = ?
+                WHERE id = ?
+            ");
+
+            $updateStmt->execute([
+                $planName, $price, $currency, $billingPeriod,
+                $subscriberName, $shopName, $email, $phone,
+                $paymentMethod, $transactionId, $status,
+                $startDate, $endDate, $notes, $adminNotes,
+                $id
+            ]);
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => 'Subscription updated successfully',
+                'id' => (int)$id
+            ]);
+        } catch (PDOException $e) {
+            error_log('Update subscription error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to update subscription']);
+        }
+    }
+
+    public function deleteSubscription($id) {
+        try {
+            $stmt = $this->db->prepare("DELETE FROM subscriptions WHERE id = ?");
+            $stmt->execute([$id]);
+
+            if ($stmt->rowCount() === 0) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Subscription not found']);
+                return;
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode(['message' => 'Subscription deleted successfully']);
+        } catch (PDOException $e) {
+            error_log('Delete subscription error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to delete subscription']);
+        }
+    }
 }
+

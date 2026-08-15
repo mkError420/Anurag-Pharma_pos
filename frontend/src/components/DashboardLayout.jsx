@@ -11,6 +11,7 @@ export default function DashboardLayout({
   onLogout = () => console.log('Logged out'),
   heldBillsCount = 0,
   newContactMessagesCount = 0,
+  pendingSubscriptionsCount = 0,
   logoColor = '#C4A484'
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -84,6 +85,7 @@ export default function DashboardLayout({
         onNavigate={onNavigate}
         heldBillsCount={heldBillsCount}
         newContactMessagesCount={newContactMessagesCount}
+        pendingSubscriptionsCount={pendingSubscriptionsCount}
       />
 
       {/* 2. Main Page Framework */}
