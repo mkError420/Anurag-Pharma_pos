@@ -1140,20 +1140,20 @@ class OtherController {
 
         $shopId = (int)$id;
         $targetUserId = (int)$userId;
-        $password = $requestData['password'] ?? '';
+        $password = $requestData['new_password'] ?? ($requestData['password'] ?? '');
 
         if (empty($password) || strlen($password) < 6) {
             Auth::jsonError('Password must be at least 6 characters long.', 400);
         }
 
         try {
-            $stmt = DB::query('SELECT id FROM users WHERE id = ? AND shop_id = ?', [$targetUserId, $shopId]);
+            $stmt = DB::query('SELECT id FROM users WHERE id = ?', [$targetUserId]);
             if (!$stmt->fetch()) {
                 Auth::jsonError('User not found in this shop context.', 404);
             }
 
             $passwordHash = password_hash($password, PASSWORD_BCRYPT);
-            DB::query('UPDATE users SET password_hash = ? WHERE id = ? AND shop_id = ?', [$passwordHash, $targetUserId, $shopId]);
+            DB::query('UPDATE users SET password_hash = ? WHERE id = ?', [$passwordHash, $targetUserId]);
 
             header('Content-Type: application/json');
             echo json_encode(['message' => 'Password reset successfully.']);

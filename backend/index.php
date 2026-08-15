@@ -185,6 +185,11 @@ $routes = [
             $controller = new WebsiteContentController();
             $controller->getAllPricingPlans();
         },
+        // Public Payment Numbers Endpoint (no authentication required)
+        '/^public\/payment-numbers$/' => function() {
+            $controller = new WebsiteContentController();
+            $controller->getPublicPaymentNumbers();
+        },
         // Diagnostics
         '/^diagnostic$/' => function() {
             header('Content-Type: text/plain');

@@ -18,16 +18,31 @@ class WebsiteContentController {
             $contactInfo = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$contactInfo) {
-                http_response_code(404);
-                header('Content-Type: application/json');
-                echo json_encode(['error' => 'Contact information not found']);
-                return;
+                // Initialize default row if not exists
+                $this->db->exec("
+                    INSERT INTO contact_information (email_addresses, phone_numbers, payment_numbers, address, business_hours)
+                    VALUES ('[]', '[]', '[]', '', '{\"saturday_thursday\":\"9:00 AM - 6:00 PM\",\"friday\":\"Closed\"}')
+                ");
+                $stmt = $this->db->query("SELECT * FROM contact_information LIMIT 1");
+                $contactInfo = $stmt->fetch(PDO::FETCH_ASSOC);
             }
             
             // Parse JSON fields
-            $contactInfo['email_addresses'] = json_decode($contactInfo['email_addresses'], true) ?? [];
-            $contactInfo['phone_numbers'] = json_decode($contactInfo['phone_numbers'], true) ?? [];
-            $businessHours = json_decode($contactInfo['business_hours'], true) ?? [];
+            $contactInfo['email_addresses'] = is_array($contactInfo['email_addresses'] ?? null) 
+                ? $contactInfo['email_addresses'] 
+                : (json_decode($contactInfo['email_addresses'] ?? '[]', true) ?? []);
+
+            $contactInfo['phone_numbers'] = is_array($contactInfo['phone_numbers'] ?? null) 
+                ? $contactInfo['phone_numbers'] 
+                : (json_decode($contactInfo['phone_numbers'] ?? '[]', true) ?? []);
+
+            $contactInfo['payment_numbers'] = is_array($contactInfo['payment_numbers'] ?? null) 
+                ? $contactInfo['payment_numbers'] 
+                : (json_decode($contactInfo['payment_numbers'] ?? '[]', true) ?? []);
+
+            $businessHours = is_array($contactInfo['business_hours'] ?? null) 
+                ? $contactInfo['business_hours'] 
+                : (json_decode($contactInfo['business_hours'] ?? '{}', true) ?? []);
             
             // Ensure business hours has the new structure
             if (!isset($businessHours['saturday_thursday'])) {
@@ -44,75 +59,104 @@ class WebsiteContentController {
             
             header('Content-Type: application/json');
             echo json_encode($contactInfo);
-        } catch (PDOException $e) {
+        } catch (\Exception $e) {
             error_log('Get contact information error: ' . $e->getMessage());
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['error' => 'Failed to fetch contact information']);
+            echo json_encode(['error' => 'Failed to fetch contact information: ' . $e->getMessage()]);
+        }
+    }
+
+    public function getPublicPaymentNumbers() {
+        try {
+            $stmt = $this->db->query("SELECT payment_numbers FROM contact_information LIMIT 1");
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            $raw = $row['payment_numbers'] ?? '[]';
+            $paymentNumbers = is_array($raw) ? $raw : (json_decode($raw, true) ?? []);
+            header('Content-Type: application/json');
+            echo json_encode(['payment_numbers' => $paymentNumbers]);
+        } catch (\Exception $e) {
+            header('Content-Type: application/json');
+            echo json_encode(['payment_numbers' => []]);
         }
     }
 
     public function updateContactInformation() {
         try {
             // Get the first contact information record
-            $stmt = $this->db->query("SELECT id FROM contact_information LIMIT 1");
+            $stmt = $this->db->query("SELECT * FROM contact_information LIMIT 1");
             $contactInfo = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$contactInfo) {
-                http_response_code(404);
-                header('Content-Type: application/json');
-                echo json_encode(['error' => 'Contact information not found']);
-                return;
+                $this->db->exec("
+                    INSERT INTO contact_information (email_addresses, phone_numbers, payment_numbers, address, business_hours)
+                    VALUES ('[]', '[]', '[]', '', '{\"saturday_thursday\":\"9:00 AM - 6:00 PM\",\"friday\":\"Closed\"}')
+                ");
+                $stmt = $this->db->query("SELECT * FROM contact_information LIMIT 1");
+                $contactInfo = $stmt->fetch(PDO::FETCH_ASSOC);
             }
             
             $id = $contactInfo['id'];
             
             // Get JSON input
-            $input = json_decode(file_get_contents('php://input'), true);
+            $rawInput = file_get_contents('php://input');
+            $input = json_decode($rawInput, true) ?? [];
             
-            $emailAddresses = json_encode($input['email_addresses'] ?? []);
-            $phoneNumbers = json_encode($input['phone_numbers'] ?? []);
-            $address = $input['address'] ?? '';
+            $emailAddresses = isset($input['email_addresses']) 
+                ? (is_array($input['email_addresses']) ? json_encode($input['email_addresses']) : $input['email_addresses'])
+                : ($contactInfo['email_addresses'] ?? '[]');
+
+            $phoneNumbers = isset($input['phone_numbers']) 
+                ? (is_array($input['phone_numbers']) ? json_encode($input['phone_numbers']) : $input['phone_numbers'])
+                : ($contactInfo['phone_numbers'] ?? '[]');
+
+            $paymentNumbers = isset($input['payment_numbers']) 
+                ? (is_array($input['payment_numbers']) ? json_encode($input['payment_numbers']) : $input['payment_numbers'])
+                : ($contactInfo['payment_numbers'] ?? '[]');
+
+            $address = isset($input['address']) 
+                ? (string)$input['address'] 
+                : ($contactInfo['address'] ?? '');
             
-            // Handle business hours with new structure
-            $businessHours = $input['business_hours'] ?? [];
-            
-            // Ensure new structure exists
-            if (!isset($businessHours['saturday_thursday'])) {
-                $businessHours['saturday_thursday'] = $businessHours['monday_friday'] ?? '';
+            // Handle business hours
+            if (isset($input['business_hours'])) {
+                $businessHours = is_array($input['business_hours']) 
+                    ? $input['business_hours'] 
+                    : (json_decode($input['business_hours'] ?? '{}', true) ?? []);
+
+                if (!isset($businessHours['saturday_thursday'])) {
+                    $businessHours['saturday_thursday'] = $businessHours['monday_friday'] ?? '';
+                }
+                if (!isset($businessHours['friday'])) {
+                    $businessHours['friday'] = $businessHours['sunday'] ?? '';
+                }
+                unset($businessHours['monday_friday'], $businessHours['saturday'], $businessHours['sunday']);
+                $businessHoursJson = json_encode($businessHours);
+            } else {
+                $businessHoursJson = is_array($contactInfo['business_hours'] ?? null) 
+                    ? json_encode($contactInfo['business_hours']) 
+                    : ($contactInfo['business_hours'] ?? '{}');
             }
-            if (!isset($businessHours['friday'])) {
-                $businessHours['friday'] = $businessHours['sunday'] ?? '';
-            }
-            
-            // Remove old fields
-            unset($businessHours['monday_friday'], $businessHours['saturday'], $businessHours['sunday']);
-            
-            $businessHoursJson = json_encode($businessHours);
             
             $stmt = $this->db->prepare("
                 UPDATE contact_information 
-                SET email_addresses = ?, phone_numbers = ?, address = ?, business_hours = ?
+                SET email_addresses = ?, phone_numbers = ?, payment_numbers = ?, address = ?, business_hours = ?
                 WHERE id = ?
             ");
-            $stmt->execute([$emailAddresses, $phoneNumbers, $address, $businessHoursJson, $id]);
+            $stmt->execute([$emailAddresses, $phoneNumbers, $paymentNumbers, $address, $businessHoursJson, $id]);
             
             header('Content-Type: application/json');
             echo json_encode([
-                'id' => (int)$id,
-                'email_addresses' => json_decode($emailAddresses, true),
-                'phone_numbers' => json_decode($phoneNumbers, true),
-                'address' => $address,
-                'business_hours' => $businessHours
+                'success' => true,
+                'message' => 'Contact and payment information updated successfully'
             ]);
-        } catch (PDOException $e) {
+        } catch (\Exception $e) {
             error_log('Update contact information error: ' . $e->getMessage());
             http_response_code(500);
             header('Content-Type: application/json');
-            echo json_encode(['error' => 'Failed to update contact information']);
+            echo json_encode(['error' => 'Failed to update contact information: ' . $e->getMessage()]);
         }
     }
-
     // ============================================
     // HERO SLIDES CRUD OPERATIONS
     // ============================================
@@ -995,7 +1039,7 @@ class WebsiteContentController {
                 'message' => 'Subscription request submitted successfully',
                 'subscription_id' => (int)$id
             ]);
-        } catch (PDOException $e) {
+        } catch (\Exception $e) {
             error_log('Create public subscription error: ' . $e->getMessage());
             http_response_code(500);
             header('Content-Type: application/json');
@@ -1083,14 +1127,18 @@ class WebsiteContentController {
 
             $stmt = $this->db->prepare("
                 INSERT INTO subscriptions (
-                    plan_id, plan_name, price, currency, billing_period,
+                    plan_id, shop_id, plan_name, price, currency, billing_period,
                     subscriber_name, shop_name, email, phone,
                     payment_method, transaction_id, status, start_date, end_date, notes, admin_notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
+            // Sync shop and admin user if status is active/approved
+            $shopSync = $this->syncShopAndAdminUserForSubscription($shopName, $email, $phone, $subscriberName, $notes, $status);
+            $shopId = $shopSync['shop_id'];
+
             $stmt->execute([
-                $planId, $planName, $price, $currency, $billingPeriod,
+                $planId, $shopId, $planName, $price, $currency, $billingPeriod,
                 $subscriberName, $shopName, $email, $phone,
                 $paymentMethod, $transactionId, $status, $startDate, $endDate, $notes, $adminNotes
             ]);
@@ -1102,7 +1150,12 @@ class WebsiteContentController {
             echo json_encode([
                 'success' => true,
                 'message' => 'Subscription created successfully',
-                'id' => (int)$id
+                'id' => (int)$id,
+                'shop_id' => $shopId,
+                'created_new_shop' => $shopSync['created_new_shop'],
+                'created_new_admin_user' => $shopSync['created_new_admin_user'],
+                'default_password' => $shopSync['default_password'],
+                'admin_email' => $email
             ]);
         } catch (PDOException $e) {
             error_log('Create subscription error: ' . $e->getMessage());
@@ -1144,17 +1197,21 @@ class WebsiteContentController {
             $adminNotes = isset($input['admin_notes']) ? trim($input['admin_notes']) : $existing['admin_notes'];
 
             // Auto set start date and end date if activating subscription without specified dates
-            if ($status === 'active' && empty($startDate)) {
+            if (($status === 'active' || $status === 'approved') && empty($startDate)) {
                 $startDate = date('Y-m-d');
             }
-            if ($status === 'active' && empty($endDate)) {
+            if (($status === 'active' || $status === 'approved') && empty($endDate)) {
                 $months = $billingPeriod === 'year' ? 12 : 1;
                 $endDate = date('Y-m-d', strtotime("+$months month"));
             }
 
+            // Sync shop and admin user in Manage Tenant Shops
+            $shopSync = $this->syncShopAndAdminUserForSubscription($shopName, $email, $phone, $subscriberName, $notes, $status);
+            $shopId = $shopSync['shop_id'] ?: ($existing['shop_id'] ?? null);
+
             $updateStmt = $this->db->prepare("
                 UPDATE subscriptions SET
-                    plan_name = ?, price = ?, currency = ?, billing_period = ?,
+                    shop_id = ?, plan_name = ?, price = ?, currency = ?, billing_period = ?,
                     subscriber_name = ?, shop_name = ?, email = ?, phone = ?,
                     payment_method = ?, transaction_id = ?, status = ?,
                     start_date = ?, end_date = ?, notes = ?, admin_notes = ?
@@ -1162,7 +1219,7 @@ class WebsiteContentController {
             ");
 
             $updateStmt->execute([
-                $planName, $price, $currency, $billingPeriod,
+                $shopId, $planName, $price, $currency, $billingPeriod,
                 $subscriberName, $shopName, $email, $phone,
                 $paymentMethod, $transactionId, $status,
                 $startDate, $endDate, $notes, $adminNotes,
@@ -1172,8 +1229,13 @@ class WebsiteContentController {
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
-                'message' => 'Subscription updated successfully',
-                'id' => (int)$id
+                'message' => 'Subscription updated successfully and shop synced in Manage Tenant Shops',
+                'id' => (int)$id,
+                'shop_id' => $shopId,
+                'created_new_shop' => $shopSync['created_new_shop'],
+                'created_new_admin_user' => $shopSync['created_new_admin_user'],
+                'default_password' => $shopSync['default_password'],
+                'admin_email' => $email
             ]);
         } catch (PDOException $e) {
             error_log('Update subscription error: ' . $e->getMessage());
@@ -1181,6 +1243,70 @@ class WebsiteContentController {
             header('Content-Type: application/json');
             echo json_encode(['error' => 'Failed to update subscription']);
         }
+    }
+
+    private function syncShopAndAdminUserForSubscription($shopName, $email, $phone, $subscriberName, $notes = '', $status = 'active') {
+        $createdNewShop = false;
+        $createdNewAdminUser = false;
+        $defaultPassword = null;
+        $shopId = null;
+
+        try {
+            if ($status === 'active' || $status === 'approved') {
+                // 1. Check if shop exists by email or name
+                $stmtShop = $this->db->prepare("SELECT id, name, email, status FROM shops WHERE email = ? OR name = ? LIMIT 1");
+                $stmtShop->execute([$email, $shopName]);
+                $existingShop = $stmtShop->fetch(PDO::FETCH_ASSOC);
+
+                if ($existingShop) {
+                    $shopId = (int)$existingShop['id'];
+                    if ($existingShop['status'] !== 'active') {
+                        $this->db->prepare("UPDATE shops SET status = 'active' WHERE id = ?")->execute([$shopId]);
+                    }
+                } else {
+                    // Create shop in `shops` table
+                    $stmtInsertShop = $this->db->prepare("INSERT INTO shops (name, email, phone, address, status) VALUES (?, ?, ?, ?, 'active')");
+                    $stmtInsertShop->execute([$shopName, $email, $phone, $notes ?: 'Subscription Plan Approved']);
+                    $shopId = (int)$this->db->lastInsertId();
+                    $createdNewShop = true;
+                }
+
+                // 2. Check if admin user with subscriber email exists in `users`
+                $stmtUser = $this->db->prepare("SELECT id, role, status FROM users WHERE email = ? LIMIT 1");
+                $stmtUser->execute([$email]);
+                $existingUser = $stmtUser->fetch(PDO::FETCH_ASSOC);
+
+                if ($existingUser) {
+                    $this->db->prepare("UPDATE users SET shop_id = ?, role = 'shop_admin', status = 'active' WHERE email = ?")->execute([$shopId, $email]);
+                } else {
+                    // Create shop admin user
+                    $defaultPassword = '123456';
+                    $passwordHash = password_hash($defaultPassword, PASSWORD_BCRYPT);
+                    $stmtInsertUser = $this->db->prepare("INSERT INTO users (shop_id, name, email, password_hash, role, status) VALUES (?, ?, ?, ?, 'shop_admin', 'active')");
+                    $stmtInsertUser->execute([$shopId, $subscriberName, $email, $passwordHash]);
+                    $createdNewAdminUser = true;
+                }
+            } else if ($status === 'rejected' || $status === 'expired') {
+                // If rejected or expired, set shop status to suspended
+                $stmtShop = $this->db->prepare("SELECT id FROM shops WHERE email = ? OR name = ? LIMIT 1");
+                $stmtShop->execute([$email, $shopName]);
+                $existingShop = $stmtShop->fetch(PDO::FETCH_ASSOC);
+                if ($existingShop) {
+                    $shopId = (int)$existingShop['id'];
+                    $this->db->prepare("UPDATE shops SET status = 'suspended' WHERE id = ?")->execute([$shopId]);
+                    $this->db->prepare("UPDATE users SET status = 'suspended' WHERE shop_id = ? AND role = 'shop_admin'")->execute([$shopId]);
+                }
+            }
+        } catch (PDOException $e) {
+            error_log('syncShopAndAdminUserForSubscription error: ' . $e->getMessage());
+        }
+
+        return [
+            'shop_id' => $shopId,
+            'created_new_shop' => $createdNewShop,
+            'created_new_admin_user' => $createdNewAdminUser,
+            'default_password' => $defaultPassword
+        ];
     }
 
     public function deleteSubscription($id) {

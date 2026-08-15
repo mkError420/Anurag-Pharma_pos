@@ -192,6 +192,7 @@ class DB {
                         `id` INT AUTO_INCREMENT PRIMARY KEY,
                         `email_addresses` JSON NULL,
                         `phone_numbers` JSON NULL,
+                        `payment_numbers` JSON NULL,
                         `address` TEXT NULL,
                         `business_hours` JSON NULL,
                         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -201,14 +202,20 @@ class DB {
                 
                 // Insert default contact information
                 $pdo->exec("
-                    INSERT INTO `contact_information` (`email_addresses`, `phone_numbers`, `address`, `business_hours`)
+                    INSERT INTO `contact_information` (`email_addresses`, `phone_numbers`, `payment_numbers`, `address`, `business_hours`)
                     VALUES (
                         '[\"support@possystem.com\", \"info@possystem.com\"]',
                         '[\"+1 (555) 123-4567\", \"+1 (555) 987-6543\"]',
+                        '[{\"method\":\"bKash\",\"number\":\"01700000000\"},{\"method\":\"Nagad\",\"number\":\"01800000000\"}]',
                         '123 Business Ave, Suite 100\nSan Francisco, CA 94102',
                         '{\"monday_friday\": \"9:00 AM - 6:00 PM\", \"saturday\": \"10:00 AM - 4:00 PM\", \"sunday\": \"Closed\"}'
                     )
                 ");
+            }
+
+            // Add payment_numbers column to contact_information if missing
+            if ($tableExists('contact_information') && !$columnExists('contact_information', 'payment_numbers')) {
+                $pdo->exec("ALTER TABLE `contact_information` ADD COLUMN `payment_numbers` JSON NULL AFTER `phone_numbers`");
             }
 
             // Check if quantity_ordered column exists on purchase_order_items table (handle column name mismatch)
@@ -351,6 +358,7 @@ class DB {
                 CREATE TABLE IF NOT EXISTS `subscriptions` (
                     `id` INT AUTO_INCREMENT PRIMARY KEY,
                     `plan_id` INT NULL,
+                    `shop_id` INT NULL,
                     `plan_name` VARCHAR(100) NOT NULL,
                     `price` DECIMAL(10,2) NOT NULL,
                     `currency` VARCHAR(10) DEFAULT 'BDT',
@@ -368,9 +376,14 @@ class DB {
                     `admin_notes` TEXT NULL,
                     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    CONSTRAINT `fk_subscriptions_plan` FOREIGN KEY (`plan_id`) REFERENCES `pricing_plans` (`id`) ON DELETE SET NULL
+                    CONSTRAINT `fk_subscriptions_plan` FOREIGN KEY (`plan_id`) REFERENCES `pricing_plans` (`id`) ON DELETE SET NULL,
+                    CONSTRAINT `fk_subscriptions_shop` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE SET NULL
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
+
+            if ($tableExists('subscriptions') && !$columnExists('subscriptions', 'shop_id')) {
+                $pdo->exec("ALTER TABLE `subscriptions` ADD COLUMN `shop_id` INT NULL AFTER `plan_id`");
+            }
 
             // Create other_sales table if not exists
             $pdo->exec("
@@ -624,6 +637,32 @@ class DB {
                     ('Enterprise', 'For large organizations', 3000.00, 'BDT', 'month', '[\"Everything in Professional\", \"Custom integrations\", \"Dedicated account manager\", \"24/7 phone support\"]', 0, 1, 3, 'Contact Sales')
                 ");
             }
+
+            // Create subscriptions table if not exists
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `subscriptions` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `plan_id` INT NULL,
+                    `shop_id` INT NULL,
+                    `plan_name` VARCHAR(150) NOT NULL,
+                    `price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                    `currency` VARCHAR(10) NOT NULL DEFAULT 'BDT',
+                    `billing_period` VARCHAR(20) NOT NULL DEFAULT 'month',
+                    `subscriber_name` VARCHAR(255) NOT NULL,
+                    `shop_name` VARCHAR(255) NOT NULL,
+                    `email` VARCHAR(255) NOT NULL,
+                    `phone` VARCHAR(50) NOT NULL,
+                    `payment_method` VARCHAR(50) NOT NULL DEFAULT 'bKash',
+                    `transaction_id` VARCHAR(100) NULL,
+                    `status` VARCHAR(50) NOT NULL DEFAULT 'pending',
+                    `start_date` DATE NULL,
+                    `end_date` DATE NULL,
+                    `notes` TEXT NULL,
+                    `admin_notes` TEXT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
 
         } catch (\PDOException $e) {
             error_log("Migration error: " . $e->getMessage());

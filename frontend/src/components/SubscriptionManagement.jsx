@@ -33,12 +33,79 @@ export default function SubscriptionManagement() {
     admin_notes: ''
   });
 
+  // Payment Numbers modal state
+  const [paymentNumbers, setPaymentNumbers] = useState([]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentModalError, setPaymentModalError] = useState('');
+
   const token = localStorage.getItem('token');
 
   useEffect(() => {
     fetchSubscriptions();
     fetchPlans();
+    fetchPaymentNumbers();
   }, [statusFilter]);
+
+  const fetchPaymentNumbers = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/public/payment-numbers`);
+      if (response.ok) {
+        const data = await response.json();
+        setPaymentNumbers(data.payment_numbers || []);
+      }
+    } catch (err) {
+      console.error('Fetch payment numbers error:', err);
+    }
+  };
+
+  const handleAddPaymentAccount = () => {
+    setPaymentNumbers([
+      ...paymentNumbers,
+      { method: 'bKash', number: '', account_name: 'Personal / Merchant' }
+    ]);
+  };
+
+  const handleRemovePaymentAccount = (index) => {
+    setPaymentNumbers(paymentNumbers.filter((_, i) => i !== index));
+  };
+
+  const handlePaymentAccountChange = (index, field, value) => {
+    const updated = [...paymentNumbers];
+    updated[index] = { ...updated[index], [field]: value };
+    setPaymentNumbers(updated);
+  };
+
+  const handleSavePaymentNumbers = async (e) => {
+    e.preventDefault();
+    setPaymentSaving(true);
+    setPaymentModalError('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/contact-information`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ payment_numbers: paymentNumbers })
+      });
+
+      if (response.ok) {
+        setSuccess('Official payment accounts updated successfully! Home page Plan Subscription Request form is updated.');
+        setTimeout(() => setSuccess(''), 6000);
+        setShowPaymentModal(false);
+        fetchPaymentNumbers();
+      } else {
+        const errData = await response.json();
+        setPaymentModalError(errData.error || 'Failed to update payment numbers');
+      }
+    } catch (err) {
+      setPaymentModalError('Error connecting to server to save payment numbers');
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
 
   const fetchSubscriptions = async () => {
     try {
@@ -168,12 +235,20 @@ export default function SubscriptionManagement() {
         body: JSON.stringify(payload)
       });
 
+      const data = await response.json();
       if (response.ok) {
-        setSuccess(`Subscription status changed to ${newStatus}`);
-        setTimeout(() => setSuccess(''), 3000);
+        let msg = `Subscription status updated to "${newStatus}".`;
+        if (data.created_new_admin_user && data.default_password) {
+          msg += ` Shop "${sub.shop_name}" created in "Manage Tenant Shops"! Admin Login: ${sub.email} | Password: ${data.default_password}`;
+        } else if (data.created_new_shop) {
+          msg += ` Shop "${sub.shop_name}" created & activated in "Manage Tenant Shops".`;
+        } else if (newStatus === 'active') {
+          msg += ` Shop "${sub.shop_name}" activated in "Manage Tenant Shops".`;
+        }
+        setSuccess(msg);
+        setTimeout(() => setSuccess(''), 7000);
         fetchSubscriptions();
       } else {
-        const data = await response.json();
         setError(data.error || 'Failed to update subscription status');
       }
     } catch (err) {
@@ -202,13 +277,19 @@ export default function SubscriptionManagement() {
         body: JSON.stringify(formData)
       });
 
+      const data = await response.json();
       if (response.ok) {
-        setSuccess(isEditing ? 'Subscription updated successfully' : 'Subscription created successfully');
-        setTimeout(() => setSuccess(''), 3000);
+        let msg = isEditing ? 'Subscription updated successfully.' : 'Subscription created successfully.';
+        if (data.created_new_admin_user && data.default_password) {
+          msg += ` Shop "${formData.shop_name}" created in "Manage Tenant Shops"! Admin Email: ${formData.email} | Password: ${data.default_password}`;
+        } else if (data.created_new_shop) {
+          msg += ` Shop "${formData.shop_name}" created in "Manage Tenant Shops".`;
+        }
+        setSuccess(msg);
+        setTimeout(() => setSuccess(''), 7000);
         setShowModal(false);
         fetchSubscriptions();
       } else {
-        const data = await response.json();
         setError(data.error || 'Failed to save subscription');
       }
     } catch (err) {
@@ -281,16 +362,64 @@ export default function SubscriptionManagement() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Subscription Management</h1>
-          <p className="text-slate-500 text-sm">Monitor user plan subscriptions, pending requests, and manage activations</p>
+          <p className="text-slate-500 text-sm">Monitor user plan subscriptions, pending requests, and manage payment receiving accounts</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setShowPaymentModal(true)}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md flex items-center gap-2"
+          >
+            <span>💳</span>
+            <span>Manage Payment Numbers</span>
+            {paymentNumbers && paymentNumbers.length > 0 && (
+              <span className="px-1.5 py-0.5 bg-emerald-800 text-emerald-200 text-xs font-bold rounded-full">
+                {paymentNumbers.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={handleOpenCreateModal}
+            className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl transition-all shadow-md flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Manual Subscription
+          </button>
+        </div>
+      </div>
+
+      {/* Official Payment Accounts Quick Info Card */}
+      <div className="p-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-2xl shadow-sm border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-1">
+              <span>💳</span> Active Public Payment Accounts
+            </span>
+            <span className="text-[11px] text-slate-400">(Shown on Home page "Plan Subscription Request")</span>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {paymentNumbers && paymentNumbers.length > 0 ? (
+              paymentNumbers.map((pn, idx) => (
+                <div key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800/80 border border-slate-700 rounded-lg text-xs">
+                  <span className="font-bold text-amber-300">{pn.method}:</span>
+                  <span className="font-mono text-slate-200">{pn.number || 'No number'}</span>
+                  {pn.account_name && <span className="text-slate-400 text-[11px]">({pn.account_name})</span>}
+                </div>
+              ))
+            ) : (
+              <span className="text-xs text-slate-400 italic">No payment accounts added yet. Users won't see specific payment numbers on the home page.</span>
+            )}
+          </div>
         </div>
         <button
-          onClick={handleOpenCreateModal}
-          className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl transition-all shadow-md flex items-center gap-2 self-start sm:self-auto"
+          onClick={() => setShowPaymentModal(true)}
+          className="px-3.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold rounded-lg transition-colors border border-slate-600 shrink-0 flex items-center gap-1.5"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
           </svg>
-          Add Manual Subscription
+          Configure Numbers
         </button>
       </div>
 
@@ -752,6 +881,157 @@ export default function SubscriptionManagement() {
                   className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold shadow-md transition-colors"
                 >
                   {isEditing ? 'Save Changes' : 'Create Subscription'}
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Official Payment Numbers Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 dark:border-slate-700 my-8">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-900 text-white">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-emerald-400 font-bold text-xs uppercase tracking-widest">Super Admin Settings</span>
+                </div>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <span>💳</span> Official Subscription Payment Accounts
+                </h2>
+                <p className="text-xs text-slate-300 mt-1">
+                  These accounts are dynamically displayed on the Home page "Plan Subscription Request" form for public subscribers.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSavePaymentNumbers} className="p-6 space-y-4">
+              {paymentModalError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl">
+                  {paymentModalError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pb-2">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Payment Channels ({paymentNumbers.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={handleAddPaymentAccount}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 shadow"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Payment Method
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+                {paymentNumbers.length === 0 ? (
+                  <div className="text-center py-8 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-600">
+                    <p className="text-sm text-slate-500">No payment accounts added yet.</p>
+                    <button
+                      type="button"
+                      onClick={handleAddPaymentAccount}
+                      className="mt-2 text-xs font-bold text-emerald-600 hover:underline"
+                    >
+                      + Add your first payment number (e.g. bKash / Nagad)
+                    </button>
+                  </div>
+                ) : (
+                  paymentNumbers.map((pn, index) => (
+                    <div
+                      key={index}
+                      className="p-3 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-600 flex flex-col sm:flex-row items-start sm:items-center gap-2.5"
+                    >
+                      <div className="w-full sm:w-36 shrink-0">
+                        <select
+                          value={pn.method}
+                          onChange={(e) => handlePaymentAccountChange(index, 'method', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                        >
+                          <option value="bKash">bKash</option>
+                          <option value="Nagad">Nagad</option>
+                          <option value="Rocket">Rocket</option>
+                          <option value="Bank Transfer">Bank Transfer</option>
+                          <option value="Card">Card</option>
+                          <option value="Cash">Cash</option>
+                        </select>
+                      </div>
+
+                      <div className="flex-1 w-full">
+                        <input
+                          type="text"
+                          required
+                          value={pn.number || ''}
+                          onChange={(e) => handlePaymentAccountChange(index, 'number', e.target.value)}
+                          placeholder="Phone / Account / IBAN Number"
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-slate-900 font-mono"
+                        />
+                      </div>
+
+                      <div className="w-full sm:w-44 shrink-0">
+                        <input
+                          type="text"
+                          value={pn.account_name || ''}
+                          onChange={(e) => handlePaymentAccountChange(index, 'account_name', e.target.value)}
+                          placeholder="Type (e.g. Merchant / Personal)"
+                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePaymentAccount(index)}
+                        className="p-2 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-lg transition-colors shrink-0"
+                        title="Remove Account"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Form Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="px-5 py-2.5 border border-slate-300 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 text-sm font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={paymentSaving}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold shadow-md transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {paymentSaving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Saving Accounts...
+                    </>
+                  ) : (
+                    'Save Payment Numbers'
+                  )}
                 </button>
               </div>
 

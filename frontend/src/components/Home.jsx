@@ -42,9 +42,20 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [subSubmitting, setSubSubmitting] = useState(false);
   const [subSuccessMsg, setSubSuccessMsg] = useState('');
   const [subErrorMsg, setSubErrorMsg] = useState('');
+  const [paymentNumbers, setPaymentNumbers] = useState([]);
+  const [receiptData, setReceiptData] = useState(null);
+  const [copiedNumber, setCopiedNumber] = useState(null);
+
+  const handleCopyNumber = (num) => {
+    if (!num) return;
+    navigator.clipboard?.writeText(num);
+    setCopiedNumber(num);
+    setTimeout(() => setCopiedNumber(null), 2500);
+  };
 
   const handleOpenSubscriptionModal = (plan) => {
     setSelectedPlanForSub(plan);
+    setReceiptData(null);
     setSubForm({
       subscriber_name: '',
       shop_name: '',
@@ -79,17 +90,93 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
         })
       });
 
-      const data = await response.json();
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (jsonErr) {
+        data = {};
+      }
+
       if (response.ok && data.success) {
-        setSubSuccessMsg(`Thank you, ${subForm.subscriber_name}! Your subscription request for "${selectedPlanForSub?.name}" has been received. Our super admin team will verify and activate your shop subscription shortly.`);
+        setSubSuccessMsg('success');
+        setReceiptData({
+          id: data.subscription_id || data.subscription?.id || data.id || 'N/A',
+          date: new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' }),
+          subscriber_name: subForm.subscriber_name,
+          shop_name: subForm.shop_name,
+          email: subForm.email,
+          phone: subForm.phone,
+          plan_name: selectedPlanForSub?.name,
+          price: selectedPlanForSub?.price,
+          currency: selectedPlanForSub?.currency || 'BDT',
+          billing_period: selectedPlanForSub?.billing_period || 'month',
+          payment_method: subForm.payment_method,
+          transaction_id: subForm.transaction_id,
+          notes: subForm.notes,
+          status: 'Pending Verification'
+        });
       } else {
-        setSubErrorMsg(data.error || 'Failed to submit subscription request.');
+        setSubErrorMsg(data.error || 'Failed to submit subscription request. Please try again.');
       }
     } catch (err) {
-      setSubErrorMsg('Network error. Failed to connect to server.');
+      setSubErrorMsg(err.message || 'Network error. Failed to connect to server.');
     } finally {
       setSubSubmitting(false);
     }
+  };
+
+  const handlePrintReceipt = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const r = receiptData;
+    printWindow.document.write(`
+      <html><head><title>Subscription Receipt</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 40px; color: #1a1a2e; background: #fff; }
+        .receipt { max-width: 520px; margin: 0 auto; border: 2px solid #e2e8f0; border-radius: 16px; overflow: hidden; }
+        .header { background: linear-gradient(135deg, #0f172a, #1e293b); color: white; padding: 28px; text-align: center; }
+        .header h1 { font-size: 20px; margin-bottom: 4px; letter-spacing: 0.5px; }
+        .header p { font-size: 12px; opacity: 0.7; }
+        .badge { display: inline-block; background: #fbbf24; color: #1a1a2e; padding: 3px 14px; border-radius: 50px; font-size: 11px; font-weight: 700; margin-top: 10px; letter-spacing: 0.5px; }
+        .body { padding: 24px 28px; }
+        .row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        .row:last-child { border-bottom: none; }
+        .label { color: #64748b; font-weight: 500; }
+        .value { color: #0f172a; font-weight: 600; text-align: right; max-width: 60%; }
+        .total-row { background: #f8fafc; margin: 12px -28px; padding: 14px 28px; display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; }
+        .footer { text-align: center; padding: 20px 28px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; }
+        @media print { body { padding: 0; } .receipt { border: none; } }
+      </style></head><body>
+      <div class="receipt">
+        <div class="header">
+          <h1>Subscription Receipt</h1>
+          <p>Multi-Tenant POS System</p>
+          <div class="badge">${r.status}</div>
+        </div>
+        <div class="body">
+          <div class="row"><span class="label">Receipt ID</span><span class="value">#SUB-${String(r.id).padStart(5, '0')}</span></div>
+          <div class="row"><span class="label">Date</span><span class="value">${r.date}</span></div>
+          <div class="row"><span class="label">Subscriber</span><span class="value">${r.subscriber_name}</span></div>
+          <div class="row"><span class="label">Shop / Company</span><span class="value">${r.shop_name}</span></div>
+          <div class="row"><span class="label">Email</span><span class="value">${r.email}</span></div>
+          <div class="row"><span class="label">Phone</span><span class="value">${r.phone}</span></div>
+          <div class="row"><span class="label">Plan</span><span class="value">${r.plan_name}</span></div>
+          <div class="row"><span class="label">Billing Period</span><span class="value">${r.billing_period}</span></div>
+          <div class="row"><span class="label">Payment Method</span><span class="value">${r.payment_method}</span></div>
+          ${r.transaction_id ? `<div class="row"><span class="label">Transaction ID</span><span class="value">${r.transaction_id}</span></div>` : ''}
+          ${r.notes ? `<div class="row"><span class="label">Notes</span><span class="value">${r.notes}</span></div>` : ''}
+          <div class="total-row"><span>Total Amount</span><span>${r.currency} ${r.price}</span></div>
+        </div>
+        <div class="footer">
+          Thank you for subscribing! Our team will verify your payment and activate your shop shortly.<br/>
+          &copy; ${new Date().getFullYear()} Multi-Tenant POS System
+        </div>
+      </div>
+      <script>window.onload = function() { window.print(); }</script>
+      </body></html>
+    `);
+    printWindow.document.close();
   };
 
   const applyCredential = (email, pass) => {
@@ -149,6 +236,13 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
         if (pricingResponse.ok) {
           const data = await pricingResponse.json();
           setPricingPlans(data);
+        }
+
+        // Fetch payment numbers
+        const paymentRes = await fetch(`${API_BASE_URL}/public/payment-numbers`);
+        if (paymentRes.ok) {
+          const data = await paymentRes.json();
+          setPaymentNumbers(data.payment_numbers || []);
         }
       } catch (err) {
         console.error('Failed to fetch data:', err);
@@ -1202,7 +1296,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                   <div className="content">
                     <p className="text-gray-600 mb-4">{plan.description}</p>
                     <ul className="space-y-2 mb-6 text-left">
-                      {plan.features.map((feature, index) => (
+                      {(Array.isArray(plan.features) ? plan.features : (typeof plan.features === 'string' ? (() => { try { return JSON.parse(plan.features); } catch(e) { return []; } })() : [])).map((feature, index) => (
                         <li key={index} className="flex items-center text-gray-600 text-sm">
                           <svg 
                             className="w-4 h-4 mr-2 text-gray-900" 
@@ -1229,113 +1323,271 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
           </div>
         </div>
 
-        {/* Public Subscription Request Modal */}
+        {/* Public Subscription Request Modal & Receipt (Compact & Fully Responsive) */}
         {showSubscriptionModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100 my-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg sm:max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-gray-100 transition-all my-auto">
               
-              {/* Modal Header */}
-              <div className="bg-slate-900 text-white p-6 relative">
+              {/* Modal Header (Compact) */}
+              <div className="bg-slate-900 text-white px-5 py-3.5 shrink-0 flex items-center justify-between border-b border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-sky-400">
+                      {receiptData ? 'Official Receipt' : 'Plan Subscription Request'}
+                    </div>
+                    <div className="flex items-baseline gap-2 truncate">
+                      <h2 className="text-base sm:text-lg font-bold text-white truncate">
+                        {selectedPlanForSub?.name || 'Subscription Plan'}
+                      </h2>
+                      <span className="text-emerald-400 font-extrabold text-xs sm:text-sm whitespace-nowrap">
+                        {selectedPlanForSub?.currency || 'BDT'} {selectedPlanForSub?.price}
+                        <span className="text-slate-400 font-normal text-[11px]">/{selectedPlanForSub?.billing_period}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
                 <button
                   onClick={() => setShowSubscriptionModal(false)}
-                  className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors shrink-0"
+                  aria-label="Close"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
-                <div className="text-xs font-semibold text-sky-400 uppercase tracking-widest mb-1">
-                  Plan Subscription Request
-                </div>
-                <h2 className="text-2xl font-bold">{selectedPlanForSub?.name || 'Selected Plan'}</h2>
-                <div className="mt-2 inline-flex items-baseline gap-1 text-white">
-                  <span className="text-3xl font-extrabold">{selectedPlanForSub?.currency || 'BDT'} {selectedPlanForSub?.price}</span>
-                  <span className="text-slate-400 text-sm font-normal">/{selectedPlanForSub?.billing_period}</span>
-                </div>
               </div>
 
-              {/* Form Content / Confirmation */}
-              <div className="p-6">
-                {subSuccessMsg ? (
-                  <div className="text-center py-6 space-y-4">
-                    <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                      </svg>
+              {/* Modal Body (Scrollable & Optimized Height) */}
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-3">
+                {receiptData ? (
+                  /* ── Official Receipt Form (Compact & Clean) ── */
+                  <div className="space-y-3">
+                    <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl space-y-3">
+                      {/* Receipt Header Badge */}
+                      <div className="flex items-center justify-between pb-2.5 border-b border-emerald-200/70">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-sm shrink-0">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-gray-900 text-sm leading-tight">Request Confirmed!</h3>
+                            <p className="text-[11px] text-emerald-700">Receipt: <span className="font-bold text-gray-900 font-mono">#SUB-{String(receiptData.id).padStart(5, '0')}</span></p>
+                          </div>
+                        </div>
+                        <span className="px-2.5 py-0.5 bg-amber-100 border border-amber-300 text-amber-800 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                          {receiptData.status}
+                        </span>
+                      </div>
+
+                      {/* Receipt Grid */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 bg-white/90 rounded-lg border border-emerald-100">
+                          <span className="text-gray-500 block text-[10px] font-medium">Subscriber</span>
+                          <span className="font-bold text-gray-900 truncate block">{receiptData.subscriber_name}</span>
+                        </div>
+                        <div className="p-2 bg-white/90 rounded-lg border border-emerald-100">
+                          <span className="text-gray-500 block text-[10px] font-medium">Shop / Business</span>
+                          <span className="font-bold text-gray-900 truncate block">{receiptData.shop_name}</span>
+                        </div>
+                        <div className="p-2 bg-white/90 rounded-lg border border-emerald-100">
+                          <span className="text-gray-500 block text-[10px] font-medium">Email</span>
+                          <span className="font-semibold text-gray-800 truncate block">{receiptData.email}</span>
+                        </div>
+                        <div className="p-2 bg-white/90 rounded-lg border border-emerald-100">
+                          <span className="text-gray-500 block text-[10px] font-medium">Phone</span>
+                          <span className="font-semibold text-gray-800 truncate block">{receiptData.phone}</span>
+                        </div>
+                        <div className="p-2 bg-white/90 rounded-lg border border-emerald-100">
+                          <span className="text-gray-500 block text-[10px] font-medium">Plan</span>
+                          <span className="font-bold text-gray-900 truncate block">{receiptData.plan_name} ({receiptData.billing_period})</span>
+                        </div>
+                        <div className="p-2 bg-white/90 rounded-lg border border-emerald-100">
+                          <span className="text-gray-500 block text-[10px] font-medium">Payment & Trx ID</span>
+                          <span className="font-bold text-gray-900">{receiptData.payment_method}</span>
+                          {receiptData.transaction_id && (
+                            <span className="block text-slate-600 font-mono text-[10px] truncate">Trx: {receiptData.transaction_id}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Total Amount Banner */}
+                      <div className="p-2.5 bg-slate-900 text-white rounded-lg flex items-center justify-between text-xs">
+                        <span className="text-slate-300 font-medium uppercase text-[10px] tracking-wider">Total Payable Amount</span>
+                        <span className="text-base font-extrabold text-emerald-400">{receiptData.currency} {receiptData.price}</span>
+                      </div>
+
+                      <div className="p-2 bg-white/80 rounded-lg text-[11px] text-gray-600 border border-emerald-100 leading-tight">
+                        <p className="font-semibold text-gray-800">📌 Next Steps:</p>
+                        Our Super Admin team will verify your transaction and activate your shop in <span className="font-bold text-gray-900">Manage Tenant Shops</span>.
+                      </div>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900">Request Submitted!</h3>
-                    <p className="text-gray-600 text-sm leading-relaxed">{subSuccessMsg}</p>
-                    <button
-                      onClick={() => setShowSubscriptionModal(false)}
-                      className="px-6 py-2.5 bg-gray-900 text-white rounded-xl font-semibold text-sm hover:bg-gray-800 transition-colors shadow-md mt-4"
-                    >
-                      Done
-                    </button>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handlePrintReceipt}
+                        className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold text-xs transition-all shadow flex items-center gap-1.5"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Print / Save Receipt
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowSubscriptionModal(false)}
+                        className="px-5 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-semibold text-xs transition-colors shadow"
+                      >
+                        Done
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <form onSubmit={handleSubscribeSubmit} className="space-y-4">
+                  /* ── Plan Subscription Request Form (Compact & Responsive) ── */
+                  <form onSubmit={handleSubscribeSubmit} className="space-y-2.5">
                     {subErrorMsg && (
-                      <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">
-                        {subErrorMsg}
+                      <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-center gap-1.5">
+                        <svg className="w-4 h-4 shrink-0 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                        <span className="truncate">{subErrorMsg}</span>
                       </div>
                     )}
 
-                    <div>
-                      <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Your Full Name *</label>
-                      <input
-                        type="text"
-                        required
-                        value={subForm.subscriber_name}
-                        onChange={(e) => setSubForm({ ...subForm, subscriber_name: e.target.value })}
-                        placeholder="e.g. John Doe"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
-                      />
-                    </div>
+                    {/* Official Payment Accounts (Compact Chips) */}
+                    {paymentNumbers && paymentNumbers.length > 0 && (
+                      <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1">
+                            <span>💳</span> Send Fee To Accounts
+                          </span>
+                          <span className="text-[10px] text-slate-500">Tap to select & copy</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {paymentNumbers.map((pn, idx) => {
+                            const isSelected = subForm.payment_method?.toLowerCase() === pn.method?.toLowerCase();
+                            return (
+                              <div
+                                key={idx}
+                                onClick={() => setSubForm({ ...subForm, payment_method: pn.method })}
+                                className={`p-2 rounded-lg border text-xs cursor-pointer transition-all flex items-center justify-between gap-1.5 ${
+                                  isSelected
+                                    ? 'bg-sky-50 border-sky-300 ring-1 ring-sky-200'
+                                    : 'bg-white border-slate-200 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className="truncate">
+                                  <div className="flex items-center gap-1 font-bold text-slate-900 text-[11px]">
+                                    <span className="px-1 py-0.2 bg-slate-100 text-slate-700 text-[9px] rounded font-semibold">{pn.method}</span>
+                                    <span className="truncate font-mono">{pn.number}</span>
+                                  </div>
+                                  {pn.account_name && (
+                                    <p className="text-[10px] text-slate-500 truncate leading-none mt-0.5">{pn.account_name}</p>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopyNumber(pn.number);
+                                  }}
+                                  className="shrink-0 px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-semibold transition-colors"
+                                  title="Copy Number"
+                                >
+                                  {copiedNumber === pn.number ? '✓ Copied' : 'Copy'}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
-                    <div>
-                      <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Shop / Company Name *</label>
-                      <input
-                        type="text"
-                        required
-                        value={subForm.shop_name}
-                        onChange={(e) => setSubForm({ ...subForm, shop_name: e.target.value })}
-                        placeholder="e.g. Modern Retail Store"
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Plan Selector (if multiple plans) */}
+                    {pricingPlans && pricingPlans.length > 1 && (
                       <div>
-                        <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Email Address *</label>
+                        <label className="block text-gray-700 text-[11px] font-bold uppercase mb-0.5">Select Plan</label>
+                        <select
+                          value={selectedPlanForSub?.id || ''}
+                          onChange={(e) => {
+                            const found = pricingPlans.find(p => p.id === parseInt(e.target.value));
+                            if (found) setSelectedPlanForSub(found);
+                          }}
+                          className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold focus:outline-none focus:border-gray-900 bg-white"
+                        >
+                          {pricingPlans.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} — {p.currency} {p.price}/{p.billing_period}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Row 1: Full Name + Shop Name (2 Cols Responsive) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-gray-700 text-[11px] font-bold uppercase mb-0.5">Your Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={subForm.subscriber_name}
+                          onChange={(e) => setSubForm({ ...subForm, subscriber_name: e.target.value })}
+                          placeholder="e.g. John Doe"
+                          className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:border-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-700 text-[11px] font-bold uppercase mb-0.5">Shop / Business *</label>
+                        <input
+                          type="text"
+                          required
+                          value={subForm.shop_name}
+                          onChange={(e) => setSubForm({ ...subForm, shop_name: e.target.value })}
+                          placeholder="e.g. Modern Retail Store"
+                          className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:border-gray-900"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 2: Email + Phone (2 Cols Responsive) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-gray-700 text-[11px] font-bold uppercase mb-0.5">Email Address *</label>
                         <input
                           type="email"
                           required
                           value={subForm.email}
                           onChange={(e) => setSubForm({ ...subForm, email: e.target.value })}
                           placeholder="your@email.com"
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
+                          className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:border-gray-900"
                         />
                       </div>
                       <div>
-                        <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Phone Number *</label>
+                        <label className="block text-gray-700 text-[11px] font-bold uppercase mb-0.5">Phone Number *</label>
                         <input
                           type="tel"
                           required
                           value={subForm.phone}
                           onChange={(e) => setSubForm({ ...subForm, phone: e.target.value })}
                           placeholder="+8801700000000"
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
+                          className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:border-gray-900"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Row 3: Payment Method + Transaction ID (2 Cols Responsive) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <div>
-                        <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Payment Method</label>
+                        <label className="block text-gray-700 text-[11px] font-bold uppercase mb-0.5">Payment Method *</label>
                         <select
                           value={subForm.payment_method}
                           onChange={(e) => setSubForm({ ...subForm, payment_method: e.target.value })}
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
+                          className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:border-gray-900 bg-white font-medium"
                         >
                           <option value="bKash">bKash</option>
                           <option value="Nagad">Nagad</option>
@@ -1345,45 +1597,48 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Transaction ID (Trx ID)</label>
+                        <label className="block text-gray-700 text-[11px] font-bold uppercase mb-0.5">Transaction ID (Trx ID) *</label>
                         <input
                           type="text"
+                          required
                           value={subForm.transaction_id}
                           onChange={(e) => setSubForm({ ...subForm, transaction_id: e.target.value })}
-                          placeholder="e.g. TRX892348"
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm"
+                          placeholder="e.g. TRX982348"
+                          className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-mono focus:outline-none focus:border-gray-900"
                         />
                       </div>
                     </div>
 
+                    {/* Row 4: Notes (Compact Single-line) */}
                     <div>
-                      <label className="block text-gray-700 text-xs font-bold uppercase mb-1">Special Requirements / Notes</label>
-                      <textarea
-                        rows="2"
+                      <label className="block text-gray-700 text-[11px] font-bold uppercase mb-0.5">Special Notes / Requirements</label>
+                      <input
+                        type="text"
                         value={subForm.notes}
                         onChange={(e) => setSubForm({ ...subForm, notes: e.target.value })}
-                        placeholder="Any additional notes or custom requirements for your shop..."
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-gray-900 text-sm resize-none"
+                        placeholder="Any additional custom setup notes (optional)..."
+                        className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:border-gray-900"
                       />
                     </div>
 
-                    <div className="pt-2 flex items-center justify-end gap-3 border-t border-gray-100">
+                    {/* Form Footer Buttons */}
+                    <div className="pt-2 flex items-center justify-end gap-2 border-t border-gray-100">
                       <button
                         type="button"
                         onClick={() => setShowSubscriptionModal(false)}
-                        className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 text-sm font-semibold transition-colors"
+                        className="px-3.5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-semibold transition-colors"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
                         disabled={subSubmitting}
-                        className="px-6 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-semibold text-sm transition-all shadow-lg flex items-center gap-2 disabled:opacity-50"
+                        className="px-5 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-semibold text-xs transition-all shadow flex items-center gap-1.5 disabled:opacity-50"
                       >
                         {subSubmitting ? (
                           <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            Submitting...
+                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white"></div>
+                            Processing...
                           </>
                         ) : (
                           'Confirm Subscription'
@@ -1393,7 +1648,6 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                   </form>
                 )}
               </div>
-
             </div>
           </div>
         )}
