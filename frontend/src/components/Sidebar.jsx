@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 // Inline SVG Icon Helper Components
 const DashboardIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" /></svg>;
@@ -31,6 +32,7 @@ export default function Sidebar({
   newContactMessagesCount = 0,
   pendingSubscriptionsCount = 0
 }) {
+  const { t, language, formatNumber } = useLanguage();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Update time every second
@@ -46,137 +48,143 @@ export default function Sidebar({
       case 'super_admin':
         return [
           {
-            section: 'System Administration',
+            section: t('section_system_admin', 'System Administration'),
             items: [
-              { label: 'Global Analytics', path: '/dashboard', icon: <DashboardIcon /> },
-              { label: 'Manage Shops', path: '/shops', icon: <ShopsIcon /> },
-              { label: 'System Users', path: '/users', icon: <UsersIcon /> },
-              { label: 'Inventory (Products)', path: '/products', icon: <InventoryIcon /> },
+              { label: t('global_analytics', 'Global Analytics'), path: '/dashboard', icon: <DashboardIcon /> },
+              { label: t('manage_shops', 'Manage Shops'), path: '/shops', icon: <ShopsIcon /> },
+              { label: t('system_users', 'System Users'), path: '/users', icon: <UsersIcon /> },
+              { label: t('inventory_products', 'Inventory (Products)'), path: '/products', icon: <InventoryIcon /> },
             ]
           },
           {
-            section: 'Website Management',
+            section: t('section_website_mgmt', 'Website Management'),
             items: [
-              { label: 'Subscriptions', path: '/subscriptions', icon: <PricingIcon />, badge: pendingSubscriptionsCount },
-              { label: 'Hero Slides', path: '/hero-slides', icon: <HeroIcon /> },
-              { label: 'Team Members', path: '/team-members', icon: <TeamIcon /> },
-              { label: 'Contact Info', path: '/contact-information', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> },
-              { label: 'Contact Messages', path: '/contact-messages', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>, badge: newContactMessagesCount },
-              { label: 'Pricing Plans', path: '/pricing-plans', icon: <PricingIcon /> },
+              { label: t('subscriptions', 'Subscriptions'), path: '/subscriptions', icon: <PricingIcon />, badge: pendingSubscriptionsCount },
+              { label: t('hero_slides', 'Hero Slides'), path: '/hero-slides', icon: <HeroIcon /> },
+              { label: t('team_members', 'Team Members'), path: '/team-members', icon: <TeamIcon /> },
+              { label: t('contact_info', 'Contact Info'), path: '/contact-information', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> },
+              { label: t('contact_messages', 'Contact Messages'), path: '/contact-messages', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>, badge: newContactMessagesCount },
+              { label: t('pricing_plans', 'Pricing Plans'), path: '/pricing-plans', icon: <PricingIcon /> },
             ]
           },
           {
-            section: 'Financials & Reports',
+            section: t('section_financials_reports', 'Financials & Reports'),
             items: [
-              { label: 'Wastage', path: '/wastage', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> },
-              { label: 'Other Cost', path: '/other-cost', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-              { label: 'Total Revenue', path: '/total-revenue', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg> },
+              { label: t('wastage', 'Wastage'), path: '/wastage', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> },
+              { label: t('other_cost', 'Other Cost'), path: '/other-cost', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+              { label: t('total_revenue', 'Total Revenue'), path: '/total-revenue', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg> },
             ]
           },
           {
-            section: 'Attendance',
+            section: t('section_attendance', 'Attendance'),
             items: [
-              { label: 'Attendance Records', path: '/attendance', icon: <AttendanceIcon /> },
+              { label: t('attendance_records', 'Attendance Records'), path: '/attendance', icon: <AttendanceIcon /> },
             ]
           },
           {
-            section: 'Settings',
+            section: t('section_settings', 'Settings'),
             items: [
-              { label: 'Settings', path: '/settings', icon: <SettingsIcon /> },
+              { label: t('settings', 'Settings'), path: '/settings', icon: <SettingsIcon /> },
             ]
           }
         ];
       case 'shop_admin':
         return [
           {
-            section: 'Dashboard',
+            section: t('section_dashboard', 'Dashboard'),
             items: [
-              { label: 'Shop Dashboard', path: '/dashboard', icon: <DashboardIcon /> }
+              { label: t('shop_dashboard', 'Shop Dashboard'), path: '/dashboard', icon: <DashboardIcon /> }
             ]
           },
           {
-            section: 'Sales & Billing',
+            section: t('section_sales_billing', 'Sales & Billing'),
             items: [
-              { label: 'POS Checkout', path: '/checkout', icon: <POSIcon /> },
-              { label: 'Due Bills', path: '/held-bills', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, badge: heldBillsCount },
-              { label: 'Sales Orders', path: '/manual-orders', icon: <ManualOrdersIcon /> },
-              { label: 'Sales History', path: '/sales', icon: <ReportsIcon /> },
-              { label: 'All Transactions', path: '/all-transactions', icon: <TransactionIcon /> },
-              { label: 'Product Returns', path: '/returns', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 15v-3a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m-9 5h1a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg> }
+              { label: t('pos_checkout', 'POS Checkout'), path: '/checkout', icon: <POSIcon /> },
+              { label: t('held_bills', 'Due Bills'), path: '/held-bills', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, badge: heldBillsCount },
+              { label: t('manual_orders', 'Sales Orders'), path: '/manual-orders', icon: <ManualOrdersIcon /> },
+              { label: t('sales_history', 'Sales History'), path: '/sales', icon: <ReportsIcon /> },
+              { label: t('all_transactions', 'All Transactions'), path: '/all-transactions', icon: <TransactionIcon /> },
+              { label: t('product_returns', 'Product Returns'), path: '/returns', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 15v-3a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m-9 5h1a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg> }
             ]
           },
           {
-            section: 'Inventory & Wastage',
+            section: t('section_inventory_wastage', 'Inventory & Wastage'),
             items: [
-              { label: 'Inventory (Products)', path: '/products', icon: <InventoryIcon /> },
-              { label: 'Wastage', path: '/wastage', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> }
+              { label: t('inventory_products', 'Inventory (Products)'), path: '/products', icon: <InventoryIcon /> },
+              { label: t('wastage', 'Wastage'), path: '/wastage', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> }
             ]
           },
           {
-            section: 'Directory',
+            section: t('section_directory', 'Directory'),
             items: [
-              { label: 'Product Purches', path: '/suppliers', icon: <SuppliersIcon /> },
-              { label: 'Customers', path: '/customers', icon: <UsersIcon /> }
+              { label: t('suppliers', 'Product Purchases'), path: '/suppliers', icon: <SuppliersIcon /> },
+              { label: t('customers', 'Customers'), path: '/customers', icon: <UsersIcon /> }
             ]
           },
           {
-            section: 'Financials',
+            section: t('section_financials', 'Financials'),
             items: [
-              { label: 'Other Cost', path: '/other-cost', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-              { label: 'Inflow & Transactions', path: '/other-sales', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-              { label: 'Investment', path: '/investment', icon: <InvestmentIcon /> },
-              { label: 'Total Revenue', path: '/total-revenue', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              { label: t('other_cost', 'Other Cost'), path: '/other-cost', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+              { label: t('inflow_transactions', 'Inflow & Transactions'), path: '/other-sales', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+              { label: t('investment', 'Investment'), path: '/investment', icon: <InvestmentIcon /> },
+              { label: t('total_revenue', 'Total Revenue'), path: '/total-revenue', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg> },
               
             ]
           },
           {
-            section: 'Management',
+            section: t('section_management', 'Management'),
             items: [
-              { label: 'Manage Staff', path: '/staff', icon: <UsersIcon /> },
-              { label: 'Attendance', path: '/attendance', icon: <AttendanceIcon /> },
-              { label: 'Settings', path: '/settings', icon: <SettingsIcon /> }
+              { label: t('manage_staff', 'Manage Staff'), path: '/staff', icon: <UsersIcon /> },
+              { label: t('attendance', 'Attendance'), path: '/attendance', icon: <AttendanceIcon /> },
+              { label: t('settings', 'Settings'), path: '/settings', icon: <SettingsIcon /> }
             ]
           }
         ];
       case 'shop_staff':
         return [
           {
-            section: 'Sales & Billing',
+            section: t('section_sales_billing', 'Sales & Billing'),
             items: [
-              { label: 'POS Checkout', path: '/checkout', icon: <POSIcon /> },
-              { label: 'Due Bills', path: '/held-bills', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, badge: heldBillsCount },
-              { label: 'Sales Orders', path: '/manual-orders', icon: <ManualOrdersIcon /> },
-              { label: 'Sales History', path: '/sales', icon: <ReportsIcon /> },
-              { label: 'All Transactions', path: '/all-transactions', icon: <TransactionIcon /> },
-              { label: 'Product Returns', path: '/returns', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 15v-3a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m-9 5h1a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg> }
+              { label: t('pos_checkout', 'POS Checkout'), path: '/checkout', icon: <POSIcon /> },
+              { label: t('held_bills', 'Due Bills'), path: '/held-bills', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, badge: heldBillsCount },
+              { label: t('manual_orders', 'Sales Orders'), path: '/manual-orders', icon: <ManualOrdersIcon /> },
+              { label: t('sales_history', 'Sales History'), path: '/sales', icon: <ReportsIcon /> },
+              { label: t('all_transactions', 'All Transactions'), path: '/all-transactions', icon: <TransactionIcon /> },
+              { label: t('product_returns', 'Product Returns'), path: '/returns', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 15v-3a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m-9 5h1a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" /></svg> }
             ]
           },
           {
-            section: 'Inventory & Wastage',
+            section: t('section_inventory_wastage', 'Inventory & Wastage'),
             items: [
-              { label: 'Inventory Catalog', path: '/products', icon: <InventoryIcon /> },
-              { label: 'Wastage Logs', path: '/wastage', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> }
+              { label: t('inventory_catalog', 'Inventory Catalog'), path: '/products', icon: <InventoryIcon /> },
+              { label: t('wastage_logs', 'Wastage Logs'), path: '/wastage', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> }
             ]
           },
           {
-            section: 'Directory',
+            section: t('section_directory', 'Directory'),
             items: [
-              { label: 'Product Purchases', path: '/suppliers', icon: <SuppliersIcon /> },
-              { label: 'Customers', path: '/customers', icon: <UsersIcon /> }
+              { label: t('suppliers', 'Product Purchases'), path: '/suppliers', icon: <SuppliersIcon /> },
+              { label: t('customers', 'Customers'), path: '/customers', icon: <UsersIcon /> }
             ]
           },
           {
-            section: 'Financials',
+            section: t('section_financials', 'Financials'),
             items: [
-              { label: 'Other Costs', path: '/other-cost', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-              { label: 'Total Revenue', path: '/total-revenue', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg> }
+              { label: t('other_cost', 'Other Cost'), path: '/other-cost', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+              { label: t('total_revenue', 'Total Revenue'), path: '/total-revenue', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg> }
             ]
           },
           {
-            section: 'Management',
+            section: t('section_attendance', 'Attendance'),
             items: [
-              { label: 'Attendance', path: '/attendance', icon: <AttendanceIcon /> }
+              { label: t('attendance', 'Attendance'), path: '/attendance', icon: <AttendanceIcon /> }
+            ]
+          },
+          {
+            section: t('section_settings', 'Settings'),
+            items: [
+              { label: t('settings', 'Settings'), path: '/settings', icon: <SettingsIcon /> }
             ]
           }
         ];
@@ -249,15 +257,23 @@ export default function Sidebar({
           <div className="lg:hidden px-4 pb-3 flex items-center justify-between">
             <div className="flex flex-col">
               <div className="text-lg font-bold text-white font-mono">
-                {currentTime.toLocaleTimeString('en-US', { 
-                  hour12: true, 
-                  hour: '2-digit', 
-                  minute: '2-digit', 
-                  second: '2-digit' 
-                })}
+                {language === 'bn'
+                  ? formatNumber(currentTime.toLocaleTimeString('en-US', { 
+                      hour12: true, 
+                      hour: '2-digit', 
+                      minute: '2-digit', 
+                      second: '2-digit' 
+                    }))
+                  : currentTime.toLocaleTimeString('en-US', { 
+                      hour12: true, 
+                      hour: '2-digit', 
+                      minute: '2-digit', 
+                      second: '2-digit' 
+                    })
+                }
               </div>
               <div className="text-xs text-slate-400">
-                {currentTime.toLocaleDateString('en-US', { 
+                {currentTime.toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', { 
                   weekday: 'short', 
                   year: 'numeric', 
                   month: 'short', 
@@ -317,7 +333,7 @@ export default function Sidebar({
                       <span className={`ml-auto text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shrink-0 ${
                         item.path === '/contact-messages' ? 'bg-blue-500' : 'bg-amber-500'
                       }`}>
-                        {item.badge}
+                        {formatNumber(item.badge)}
                       </span>
                     )}
                   </button>

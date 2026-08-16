@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './Sidebar';
+import LanguageToggle from './LanguageToggle';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function DashboardLayout({
   children,
@@ -14,6 +16,7 @@ export default function DashboardLayout({
   pendingSubscriptionsCount = 0,
   logoColor = '#C4A484'
 }) {
+  const { language, t, formatNumber } = useLanguage();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -69,6 +72,19 @@ export default function DashboardLayout({
     }
   };
 
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case 'super_admin':
+        return t('role_super_admin', 'Super Admin');
+      case 'shop_admin':
+        return t('role_shop_admin', 'Shop Admin');
+      case 'shop_staff':
+        return t('role_shop_staff', 'Shop Staff');
+      default:
+        return role ? role.replace('_', ' ') : '';
+    }
+  };
+
   return (
     <div className="flex h-screen overflow-hidden font-sans text-slate-900 dark:text-slate-100" style={{ backgroundColor: currentTheme.bg }}>
       
@@ -99,7 +115,7 @@ export default function DashboardLayout({
             <button
               onClick={() => setSidebarOpen(true)}
               className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none lg:hidden"
-              title="Open Menu"
+              title={t('open_menu', 'Open Menu')}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -108,7 +124,7 @@ export default function DashboardLayout({
             <button
               onClick={() => onNavigate('/dashboard')}
               className="hidden sm:block hover:opacity-80 transition-opacity"
-              title="Go to Dashboard"
+              title={t('dashboard', 'Go to Dashboard')}
             >
               <h1 
                 className="text-sm font-semibold uppercase tracking-wider"
@@ -120,20 +136,31 @@ export default function DashboardLayout({
           </div>
 
           {/* Right Header: Actions, Alerts, and Profile */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3 sm:space-x-4">
             
+            {/* Language Change Switcher */}
+            <LanguageToggle />
+
             {/* Date and Time Display */}
             <div className="hidden md:flex flex-col items-end">
               <div className="text-lg font-bold text-slate-800 dark:text-slate-200 font-mono">
-                {currentTime.toLocaleTimeString('en-US', { 
-                  hour12: true, 
-                  hour: '2-digit', 
-                  minute: '2-digit', 
-                  second: '2-digit' 
-                })}
+                {language === 'bn' 
+                  ? formatNumber(currentTime.toLocaleTimeString('en-US', { 
+                      hour12: true, 
+                      hour: '2-digit', 
+                      minute: '2-digit', 
+                      second: '2-digit' 
+                    }))
+                  : currentTime.toLocaleTimeString('en-US', { 
+                      hour12: true, 
+                      hour: '2-digit', 
+                      minute: '2-digit', 
+                      second: '2-digit' 
+                    })
+                }
               </div>
               <div className="text-xs text-slate-500 dark:text-slate-400">
-                {currentTime.toLocaleDateString('en-US', { 
+                {currentTime.toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', { 
                   weekday: 'short', 
                   year: 'numeric', 
                   month: 'short', 
@@ -143,7 +170,7 @@ export default function DashboardLayout({
             </div>
             
             {/* Theme Color Buttons */}
-            <div className="flex items-center space-x-2">
+            <div className="hidden sm:flex items-center space-x-2">
               {themeColors.map((theme) => (
                 <button
                   key={theme.name}
@@ -154,10 +181,11 @@ export default function DashboardLayout({
                       : 'border-slate-300 dark:border-slate-600'
                   }`}
                   style={{ backgroundColor: theme.bg }}
-                  title={`Switch to ${theme.name} theme`}
+                  title={`${t('switch_theme', 'Switch to')} ${theme.name}`}
                 />
               ))}
             </div>
+
             
             {user.role !== 'super_admin' && (() => {
               // Group low stock items by name
@@ -221,7 +249,7 @@ export default function DashboardLayout({
                     className={`relative p-2 text-slate-500 dark:text-slate-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none ${
                       totalAlerts > 0 ? 'text-amber-500 hover:text-amber-600' : ''
                     }`}
-                    title="Stock & Expiry Notifications"
+                    title={t('inventory_alerts', 'Stock & Expiry Notifications')}
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -230,7 +258,7 @@ export default function DashboardLayout({
                       <span className="absolute top-1.5 right-1.5 flex h-3.5 w-3.5">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500 text-[10px] font-bold text-white items-center justify-center">
-                          {totalAlerts}
+                          {formatNumber(totalAlerts)}
                         </span>
                       </span>
                     )}
@@ -240,15 +268,15 @@ export default function DashboardLayout({
                   {showNotifications && (
                     <div ref={notificationsRef} className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
                       <div className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                        <span>Inventory Alerts</span>
+                        <span>{t('inventory_alerts', 'Inventory Alerts')}</span>
                         <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full">
-                          {totalAlerts} Warnings
+                          {formatNumber(totalAlerts)} {t('warnings', 'Warnings')}
                         </span>
                       </div>
                       <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
                         {totalAlerts === 0 ? (
                           <div className="p-4 text-center text-slate-400 dark:text-slate-500 text-sm">
-                            All products are stocked & fresh!
+                            {t('no_alerts', 'All products are stocked & fresh!')}
                           </div>
                         ) : (
                           <>
@@ -260,11 +288,11 @@ export default function DashboardLayout({
                                     {item.name} <span className="text-xs font-mono text-slate-400 font-normal">({item.sku})</span>
                                   </h4>
                                   <span className="text-[10px] text-rose-500 font-bold bg-rose-50 px-1.5 py-0.5 rounded shrink-0 uppercase border border-rose-100">
-                                    Low Stock
+                                    {t('warning', 'Low Stock')}
                                   </span>
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                  Qty: {item.total_stock_quantity} (Below threshold {item.low_stock_threshold}).
+                                  {t('quantity', 'Qty')}: {formatNumber(item.total_stock_quantity)}
                                 </p>
                               </div>
                             ))}
@@ -312,7 +340,7 @@ export default function DashboardLayout({
                           }}
                           className="w-full text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 py-1"
                         >
-                          View Low Stock & Expiring Inventory
+                          {t('view_inventory', 'View Low Stock & Expiring Inventory')}
                         </button>
                       </div>
                     </div>
@@ -332,7 +360,7 @@ export default function DashboardLayout({
                   className={`relative p-2 text-slate-500 dark:text-slate-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none ${
                     newContactMessagesCount > 0 ? 'text-blue-500 hover:text-blue-600' : ''
                   }`}
-                  title="Contact Messages"
+                  title={t('contact_messages_alert', 'Contact Messages')}
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -341,7 +369,7 @@ export default function DashboardLayout({
                     <span className="absolute top-1.5 right-1.5 flex h-3.5 w-3.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-blue-500 text-[10px] font-bold text-white items-center justify-center">
-                        {newContactMessagesCount}
+                        {formatNumber(newContactMessagesCount)}
                       </span>
                     </span>
                   )}
@@ -351,19 +379,19 @@ export default function DashboardLayout({
                 {showNotifications && (
                   <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
                     <div className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                      <span>Contact Messages</span>
+                      <span>{t('contact_messages_alert', 'Contact Messages')}</span>
                       <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full">
-                        {newContactMessagesCount} New
+                        {formatNumber(newContactMessagesCount)} {t('new_messages', 'New')}
                       </span>
                     </div>
                     <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
                       {newContactMessagesCount === 0 ? (
                         <div className="p-4 text-center text-slate-400 dark:text-slate-500 text-sm">
-                          No new messages
+                          {t('no_new_messages', 'No new messages')}
                         </div>
                       ) : (
                         <div className="p-4 text-center text-slate-600 dark:text-slate-300 text-sm">
-                          {newContactMessagesCount} new message{newContactMessagesCount !== 1 ? 's' : ''} waiting for your attention
+                          {formatNumber(newContactMessagesCount)} {t('contact_messages_alert', 'new message(s) waiting')}
                         </div>
                       )}
                     </div>
@@ -375,7 +403,7 @@ export default function DashboardLayout({
                         }}
                         className="w-full text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 py-1"
                       >
-                        View All Messages
+                        {t('view_all_messages', 'View All Messages')}
                       </button>
                     </div>
                   </div>
@@ -398,7 +426,7 @@ export default function DashboardLayout({
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{user.name}</p>
                   <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${getRoleBadge(user.role)}`}>
-                    {user.role.replace('_', ' ')}
+                    {getRoleLabel(user.role)}
                   </span>
                 </div>
               </button>
@@ -416,13 +444,13 @@ export default function DashboardLayout({
                     }}
                     className="flex w-full items-center px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 text-left"
                   >
-                    Shop Settings
+                    {t('shop_settings', 'Shop Settings')}
                   </button>
                   <button
                     onClick={onLogout}
                     className="flex w-full items-center px-4 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 border-t border-slate-100 dark:border-slate-700 text-left font-medium"
                   >
-                    Sign Out
+                    {t('sign_out', 'Sign Out')}
                   </button>
                 </div>
               )}

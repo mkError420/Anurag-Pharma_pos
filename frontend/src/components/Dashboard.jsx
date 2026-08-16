@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export default function Dashboard({ onNavigate = () => { } }) {
+  const { t, language, formatNumber } = useLanguage();
   const userObj = JSON.parse(localStorage.getItem('user') || '{}');
   const isSuperAdmin = userObj.role === 'super_admin';
 
@@ -626,13 +628,13 @@ export default function Dashboard({ onNavigate = () => { } }) {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-xl font-bold text-white">Shop-Wise Database Backup</h3>
+                    <h3 className="text-xl font-bold text-white">{t('database_backup', 'Shop-Wise Database Backup')}</h3>
                     <span className="text-[10px] font-extrabold uppercase tracking-wider bg-indigo-500/30 text-indigo-300 border border-indigo-400/30 px-2 py-0.5 rounded-full">
-                      Super Admin Tool
+                      {t('super_admin_tool', 'Super Admin Tool')}
                     </span>
                   </div>
                   <p className="text-xs text-indigo-200/80 mt-0.5">
-                    Download complete, standalone MySQL SQL dump files partitioned by tenant shop or export the entire multi-tenant database.
+                    {t('db_backup_subtitle', 'Download complete, standalone MySQL SQL dump files partitioned by tenant shop or export the entire multi-tenant database.')}
                   </p>
                 </div>
               </div>
@@ -650,7 +652,7 @@ export default function Dashboard({ onNavigate = () => { } }) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                 )}
-                <span>Export Full System DB (.sql)</span>
+                <span>{t('export_full_db', 'Export Full System DB (.sql)')}</span>
               </button>
             </div>
 
@@ -659,7 +661,7 @@ export default function Dashboard({ onNavigate = () => { } }) {
               {/* Left Column: Selector (5 cols) */}
               <div className="lg:col-span-5 space-y-4 bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-md">
                 <label className="block text-xs font-bold uppercase tracking-wider text-indigo-200">
-                  Select Target Tenant Shop
+                  {t('select_shop', 'Select Target Tenant Shop')}
                 </label>
 
                 <div className="relative">
@@ -692,14 +694,14 @@ export default function Dashboard({ onNavigate = () => { } }) {
                     {downloadingShopId === backupShopId ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Generating SQL Dump...</span>
+                        <span>{t('generating_sql', 'Generating SQL Dump...')}</span>
                       </>
                     ) : (
                       <>
                         <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
-                        <span>Download Shop Database (.sql)</span>
+                        <span>{t('download_shop_db', 'Download Shop Database (.sql)')}</span>
                       </>
                     )}
                   </button>
@@ -714,7 +716,7 @@ export default function Dashboard({ onNavigate = () => { } }) {
               <div className="lg:col-span-7 bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-md space-y-4">
                 <div className="flex items-center justify-between border-b border-white/10 pb-3">
                   <div>
-                    <h4 className="text-sm font-bold text-white">Database Backup Preview</h4>
+                    <h4 className="text-sm font-bold text-white">{t('preview_scope', 'Database Backup Preview')}</h4>
                     <p className="text-[11px] text-indigo-200/70">
                       {backupShopId === 'all' ? 'System-wide Multi-Tenant Scope' : (selectedShopObj ? `Scope: ${selectedShopObj.name}` : 'Select a shop to inspect')}
                     </p>
@@ -729,61 +731,58 @@ export default function Dashboard({ onNavigate = () => { } }) {
                       <svg className={`w-3.5 h-3.5 ${backupStatsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                      Refresh
+                      <span>{t('refresh', 'Refresh')}</span>
                     </button>
                   )}
                 </div>
 
                 {backupStatsLoading ? (
-                  <div className="py-8 flex flex-col items-center justify-center gap-2 text-indigo-300 text-xs">
-                    <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                    <span>Calculating database records...</span>
+                  <div className="py-8 flex flex-col items-center justify-center gap-2 text-indigo-300">
+                    <div className="w-8 h-8 border-3 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-xs font-semibold">{t('loading', 'Loading live database statistics...')}</span>
                   </div>
                 ) : backupStats ? (
                   <div className="space-y-4">
-                    {/* Key Stats Bar */}
+                    {/* Top 4 mini stat badges */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                      <div className="bg-white/5 rounded-xl p-2.5 border border-white/5">
-                        <div className="text-[10px] uppercase font-bold text-indigo-300">Total Records</div>
-                        <div className="text-lg font-extrabold text-white mt-0.5">{backupStats.total_records || 0}</div>
+                      <div className="bg-indigo-950/60 border border-indigo-800/50 rounded-xl p-3 text-center">
+                        <span className="text-[10px] uppercase font-bold text-indigo-300/80 block">{t('total_records', 'Total Records')}</span>
+                        <span className="text-lg font-extrabold text-white mt-0.5 block">{formatNumber(backupStats.total_records || 0)}</span>
                       </div>
-                      <div className="bg-white/5 rounded-xl p-2.5 border border-white/5">
-                        <div className="text-[10px] uppercase font-bold text-indigo-300">Products</div>
-                        <div className="text-lg font-extrabold text-white mt-0.5">{backupStats.breakdown?.products?.count || 0}</div>
+                      <div className="bg-indigo-950/60 border border-indigo-800/50 rounded-xl p-3 text-center">
+                        <span className="text-[10px] uppercase font-bold text-indigo-300/80 block">{t('products', 'Products')}</span>
+                        <span className="text-lg font-extrabold text-white mt-0.5 block">{formatNumber(backupStats.products_count || 0)}</span>
                       </div>
-                      <div className="bg-white/5 rounded-xl p-2.5 border border-white/5">
-                        <div className="text-[10px] uppercase font-bold text-indigo-300">Sales Done</div>
-                        <div className="text-lg font-extrabold text-white mt-0.5">{backupStats.breakdown?.sales?.count || 0}</div>
+                      <div className="bg-indigo-950/60 border border-indigo-800/50 rounded-xl p-3 text-center">
+                        <span className="text-[10px] uppercase font-bold text-indigo-300/80 block">{t('sales_done', 'Sales Done')}</span>
+                        <span className="text-lg font-extrabold text-white mt-0.5 block">{formatNumber(backupStats.sales_count || 0)}</span>
                       </div>
-                      <div className="bg-white/5 rounded-xl p-2.5 border border-white/5">
-                        <div className="text-[10px] uppercase font-bold text-indigo-300">Est. Size</div>
-                        <div className="text-lg font-extrabold text-emerald-400 mt-0.5">{backupStats.estimated_size_kb || 0} KB</div>
+                      <div className="bg-indigo-950/60 border border-indigo-800/50 rounded-xl p-3 text-center">
+                        <span className="text-[10px] uppercase font-bold text-indigo-300/80 block">{t('est_size', 'Est. Size')}</span>
+                        <span className="text-lg font-extrabold text-emerald-400 mt-0.5 block">{backupStats.estimated_size_formatted}</span>
                       </div>
                     </div>
 
-                    {/* Table counts pills */}
-                    <div>
-                      <div className="text-[11px] font-semibold text-indigo-200 mb-2">Itemized Table Records:</div>
-                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
-                        {backupStats.breakdown && Object.entries(backupStats.breakdown).map(([tbl, info]) => (
-                          <span
-                            key={tbl}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border ${
-                              info.count > 0
-                                ? 'bg-indigo-500/20 text-indigo-200 border-indigo-400/30'
-                                : 'bg-white/5 text-slate-400 border-white/5'
-                            }`}
-                          >
-                            <span>{info.label}:</span>
-                            <span className="font-bold text-white">{info.count}</span>
-                          </span>
-                        ))}
+                    {/* Breakdown table list badges */}
+                    {backupStats.table_breakdown && (
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-300/80 block">
+                          {t('itemized_records', 'Itemized Table Records:')}
+                        </span>
+                        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+                          {Object.entries(backupStats.table_breakdown).map(([table, count]) => (
+                            <span key={table} className="inline-flex items-center gap-1.5 bg-white/10 border border-white/15 text-indigo-100 text-xs px-2.5 py-1 rounded-lg">
+                              <span className="font-mono text-[11px] text-indigo-300">{table}:</span>
+                              <strong className="text-white">{formatNumber(count)}</strong>
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="py-8 text-center text-indigo-300/60 text-xs">
-                    Select a shop from the dropdown to preview record details.
+                  <div className="py-6 text-center text-xs text-indigo-300/70">
+                    Select a shop from the left dropdown to preview backup size and record statistics.
                   </div>
                 )}
               </div>
@@ -926,8 +925,8 @@ export default function Dashboard({ onNavigate = () => { } }) {
             </svg>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Gross Revenue</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-0.5">৳{parseFloat(metrics.revenue).toFixed(2)}</h3>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{language === 'bn' ? 'মোট আয় / রাজস্ব' : 'Gross Revenue'}</p>
+            <h3 className="text-2xl font-extrabold text-slate-800 mt-0.5">৳{formatNumber(parseFloat(metrics.revenue || 0).toFixed(2))}</h3>
           </div>
         </div>
 
@@ -939,8 +938,8 @@ export default function Dashboard({ onNavigate = () => { } }) {
             </svg>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Sales Count</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-0.5">{metrics.total_sales}</h3>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{language === 'bn' ? 'মোট বিক্রয় সংখ্যা' : 'Sales Count'}</p>
+            <h3 className="text-2xl font-extrabold text-slate-800 mt-0.5">{formatNumber(metrics.total_sales || 0)}</h3>
           </div>
         </div>
 
@@ -952,8 +951,8 @@ export default function Dashboard({ onNavigate = () => { } }) {
             </svg>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Low Stock Warnings</p>
-            <h3 className={`text-2xl font-extrabold mt-0.5 ${metrics.low_stock_alerts > 0 ? 'text-rose-600' : 'text-slate-800'}`}>{metrics.low_stock_alerts}</h3>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{language === 'bn' ? 'কম স্টক সতর্কতা' : 'Low Stock Warnings'}</p>
+            <h3 className={`text-2xl font-extrabold mt-0.5 ${metrics.low_stock_alerts > 0 ? 'text-rose-600' : 'text-slate-800'}`}>{formatNumber(metrics.low_stock_alerts || 0)}</h3>
           </div>
         </div>
 
@@ -965,8 +964,8 @@ export default function Dashboard({ onNavigate = () => { } }) {
             </svg>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Customer Count</p>
-            <h3 className="text-2xl font-extrabold text-slate-800 mt-0.5">{metrics.total_customers}</h3>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{language === 'bn' ? 'গ্রাহক সংখ্যা' : 'Customer Count'}</p>
+            <h3 className="text-2xl font-extrabold text-slate-800 mt-0.5">{formatNumber(metrics.total_customers || 0)}</h3>
           </div>
         </div>
 
@@ -976,8 +975,8 @@ export default function Dashboard({ onNavigate = () => { } }) {
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs relative">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
-            <h3 className="text-lg font-bold text-slate-800">Sales Performance Trend</h3>
-            <p className="text-xs text-slate-500">Daily business transaction volume and gross revenues over the last 7 days</p>
+            <h3 className="text-lg font-bold text-slate-800">{language === 'bn' ? 'বিক্রয় কর্মক্ষমতার ধারা' : 'Sales Performance Trend'}</h3>
+            <p className="text-xs text-slate-500">{language === 'bn' ? 'গত ৭ দিনের দৈনিক বিক্রয় ও লেনদেন বিবরণী' : 'Daily business transaction volume and gross revenues over the last 7 days'}</p>
           </div>
 
           <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200/60 self-end sm:self-auto">
@@ -988,7 +987,7 @@ export default function Dashboard({ onNavigate = () => { } }) {
                 : 'text-slate-500 hover:text-slate-800'
                 }`}
             >
-              Revenue (৳)
+              {language === 'bn' ? 'আয় (৳)' : 'Revenue (৳)'}
             </button>
             <button
               onClick={() => setChartType('sales')}
@@ -997,7 +996,7 @@ export default function Dashboard({ onNavigate = () => { } }) {
                 : 'text-slate-500 hover:text-slate-800'
                 }`}
             >
-              Transactions
+              {language === 'bn' ? 'লেনদেন' : 'Transactions'}
             </button>
           </div>
         </div>
