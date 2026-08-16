@@ -23,6 +23,7 @@ export default function DashboardLayout({
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const notificationsRef = useRef(null);
+  const profileDropdownRef = useRef(null);
   
   // Theme colors
   const themeColors = [
@@ -41,22 +42,27 @@ export default function DashboardLayout({
     return () => clearInterval(timer);
   }, []);
 
-  // Close notifications dropdown when clicking outside
+  // Close notifications & profile dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
         setShowNotifications(false);
       }
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
+        setShowProfileDropdown(false);
+      }
     };
 
-    if (showNotifications) {
+    if (showNotifications || showProfileDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [showNotifications]);
+  }, [showNotifications, showProfileDropdown]);
 
   // Dynamic Badge Color mapping based on user role
   const getRoleBadge = (role) => {
@@ -412,7 +418,7 @@ export default function DashboardLayout({
             )}
 
             {/* Profile Dropdown Component */}
-            <div className="relative">
+            <div ref={profileDropdownRef} className="relative">
               <button
                 onClick={() => {
                   setShowProfileDropdown(!showProfileDropdown);
