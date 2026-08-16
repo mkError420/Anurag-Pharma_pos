@@ -3,6 +3,7 @@ import Login from './Login';
 import Footer from './Footer';
 import API_BASE_URL from '../config';
 import AnimatedButton from './AnimatedButton';
+import ElectronicCashDrawerModal from './ElectronicCashDrawerModal';
 
 export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [logo, setLogo] = useState(null);
@@ -12,6 +13,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
+  const [showDrawerModal, setShowDrawerModal] = useState(false);
   const [visibleCardIndex, setVisibleCardIndex] = useState(0);
   const [showYoutubePopup, setShowYoutubePopup] = useState(false);
   const [youtubeVideoUrl, setYoutubeVideoUrl] = useState('');
@@ -1652,115 +1654,94 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
           </div>
         )}
 
-        {/* Testimonials Section */}
-        <div className="mb-24">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">What Our Clients Say</h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Trusted by businesses worldwide
-            </p>
+        {/* ── Login Section – Horizontal Layout ── */}
+        <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg mb-24">
+          {/* Section Header */}
+          <div className="px-8 pt-8 pb-6 border-b border-gray-200">
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">Login to Your Account</h2>
+            <p className="text-gray-600 text-sm">Access your dashboard and manage your business</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
-              <div className="flex items-center mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
-              </div>
-              <p className="text-gray-600 mb-6 leading-relaxed">
-                "This POS system has transformed how we manage our retail store. The inventory tracking alone has saved us countless hours and reduced shrinkage significantly."
-              </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
-                  <span className="text-gray-600 font-semibold">JD</span>
-                </div>
-                <div>
-                  <div className="text-gray-900 font-semibold">John Davidson</div>
-                  <div className="text-gray-600 text-sm">Retail Store Owner</div>
-                </div>
-              </div>
+
+          {/* Two-column body */}
+          <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
+
+            {/* Left – Login Form */}
+            <div className="px-8 py-8">
+              <Login
+                onLoginSuccess={onLoginSuccess}
+                hideCredentials
+                externalEmail={loginEmail}
+                setExternalEmail={setLoginEmail}
+                externalPassword={loginPassword}
+                setExternalPassword={setLoginPassword}
+              />
             </div>
 
-            <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
-              <div className="flex items-center mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
+            {/* Right – Demo Credentials */}
+            <div className="px-8 py-8">
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Demo Credentials</p>
+              <p className="text-xs text-gray-400 mb-4">Click any credential to auto-fill the form</p>
+              <div className="flex flex-col gap-2">
+                {/* Super Admin */}
+                <button
+                  type="button"
+                  onClick={() => applyCredential('restricted', '******')}
+                  className={`flex items-center gap-3 w-full text-left rounded-xl px-3 py-2.5 border transition-all group ${
+                    selectedCred === 'restricted'
+                      ? 'bg-red-50 border-red-300 ring-1 ring-red-200'
+                      : 'bg-red-50/50 border-red-200 hover:bg-red-50 hover:border-red-300'
+                  }`}
+                >
+                  <span className="text-xs font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full shrink-0">SUPER ADMIN</span>
+                  <span className="text-xs text-gray-600 group-hover:text-gray-900 transition-colors truncate">Restricted!!!</span>
+                  {selectedCred === 'restricted' && (
+                    <span className="ml-auto text-red-600 shrink-0">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                    </span>
+                  )}
+                </button>
+
+                {/* Shop Admins & Staff */}
+                {[
+                  { email: 'alice@boutique.com', pass: 'alice123', role: 'SHOP ADMIN', color: 'gray' },
+                  { email: 'admin@mkfashion.com', pass: 'mkfashion123', role: 'SHOP ADMIN', color: 'gray' },
+                  { email: 'admin@mkpharmacy.com', pass: 'mkpharmacy123', role: 'SHOP ADMIN', color: 'gray' },
+                  { email: 'staff1@mkpharmacy.com', pass: 'staff123', role: 'SHOP STAFF', color: 'gray' },
+                  { email: 'staff1@mkfashion.com', pass: 'staff123', role: 'SHOP STAFF', color: 'gray' },
+                ].map((cred) => (
+                  <button
+                    key={cred.email}
+                    type="button"
+                    onClick={() => applyCredential(cred.email, cred.pass)}
+                    className={`flex items-center gap-3 w-full text-left rounded-xl px-3 py-2.5 border transition-all group ${
+                      selectedCred === cred.email
+                        ? 'bg-gray-100 border-gray-300 ring-1 ring-gray-200'
+                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-xs font-bold bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full shrink-0">{cred.role}</span>
+                    <span className="text-xs text-gray-600 group-hover:text-gray-900 transition-colors truncate">{cred.email} · {cred.pass}</span>
+                    {selectedCred === cred.email && (
+                      <span className="ml-auto text-gray-700 shrink-0">
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                      </span>
+                    )}
+                  </button>
                 ))}
               </div>
-              <p className="text-gray-600 mb-6 leading-relaxed">
-                "The analytics features are incredible. I can now make data-driven decisions about our product offerings and pricing strategies. Highly recommend for any growing business."
-              </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
-                  <span className="text-gray-600 font-semibold">SM</span>
-                </div>
-                <div>
-                  <div className="text-gray-900 font-semibold">Sarah Mitchell</div>
-                  <div className="text-gray-600 text-sm">Boutique Manager</div>
-                </div>
-              </div>
-            </div>
 
-            <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
-              <div className="flex items-center mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
-              </div>
-              <p className="text-gray-600 mb-6 leading-relaxed">
-                "Customer support is exceptional. Whenever we have questions, they respond quickly and help us resolve issues. The system is reliable and easy to use for our staff."
+              <p className="text-center text-gray-500 text-xs mt-6">
+                Multi-Tenant Point of Sale System &copy; {new Date().getFullYear()}{' '}
+                developed by{' '}
+                <a
+                  href="https://its-mk.netlify.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-700 hover:text-gray-900 transition-colors font-medium"
+                >
+                  MK
+                </a>
               </p>
-              <div className="flex items-center">
-                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
-                  <span className="text-gray-600 font-semibold">MR</span>
-                </div>
-                <div>
-                  <div className="text-gray-900 font-semibold">Michael Roberts</div>
-                  <div className="text-gray-600 text-sm">Restaurant Owner</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Partners/Clients Section - News Ticker */}
-        <div className="mb-24">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Trusted by Leading Brands</h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Join hundreds of satisfied businesses
-            </p>
-          </div>
-          <div className="overflow-hidden py-8 bg-white rounded-lg border border-white">
-            <div className="flex animate-ticker">
-              {[...Array(4)].map((_, repeatIndex) => (
-                ['Boutique', 'Fashion', 'Pharmacy', 'Retail', 'Grocery', 'Electronics'].map((brand, brandIndex) => {
-                  const bgColors = [
-                    'bg-blue-100',
-                    'bg-purple-100', 
-                    'bg-pink-100',
-                    'bg-green-100',
-                    'bg-yellow-100',
-                    'bg-orange-100'
-                  ];
-                  return (
-                    <div 
-                      key={`${repeatIndex}-${brandIndex}`} 
-                      className="flex-shrink-0 px-12 py-6 flex items-center justify-center"
-                    >
-                      <div className={`${bgColors[brandIndex]} p-4 rounded-lg border border-gray-200 shadow-sm`}>
-                        <div className="text-gray-600 font-semibold text-xl">{brand}</div>
-                      </div>
-                    </div>
-                  );
-                })
-              ))}
             </div>
           </div>
         </div>
@@ -1877,6 +1858,14 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                 <p className="text-gray-600 text-sm leading-relaxed mb-4">
                   Automatic drawer ejection upon cash receipt printing. Secure coin and banknote compartments with emergency manual key release.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => setShowDrawerModal(true)}
+                  className="w-full mb-3 py-2 px-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-bold text-xs rounded-xl shadow-sm hover:shadow transition-all flex items-center justify-center gap-1.5"
+                >
+                  <span>⚡ Test Interactive Cash Drawer Demo</span>
+                  <span>&rarr;</span>
+                </button>
               </div>
               <div className="pt-4 border-t border-gray-100 flex flex-wrap gap-1.5">
                 <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Auto-Kick Signal</span>
@@ -1973,94 +1962,115 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
           </div>
         </div>
 
-        {/* ── Login Section – Horizontal Layout ── */}
-        <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg">
-          {/* Section Header */}
-          <div className="px-8 pt-8 pb-6 border-b border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">Login to Your Account</h2>
-            <p className="text-gray-600 text-sm">Access your dashboard and manage your business</p>
+        {/* Testimonials Section */}
+        <div className="mb-24">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">What Our Clients Say</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Trusted by businesses worldwide
+            </p>
           </div>
-
-          {/* Two-column body */}
-          <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
-
-            {/* Left – Login Form */}
-            <div className="px-8 py-8">
-              <Login
-                onLoginSuccess={onLoginSuccess}
-                hideCredentials
-                externalEmail={loginEmail}
-                setExternalEmail={setLoginEmail}
-                externalPassword={loginPassword}
-                setExternalPassword={setLoginPassword}
-              />
-            </div>
-
-            {/* Right – Demo Credentials */}
-            <div className="px-8 py-8">
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Demo Credentials</p>
-              <p className="text-xs text-gray-400 mb-4">Click any credential to auto-fill the form</p>
-              <div className="flex flex-col gap-2">
-                {/* Super Admin */}
-                <button
-                  type="button"
-                  onClick={() => applyCredential('restricted', '******')}
-                  className={`flex items-center gap-3 w-full text-left rounded-xl px-3 py-2.5 border transition-all group ${
-                    selectedCred === 'restricted'
-                      ? 'bg-red-50 border-red-300 ring-1 ring-red-200'
-                      : 'bg-red-50/50 border-red-200 hover:bg-red-50 hover:border-red-300'
-                  }`}
-                >
-                  <span className="text-xs font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full shrink-0">SUPER ADMIN</span>
-                  <span className="text-xs text-gray-600 group-hover:text-gray-900 transition-colors truncate">Restricted!!!</span>
-                  {selectedCred === 'restricted' && (
-                    <span className="ml-auto text-red-600 shrink-0">
-                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                    </span>
-                  )}
-                </button>
-
-                {/* Shop Admins & Staff */}
-                {[
-                  { email: 'alice@boutique.com', pass: 'alice123', role: 'SHOP ADMIN', color: 'gray' },
-                  { email: 'admin@mkfashion.com', pass: 'mkfashion123', role: 'SHOP ADMIN', color: 'gray' },
-                  { email: 'admin@mkpharmacy.com', pass: 'mkpharmacy123', role: 'SHOP ADMIN', color: 'gray' },
-                  { email: 'staff1@mkpharmacy.com', pass: 'staff123', role: 'SHOP STAFF', color: 'gray' },
-                  { email: 'staff1@mkfashion.com', pass: 'staff123', role: 'SHOP STAFF', color: 'gray' },
-                ].map((cred) => (
-                  <button
-                    key={cred.email}
-                    type="button"
-                    onClick={() => applyCredential(cred.email, cred.pass)}
-                    className={`flex items-center gap-3 w-full text-left rounded-xl px-3 py-2.5 border transition-all group ${
-                      selectedCred === cred.email
-                        ? 'bg-gray-100 border-gray-300 ring-1 ring-gray-200'
-                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
-                    }`}
-                  >
-                    <span className="text-xs font-bold bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full shrink-0">{cred.role}</span>
-                    <span className="text-xs text-gray-600 group-hover:text-gray-900 transition-colors truncate">{cred.email} · {cred.pass}</span>
-                    {selectedCred === cred.email && (
-                      <span className="ml-auto text-gray-700 shrink-0">
-                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                      </span>
-                    )}
-                  </button>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
                 ))}
               </div>
-
-              <p className="text-center text-gray-500 text-xs mt-6">
-                Multi-Tenant Point of Sale System &copy; {new Date().getFullYear()}{' '}
-                developed by{' '}
-                <a
-                  href="https://its-mk.netlify.app/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gray-700 hover:text-gray-900 transition-colors font-medium"
-                >
-                  MK
-                </a>
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                "This POS system has transformed how we manage our retail store. The inventory tracking alone has saved us countless hours and reduced shrinkage significantly."
               </p>
+              <div className="flex items-center">
+                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                  <span className="text-gray-600 font-semibold">JD</span>
+                </div>
+                <div>
+                  <div className="text-gray-900 font-semibold">John Davidson</div>
+                  <div className="text-gray-600 text-sm">Retail Store Owner</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                ))}
+              </div>
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                "The analytics features are incredible. I can now make data-driven decisions about our product offerings and pricing strategies. Highly recommend for any growing business."
+              </p>
+              <div className="flex items-center">
+                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                  <span className="text-gray-600 font-semibold">SM</span>
+                </div>
+                <div>
+                  <div className="text-gray-900 font-semibold">Sarah Mitchell</div>
+                  <div className="text-gray-600 text-sm">Boutique Manager</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex items-center mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <svg key={i} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                ))}
+              </div>
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                "Customer support is exceptional. Whenever we have questions, they respond quickly and help us resolve issues. The system is reliable and easy to use for our staff."
+              </p>
+              <div className="flex items-center">
+                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                  <span className="text-gray-600 font-semibold">MR</span>
+                </div>
+                <div>
+                  <div className="text-gray-900 font-semibold">Michael Roberts</div>
+                  <div className="text-gray-600 text-sm">Restaurant Owner</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Partners/Clients Section - News Ticker */}
+        <div className="mb-24">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Trusted by Leading Brands</h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Join hundreds of satisfied businesses
+            </p>
+          </div>
+          <div className="overflow-hidden py-8 bg-white rounded-lg border border-white">
+            <div className="flex animate-ticker">
+              {[...Array(4)].map((_, repeatIndex) => (
+                ['Boutique', 'Fashion', 'Pharmacy', 'Retail', 'Grocery', 'Electronics'].map((brand, brandIndex) => {
+                  const bgColors = [
+                    'bg-blue-100',
+                    'bg-purple-100', 
+                    'bg-pink-100',
+                    'bg-green-100',
+                    'bg-yellow-100',
+                    'bg-orange-100'
+                  ];
+                  return (
+                    <div 
+                      key={`${repeatIndex}-${brandIndex}`} 
+                      className="flex-shrink-0 px-12 py-6 flex items-center justify-center"
+                    >
+                      <div className={`${bgColors[brandIndex]} p-4 rounded-lg border border-gray-200 shadow-sm`}>
+                        <div className="text-gray-600 font-semibold text-xl">{brand}</div>
+                      </div>
+                    </div>
+                  );
+                })
+              ))}
             </div>
           </div>
         </div>
@@ -2078,6 +2088,12 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
         </svg>
       </a>
+
+      {/* Electronic Cash Drawer Interactive Simulation Modal */}
+      <ElectronicCashDrawerModal
+        isOpen={showDrawerModal}
+        onClose={() => setShowDrawerModal(false)}
+      />
 
       <Footer onNavigate={onNavigate} />
     </div>

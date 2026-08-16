@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
+import ElectronicCashDrawerModal from './ElectronicCashDrawerModal';
 
 export default function Settings({ onNavigate = () => {} }) {
   const userObj = JSON.parse(localStorage.getItem('user') || '{}');
@@ -19,6 +20,7 @@ export default function Settings({ onNavigate = () => {} }) {
   const [alert, setAlert] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showDrawerModal, setShowDrawerModal] = useState(false);
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -371,6 +373,31 @@ export default function Settings({ onNavigate = () => {} }) {
             </>
           )}
 
+          {/* Electronic Cash Drawer & Peripherals Section */}
+          <div className="border-t border-slate-100 pt-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gradient-to-r from-amber-50/70 via-slate-50 to-amber-50/40 rounded-xl border border-amber-200">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center font-bold">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">Electronic Cash Drawer &amp; Hardware Solenoid</h4>
+                  <p className="text-xs text-slate-500">ESC/POS Auto-kick pulse on cash receipt print, 3-position lock &amp; float management.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDrawerModal(true)}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center space-x-1.5 shrink-0"
+              >
+                <span>⚡ Configure &amp; Test Drawer</span>
+                <span>&rarr;</span>
+              </button>
+            </div>
+          </div>
+
           {/* Unified Brand Logo Upload Section */}
           <div className="border-t border-slate-100 pt-4">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
@@ -508,6 +535,13 @@ export default function Settings({ onNavigate = () => {} }) {
 
         </form>
       </div>
+
+      {/* Electronic Cash Drawer Configuration & Simulator Modal */}
+      <ElectronicCashDrawerModal
+        isOpen={showDrawerModal}
+        onClose={() => setShowDrawerModal(false)}
+        initialTab="settings"
+      />
 
     </div>
   );

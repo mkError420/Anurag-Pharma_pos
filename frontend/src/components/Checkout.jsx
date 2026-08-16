@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import API_BASE_URL from '../config';
+import ElectronicCashDrawerModal from './ElectronicCashDrawerModal';
+import { triggerDrawerEjection, getDrawerConfig } from '../utils/cashDrawerService';
 
 const createNewSaleTab = (index) => ({
   id: Date.now() + Math.random() * 1000, // Unique ID for the tab with random factor
@@ -65,6 +67,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
   const [previewMode, setPreviewMode] = useState('thermal'); // 'thermal' | 'regular'
   const [showCheckoutPreview, setShowCheckoutPreview] = useState(false); // Show preview before checkout
   const [previewModeType, setPreviewModeType] = useState('checkout'); // 'checkout' or 'due'
+  const [showCashDrawerModal, setShowCashDrawerModal] = useState(false); // Electronic Cash Drawer Modal
 
   // Held Bills States
   const [heldBills, setHeldBills] = useState([]);
@@ -496,6 +499,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     const handlePOSHotkeys = (e) => {
       // Esc key closes active overlay modals
       if (e.key === 'Escape') {
+        if (showCashDrawerModal) { setShowCashDrawerModal(false); return; }
         if (showKeyboardModal) { setShowKeyboardModal(false); return; }
         if (showCheckoutPreview) { setShowCheckoutPreview(false); return; }
         if (showHoldBillModal) { setShowHoldBillModal(false); return; }
@@ -503,8 +507,15 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         return;
       }
 
+      // F12 or Alt + D : Toggle Electronic Cash Drawer Controller & Ejection
+      if (e.key === 'F12' || ((e.altKey || e.metaKey) && (e.key === 'd' || e.key === 'D'))) {
+        e.preventDefault();
+        setShowCashDrawerModal(prev => !prev);
+        return;
+      }
+
       // Ignore shortcuts if print preview or modals are open
-      if (receipt || showHeldBillsModal || showHoldBillModal || showCheckoutPreview) {
+      if (receipt || showHeldBillsModal || showHoldBillModal || showCheckoutPreview || showCashDrawerModal) {
         return;
       }
 
@@ -748,6 +759,17 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
   };
 
   const handlePrint = (mode) => {
+    // Automatic Electronic Cash Drawer Ejection upon cash receipt printing
+    const drawerCfg = getDrawerConfig();
+    if (drawerCfg.autoEjectOnCashReceipt && (!receipt || receipt.payment_method === 'cash')) {
+      triggerDrawerEjection({
+        reason: `Cash Receipt Print (Sale #${receipt?.sale_id || 'POS'})`,
+        saleId: receipt?.sale_id,
+        amount: receipt?.total,
+        method: 'AUTO_EJECT'
+      });
+    }
+
     document.body.classList.add(`print-mode-${mode}`);
     window.print();
     setTimeout(() => {
@@ -1147,6 +1169,19 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         points_redeemed: activeTab.redeemPoints || 0,
         points_redeemed_value: (activeTab.redeemPoints || 0) * loyaltyPointValue
       });
+
+      // Automatic Electronic Cash Drawer Ejection for cash transactions
+      if (activeTab.paymentMethod === 'cash') {
+        const drawerCfg = getDrawerConfig();
+        if (drawerCfg.autoEjectOnCashReceipt) {
+          triggerDrawerEjection({
+            reason: `Cash Sale Checkout #${data.sale_id} (${currentUser?.name || 'Cashier'})`,
+            saleId: data.sale_id,
+            amount: data.final_amount,
+            method: 'AUTO_EJECT'
+          });
+        }
+      }
 
       // Show warnings if inventory items hit low stock limit
       if (data.stock_alerts && data.stock_alerts.length > 0) {
@@ -1558,6 +1593,19 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                 {heldBills.filter(b => b.status === 'held').length}
               </span>
             )}
+          </button>
+
+          {/* Electronic Cash Drawer Button */}
+          <button
+            type="button"
+            onClick={() => setShowCashDrawerModal(true)}
+            className="relative bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold py-2.5 px-3.5 sm:px-4 border border-amber-300 rounded-xl text-sm shadow-xs transition-all flex items-center space-x-2"
+            title="Electronic Cash Drawer (F12 / Alt+D)"
+          >
+            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+            </svg>
+            <span>Cash Drawer (F12)</span>
           </button>
 
           {/* Mobile-only View Cart Button (Marked Header Area) */}
@@ -2414,6 +2462,23 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   </button>
                 )}
                 <button
+                  onClick={() => {
+                    triggerDrawerEjection({
+                      reason: `Manual Re-Kick (Receipt #${receipt.sale_id})`,
+                      saleId: receipt.sale_id,
+                      amount: receipt.total,
+                      method: 'BUTTON_EJECT'
+                    });
+                    triggerAlert('success', '⚡ Cash drawer kick signal sent!');
+                  }}
+                  className="w-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold py-2.5 rounded-xl text-sm transition-all flex items-center justify-center space-x-2"
+                >
+                  <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                  </svg>
+                  <span>⚡ Eject Cash Drawer</span>
+                </button>
+                <button
                   onClick={() => setReceipt(null)}
                   className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2.5 rounded-xl text-sm transition-colors"
                 >
@@ -2425,6 +2490,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
           </div>
         </div>
       )}
+
+      {/* --- ELECTRONIC CASH DRAWER MODAL --- */}
+      <ElectronicCashDrawerModal
+        isOpen={showCashDrawerModal}
+        onClose={() => setShowCashDrawerModal(false)}
+      />
 
       {/* --- DYNAMIC PRINT AREA (OFF-SCREEN ON APPLICATION SCREEN, SHOWN VIA PRINT MEDIA CLASS) --- */}
       {receipt && createPortal(
