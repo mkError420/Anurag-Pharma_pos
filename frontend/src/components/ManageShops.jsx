@@ -90,6 +90,7 @@ export default function ManageShops() {
   const [search, setSearch] = useState('');
   const [searchFocusedIndex, setSearchFocusedIndex] = useState(-1);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [downloadingShopId, setDownloadingShopId] = useState(null);
 
   // Shop modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -337,6 +338,52 @@ export default function ManageShops() {
     }
   };
 
+  const handleDownloadDatabase = async (shopId, shopName) => {
+    if (!shopId) return;
+    setDownloadingShopId(shopId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/shops/${shopId}/database-backup`, {
+        headers: { Authorization: `Bearer ${token()}` }
+      });
+
+      if (!res.ok) {
+        let errMsg = 'Failed to download database backup.';
+        try {
+          const errData = await res.json();
+          errMsg = errData.error || errMsg;
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
+
+      const disposition = res.headers.get('content-disposition') || '';
+      let filename = `shop_${shopId}_database_backup.sql`;
+      const match = disposition.match(/filename=["']?([^"';]+)["']?/i);
+      if (match && match[1]) {
+        filename = match[1];
+      } else if (shopName) {
+        const clean = shopName.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+        filename = `shop_${shopId}_${clean}_database.sql`;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      triggerAlert('success', `Database backup for ${shopName || `Shop #${shopId}`} downloaded successfully!`);
+    } catch (err) {
+      console.error('Download database error:', err);
+      triggerAlert('error', err.message || 'Failed to download database backup.');
+    } finally {
+      setDownloadingShopId(null);
+    }
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -470,6 +517,21 @@ export default function ManageShops() {
                         <td className="px-4 py-3.5 text-center"><StatusBadge status={shop.status} /></td>
                         <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
+                            {/* Download DB */}
+                            <button
+                              onClick={() => handleDownloadDatabase(shop.id, shop.name)}
+                              disabled={downloadingShopId !== null}
+                              title="Download shop database (.sql)"
+                              className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                            >
+                              {downloadingShopId === shop.id ? (
+                                <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                              )}
+                            </button>
                             {/* Manage Users */}
                             <button onClick={() => openUsersModal(shop)} title="Manage users & reset passwords"
                               className="p-2 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors">
@@ -562,6 +624,25 @@ export default function ManageShops() {
               ))}
             </div>
             <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
+              <button
+                onClick={() => handleDownloadDatabase(detailShop.id, detailShop.name)}
+                disabled={downloadingShopId !== null}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2 rounded-xl transition-colors disabled:opacity-50 shadow-xs"
+              >
+                {downloadingShopId === detailShop.id ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Exporting Database...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>Download Shop Database (.sql)</span>
+                  </>
+                )}
+              </button>
               <button onClick={() => openUsersModal(detailShop)}
                 className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold py-2 rounded-xl transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

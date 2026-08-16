@@ -77,6 +77,7 @@ require_once __DIR__ . '/controllers/AttendanceController.php';
 require_once __DIR__ . '/controllers/SalaryController.php';
 require_once __DIR__ . '/controllers/InvestmentController.php';
 require_once __DIR__ . '/controllers/WebsiteContentController.php';
+require_once __DIR__ . '/controllers/BackupController.php';
 
 // Parse Request URI and Method
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -337,6 +338,10 @@ $routes = [
         '/^adjustments$/' => function() { OtherController::listAdjustments(); },
         // Shops
         '/^shops$/' => function() { OtherController::listShops(); },
+        '/^shops\/database-backup$/' => function() { BackupController::exportShopDatabase(); },
+        '/^shops\/backup-stats$/' => function() { BackupController::getShopBackupStats('all'); },
+        '/^shops\/(\d+)\/database-backup$/' => function($args) { BackupController::exportShopDatabase($args[0]); },
+        '/^shops\/(\d+)\/backup-stats$/' => function($args) { BackupController::getShopBackupStats($args[0]); },
         '/^shops\/my-shop$/' => function() { OtherController::getMyShop(); },
         '/^shops\/(\d+)\/users$/' => function($args) { OtherController::listShopUsers($args[0]); },
         // Users

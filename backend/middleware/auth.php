@@ -66,7 +66,12 @@ class Auth {
         }
 
         if (!$authHeader || strpos($authHeader, 'Bearer ') !== 0) {
-            self::jsonError('Access denied. No token provided.', 401);
+            $queryToken = $_GET['token'] ?? $_GET['auth_token'] ?? null;
+            if ($queryToken) {
+                $authHeader = 'Bearer ' . $queryToken;
+            } else {
+                self::jsonError('Access denied. No token provided.', 401);
+            }
         }
 
         $token = substr($authHeader, 7);

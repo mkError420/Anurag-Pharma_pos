@@ -27,6 +27,108 @@ export default function Dashboard({ onNavigate = () => { } }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [shopsList, setShopsList] = useState([]);
+  const [backupShopId, setBackupShopId] = useState('');
+  const [backupStats, setBackupStats] = useState(null);
+  const [backupStatsLoading, setBackupStatsLoading] = useState(false);
+  const [downloadingShopId, setDownloadingShopId] = useState(null);
+  const [backupAlert, setBackupAlert] = useState(null);
+
+  const triggerBackupAlert = (type, message) => {
+    setBackupAlert({ type, message });
+    setTimeout(() => setBackupAlert(null), 4500);
+  };
+
+  const fetchShopsList = async () => {
+    if (!isSuperAdmin) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/shops`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setShopsList(data || []);
+        if (data && data.length > 0 && !backupShopId) {
+          setBackupShopId(data[0].id.toString());
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch shops list:', err);
+    }
+  };
+
+  const fetchBackupStats = async (shopId) => {
+    if (!isSuperAdmin || !shopId) return;
+    setBackupStatsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/shops/${shopId}/backup-stats`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBackupStats(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch backup stats:', err);
+    } finally {
+      setBackupStatsLoading(false);
+    }
+  };
+
+  const handleDownloadDatabase = async (targetShopId, targetShopName = '') => {
+    const sId = targetShopId || backupShopId;
+    if (!sId) return;
+
+    setDownloadingShopId(sId);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/shops/${sId}/database-backup`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        let errMsg = 'Failed to download database backup.';
+        try {
+          const errData = await res.json();
+          errMsg = errData.error || errMsg;
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
+
+      // Extract filename from header or formulate clean default
+      const disposition = res.headers.get('content-disposition') || '';
+      let filename = `shop_${sId}_database_backup.sql`;
+      const match = disposition.match(/filename=["']?([^"';]+)["']?/i);
+      if (match && match[1]) {
+        filename = match[1];
+      } else if (targetShopName) {
+        const clean = targetShopName.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+        filename = `shop_${sId}_${clean}_database.sql`;
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      triggerBackupAlert('success', `Database backup for ${targetShopName || (sId === 'all' ? 'All Shops' : `Shop #${sId}`)} downloaded successfully!`);
+    } catch (err) {
+      console.error('Download database error:', err);
+      triggerBackupAlert('error', err.message || 'Error downloading database backup.');
+    } finally {
+      setDownloadingShopId(null);
+    }
+  };
+
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
@@ -71,7 +173,16 @@ export default function Dashboard({ onNavigate = () => { } }) {
 
   useEffect(() => {
     fetchDashboardData();
+    if (isSuperAdmin) {
+      fetchShopsList();
+    }
   }, []);
+
+  useEffect(() => {
+    if (isSuperAdmin && backupShopId) {
+      fetchBackupStats(backupShopId);
+    }
+  }, [backupShopId]);
 
   if (loading) {
     return (
@@ -90,8 +201,33 @@ export default function Dashboard({ onNavigate = () => { } }) {
   }
 
   if (isSuperAdmin) {
+    const selectedShopObj = shopsList.find(s => s.id.toString() === backupShopId.toString()) || null;
+
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
+
+        {/* Backup Alert Toast */}
+        {backupAlert && (
+          <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-semibold transition-all animate-bounce ${
+            backupAlert.type === 'success' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'
+          }`}>
+            {backupAlert.type === 'success' ? (
+              <svg className="w-5 h-5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 shrink-0 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <span className="max-w-xs">{backupAlert.message}</span>
+            <button onClick={() => setBackupAlert(null)} className="ml-2 opacity-70 hover:opacity-100">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* 1. Header Row */}
         <div>
@@ -474,12 +610,199 @@ export default function Dashboard({ onNavigate = () => { } }) {
           </div>
         </div>
 
-        {/* 3. Detailed Data Section */}
+        {/* 3. NEW: Shop Database Backup & Export Panel */}
+        <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 shadow-xl border border-indigo-700/40 relative overflow-hidden">
+          {/* Subtle decorative glow */}
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-violet-500/15 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-indigo-800/60 pb-5">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shadow-inner">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold text-white">Shop-Wise Database Backup</h3>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider bg-indigo-500/30 text-indigo-300 border border-indigo-400/30 px-2 py-0.5 rounded-full">
+                      Super Admin Tool
+                    </span>
+                  </div>
+                  <p className="text-xs text-indigo-200/80 mt-0.5">
+                    Download complete, standalone MySQL SQL dump files partitioned by tenant shop or export the entire multi-tenant database.
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick action: Download all */}
+              <button
+                onClick={() => handleDownloadDatabase('all', 'All Tenant Shops')}
+                disabled={downloadingShopId !== null}
+                className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all hover:shadow-lg disabled:opacity-50 shrink-0"
+              >
+                {downloadingShopId === 'all' ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-4 h-4 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                )}
+                <span>Export Full System DB (.sql)</span>
+              </button>
+            </div>
+
+            {/* Selection & Preview Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Left Column: Selector (5 cols) */}
+              <div className="lg:col-span-5 space-y-4 bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-md">
+                <label className="block text-xs font-bold uppercase tracking-wider text-indigo-200">
+                  Select Target Tenant Shop
+                </label>
+
+                <div className="relative">
+                  <select
+                    value={backupShopId}
+                    onChange={(e) => setBackupShopId(e.target.value)}
+                    className="w-full bg-slate-800/90 text-white border border-indigo-500/40 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-indigo-400 focus:outline-none cursor-pointer appearance-none shadow-inner"
+                  >
+                    <option value="" disabled>Choose a tenant shop...</option>
+                    <option value="all">⚡ All Tenant Shops (Complete Database Backup)</option>
+                    {shopsList.map((shop) => (
+                      <option key={shop.id} value={shop.id.toString()}>
+                        #{shop.id} — {shop.name} ({shop.status === 'active' ? 'Active' : 'Suspended'})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-indigo-300">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={() => handleDownloadDatabase(backupShopId, selectedShopObj?.name || (backupShopId === 'all' ? 'All Shops' : `Shop #${backupShopId}`))}
+                    disabled={!backupShopId || downloadingShopId !== null}
+                    className="w-full flex items-center justify-center gap-2.5 bg-gradient-to-r from-indigo-500 via-indigo-600 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-bold py-3.5 px-6 rounded-xl text-sm shadow-xl shadow-indigo-500/30 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    {downloadingShopId === backupShopId ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Generating SQL Dump...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span>Download Shop Database (.sql)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-indigo-300/70 text-center leading-relaxed">
+                  Export includes complete DDL table creation, transactional statements, foreign-key safe structures, and UTF-8 encoded row records.
+                </p>
+              </div>
+
+              {/* Right Column: Selected Shop Stats Preview (7 cols) */}
+              <div className="lg:col-span-7 bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-md space-y-4">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-white">Database Backup Preview</h4>
+                    <p className="text-[11px] text-indigo-200/70">
+                      {backupShopId === 'all' ? 'System-wide Multi-Tenant Scope' : (selectedShopObj ? `Scope: ${selectedShopObj.name}` : 'Select a shop to inspect')}
+                    </p>
+                  </div>
+                  {backupShopId && (
+                    <button
+                      onClick={() => fetchBackupStats(backupShopId)}
+                      disabled={backupStatsLoading}
+                      className="text-xs text-indigo-300 hover:text-white flex items-center gap-1 font-semibold transition-colors"
+                      title="Refresh statistics"
+                    >
+                      <svg className={`w-3.5 h-3.5 ${backupStatsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh
+                    </button>
+                  )}
+                </div>
+
+                {backupStatsLoading ? (
+                  <div className="py-8 flex flex-col items-center justify-center gap-2 text-indigo-300 text-xs">
+                    <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                    <span>Calculating database records...</span>
+                  </div>
+                ) : backupStats ? (
+                  <div className="space-y-4">
+                    {/* Key Stats Bar */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      <div className="bg-white/5 rounded-xl p-2.5 border border-white/5">
+                        <div className="text-[10px] uppercase font-bold text-indigo-300">Total Records</div>
+                        <div className="text-lg font-extrabold text-white mt-0.5">{backupStats.total_records || 0}</div>
+                      </div>
+                      <div className="bg-white/5 rounded-xl p-2.5 border border-white/5">
+                        <div className="text-[10px] uppercase font-bold text-indigo-300">Products</div>
+                        <div className="text-lg font-extrabold text-white mt-0.5">{backupStats.breakdown?.products?.count || 0}</div>
+                      </div>
+                      <div className="bg-white/5 rounded-xl p-2.5 border border-white/5">
+                        <div className="text-[10px] uppercase font-bold text-indigo-300">Sales Done</div>
+                        <div className="text-lg font-extrabold text-white mt-0.5">{backupStats.breakdown?.sales?.count || 0}</div>
+                      </div>
+                      <div className="bg-white/5 rounded-xl p-2.5 border border-white/5">
+                        <div className="text-[10px] uppercase font-bold text-indigo-300">Est. Size</div>
+                        <div className="text-lg font-extrabold text-emerald-400 mt-0.5">{backupStats.estimated_size_kb || 0} KB</div>
+                      </div>
+                    </div>
+
+                    {/* Table counts pills */}
+                    <div>
+                      <div className="text-[11px] font-semibold text-indigo-200 mb-2">Itemized Table Records:</div>
+                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                        {backupStats.breakdown && Object.entries(backupStats.breakdown).map(([tbl, info]) => (
+                          <span
+                            key={tbl}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border ${
+                              info.count > 0
+                                ? 'bg-indigo-500/20 text-indigo-200 border-indigo-400/30'
+                                : 'bg-white/5 text-slate-400 border-white/5'
+                            }`}
+                          >
+                            <span>{info.label}:</span>
+                            <span className="font-bold text-white">{info.count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-indigo-300/60 text-xs">
+                    Select a shop from the dropdown to preview record details.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Detailed Data Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Left Col: Shop Breakdown (Span 2) */}
           <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">Tenant Shops Breakdown</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Tenant Shops Breakdown</h3>
+                <p className="text-xs text-slate-500">Shop performance overview with direct database backup options</p>
+              </div>
+            </div>
+
             <div className="flex-1 overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -487,25 +810,58 @@ export default function Dashboard({ onNavigate = () => { } }) {
                     <th className="pb-3">Shop Name</th>
                     <th className="pb-3 text-center">Transactions</th>
                     <th className="pb-3 text-right">Gross Revenue</th>
+                    <th className="pb-3 text-center">Database Backup</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 text-sm">
                   {tenantBreakdown.length === 0 ? (
                     <tr>
-                      <td colSpan="3" className="py-8 text-center text-slate-400">
+                      <td colSpan="4" className="py-8 text-center text-slate-400">
                         No active shops recorded.
                       </td>
                     </tr>
                   ) : (
-                    tenantBreakdown.map((shop, index) => (
-                      <tr key={index} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3.5 font-semibold text-slate-800">{shop.shop_name}</td>
-                        <td className="py-3.5 text-center text-slate-600 font-medium">{shop.sales_count || 0}</td>
-                        <td className="py-3.5 text-right font-extrabold text-indigo-600">
-                          ৳{parseFloat(shop.shop_revenue || 0).toFixed(2)}
-                        </td>
-                      </tr>
-                    ))
+                    tenantBreakdown.map((shop, index) => {
+                      const sId = shop.shop_id || (shopsList.find(s => s.name === shop.shop_name)?.id) || (index + 1);
+                      const isDownloadingThis = downloadingShopId === sId || downloadingShopId === sId.toString();
+
+                      return (
+                        <tr key={index} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-3.5 font-semibold text-slate-800">
+                            <div className="flex items-center gap-2">
+                              <span>{shop.shop_name}</span>
+                              <span className="text-[10px] font-mono text-slate-400 font-normal">#{sId}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 text-center text-slate-600 font-medium">{shop.sales_count || 0}</td>
+                          <td className="py-3.5 text-right font-extrabold text-indigo-600">
+                            ৳{parseFloat(shop.shop_revenue || 0).toFixed(2)}
+                          </td>
+                          <td className="py-3.5 text-center">
+                            <button
+                              onClick={() => handleDownloadDatabase(sId, shop.shop_name)}
+                              disabled={downloadingShopId !== null}
+                              title={`Download database for ${shop.shop_name}`}
+                              className="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs font-bold transition-all hover:shadow-xs disabled:opacity-50"
+                            >
+                              {isDownloadingThis ? (
+                                <>
+                                  <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                                  <span>Exporting...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                  </svg>
+                                  <span>Download DB</span>
+                                </>
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -530,6 +886,17 @@ export default function Dashboard({ onNavigate = () => { } }) {
               >
                 <span>Manage System Users</span>
               </a>
+              <button
+                type="button"
+                onClick={() => handleDownloadDatabase('all', 'Complete Multi-Tenant System')}
+                disabled={downloadingShopId !== null}
+                className="w-full flex items-center justify-center space-x-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold py-2.5 px-4 rounded-xl text-sm border border-indigo-200 transition-colors text-center"
+              >
+                <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>Download All DB Backup</span>
+              </button>
             </div>
           </div>
 
