@@ -1765,6 +1765,214 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
           </div>
         </div>
 
+        {/* ── Hardware & Mobile POS Compatibility Showcase (Pre-Footer) ── */}
+        <div className="mb-24">
+          <div className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold uppercase tracking-wider mb-4 shadow-sm">
+              <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+              </svg>
+              <span>Hardware & Device Compatibility</span>
+            </div>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4 tracking-tight">
+              Run Your Store on Any Device, Anywhere
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              Seamlessly connect with your existing retail hardware. Zero drivers needed — just plug, scan, and start selling.
+            </p>
+          </div>
+
+          {/* Compatibility Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            
+            {/* Thermal Printers */}
+            <div className="group relative bg-white p-7 rounded-2xl border border-gray-200 hover:border-gray-900 transition-all duration-300 hover:shadow-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
+                    ESC/POS · 58/80mm
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Thermal Receipt Printers</h3>
+                <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                  Blazing-fast invoice and token printing over USB, Bluetooth, or LAN/WiFi. Supports custom headers, shop logo, and QR payment codes.
+                </p>
+              </div>
+              <div className="pt-4 border-t border-gray-100 flex flex-wrap gap-1.5">
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">USB / Bluetooth</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">LAN / Network</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Auto-Cutter</span>
+              </div>
+            </div>
+
+            {/* Barcode & QR Scanners */}
+            <div className="group relative bg-white p-7 rounded-2xl border border-gray-200 hover:border-gray-900 transition-all duration-300 hover:shadow-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                    </svg>
+                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 bg-rose-50 text-rose-700 rounded-full border border-rose-100">
+                    1D / 2D / QR Code
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Barcode & QR Scanners</h3>
+                <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                  Instant item lookup and quick multi-tab billing. Works with wireless 2.4G dongles, Bluetooth guns, and desktop hands-free omni scanners.
+                </p>
+              </div>
+              <div className="pt-4 border-t border-gray-100 flex flex-wrap gap-1.5">
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Wireless 2.4G</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Hands-free Omni</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Instant Cart Add</span>
+              </div>
+            </div>
+
+            {/* Tablets & Mobile POS */}
+            <div className="group relative bg-white p-7 rounded-2xl border border-gray-200 hover:border-gray-900 transition-all duration-300 hover:shadow-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
+                    iPad · Android · Phone
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Tablets, Mobiles & Touch POS</h3>
+                <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                  Turn any iPad, Android tablet, smartphone, or dedicated all-in-one touch terminal into a modern point of sale station with fluid responsive UI.
+                </p>
+              </div>
+              <div className="pt-4 border-t border-gray-100 flex flex-wrap gap-1.5">
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">iOS / Android</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Touch Terminals</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Floor Sales Mode</span>
+              </div>
+            </div>
+
+            {/* Electronic Cash Drawers */}
+            <div className="group relative bg-white p-7 rounded-2xl border border-gray-200 hover:border-gray-900 transition-all duration-300 hover:shadow-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                    </svg>
+                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full border border-amber-100">
+                    RJ11 / RJ12 · 12V/24V
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Electronic Cash Drawers</h3>
+                <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                  Automatic drawer ejection upon cash receipt printing. Secure coin and banknote compartments with emergency manual key release.
+                </p>
+              </div>
+              <div className="pt-4 border-t border-gray-100 flex flex-wrap gap-1.5">
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Auto-Kick Signal</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Dual Bill Slots</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Anti-Theft Lock</span>
+              </div>
+            </div>
+
+            {/* Barcode & Price Tag Label Printers */}
+            <div className="group relative bg-white p-7 rounded-2xl border border-gray-200 hover:border-gray-900 transition-all duration-300 hover:shadow-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 bg-purple-50 text-purple-700 rounded-full border border-purple-100">
+                    Label & Sticker
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Barcode Label & Sticker Printers</h3>
+                <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                  Print custom adhesive price stickers, shelf tags, and product barcodes directly from your inventory screen with batch generation.
+                </p>
+              </div>
+              <div className="pt-4 border-t border-gray-100 flex flex-wrap gap-1.5">
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Direct Thermal</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Custom Dimensions</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Batch Printing</span>
+              </div>
+            </div>
+
+            {/* Cloud Sync & Multi-Terminal */}
+            <div className="group relative bg-white p-7 rounded-2xl border border-gray-200 hover:border-gray-900 transition-all duration-300 hover:shadow-xl flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-5">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
+                    </svg>
+                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 bg-cyan-50 text-cyan-700 rounded-full border border-cyan-100">
+                    Live Sync · 99.9% Uptime
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Multi-Terminal Cloud Sync</h3>
+                <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                  Operate multiple checkout counters and branches simultaneously with instantaneous stock level synchronization and real-time reports.
+                </p>
+              </div>
+              <div className="pt-4 border-t border-gray-100 flex flex-wrap gap-1.5">
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Realtime WebSockets</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Multi-Branch</span>
+                <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded">Automated Backup</span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Supported Brand Ecosystem Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white rounded-2xl p-8 shadow-xl border border-slate-700 flex flex-col lg:flex-row items-center justify-between gap-6">
+            <div className="space-y-2 text-center lg:text-left">
+              <div className="flex items-center justify-center lg:justify-start gap-2 text-emerald-400 font-bold text-sm">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Universal Hardware Compatibility</span>
+              </div>
+              <h4 className="text-2xl font-extrabold text-white">Have existing hardware in your store?</h4>
+              <p className="text-slate-300 text-sm max-w-xl leading-relaxed">
+                Our system works out of the box with <strong className="text-white">Epson, Xprinter, Sunmi, Zebra, Honeywell, Posiflex, Bixolon</strong>, and all standard ESC/POS USB, Bluetooth, and Network peripherals.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => onNavigate('contact')}
+                className="px-5 py-3 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Hardware Consultation
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLoginPopup(true)}
+                className="px-5 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white text-sm font-semibold rounded-xl transition-all"
+              >
+                Test in Live Demo
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* ── Login Section – Horizontal Layout ── */}
         <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden shadow-lg">
           {/* Section Header */}
