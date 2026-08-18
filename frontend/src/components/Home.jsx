@@ -356,9 +356,9 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   };
 
   const navLinks = [
-    { label: 'Home', page: 'home' },
-    { label: 'About Us', page: 'about' },
-    { label: 'Contact Us', page: 'contact' },
+    { label: 'Home', page: 'home', path: '/' },
+    { label: 'About Us', page: 'about', path: '/about' },
+    { label: 'Contact Us', page: 'contact', path: '/contact' },
   ];
 
   return (
@@ -419,7 +419,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
               {navLinks.map((link) => (
                 <button
                   key={link.page}
-                  onClick={() => onNavigate(link.page)}
+                  onClick={() => { onNavigate(link.page); window.history.pushState({}, '', link.path); }}
                   className={`text-gray-600 hover:text-gray-900 transition-colors font-medium text-base relative ${
                     publicPage === link.page ? 'text-gray-900' : ''
                   }`}
@@ -430,6 +430,13 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                   )}
                 </button>
               ))}
+              <button
+                onClick={() => window.history.pushState({}, '', '/login')}
+                className="px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                style={{ backgroundColor: '#D4E0E8', color: '#1a1a2e' }}
+              >
+                Login
+              </button>
             </div>
 
             {/* Mobile Hamburger Button */}
@@ -463,7 +470,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             {navLinks.map((link) => (
               <button
                 key={link.page}
-                onClick={() => { onNavigate(link.page); setMobileMenuOpen(false); }}
+                onClick={() => { onNavigate(link.page); setMobileMenuOpen(false); window.history.pushState({}, '', link.path); }}
                 className={`w-full text-left text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors font-medium text-sm px-3 py-2.5 rounded-lg relative ${
                   publicPage === link.page ? 'text-gray-900 bg-gray-50' : ''
                 }`}
@@ -474,6 +481,13 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                 )}
               </button>
             ))}
+            <button
+              onClick={() => { setMobileMenuOpen(false); window.history.pushState({}, '', '/login'); }}
+              className="w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm transition-colors"
+              style={{ backgroundColor: '#D4E0E8', color: '#1a1a2e' }}
+            >
+              Login
+            </button>
           </div>
         </div>
       </nav>
@@ -616,9 +630,6 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
         {/* CTA Buttons */}
         <div className="flex flex-row gap-4 justify-center mb-24">
-          <AnimatedButton onClick={() => window.history.pushState({}, '', '/login')}>
-            Login
-          </AnimatedButton>
           <AnimatedButton onClick={() => setShowLoginPopup(true)}>
             View Demo
           </AnimatedButton>

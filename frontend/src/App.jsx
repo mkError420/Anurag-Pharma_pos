@@ -70,7 +70,7 @@ export default function App() {
   const [pendingSubscriptionsCount, setPendingSubscriptionsCount] = useState(0);
   const [isLoginOnly, setIsLoginOnly] = useState(false); // Track if on /login URL
 
-  // Handle URL-based routing for /login
+  // Handle URL-based routing for /login and public pages
   useEffect(() => {
     const handleUrlChange = () => {
       const path = window.location.pathname;
@@ -78,6 +78,17 @@ export default function App() {
         setIsLoginOnly(true);
       } else {
         setIsLoginOnly(false);
+      }
+
+      // Handle public page routing based on URL
+      if (!user) {
+        if (path === '/about') {
+          setPublicPage('about');
+        } else if (path === '/contact') {
+          setPublicPage('contact');
+        } else {
+          setPublicPage('home');
+        }
       }
     };
 
@@ -106,7 +117,7 @@ export default function App() {
       history.pushState = originalPushState;
       history.replaceState = originalReplaceState;
     };
-  }, []);
+  }, [user]);
 
   // On mount: verify existing token against the backend
   useEffect(() => {
@@ -279,14 +290,8 @@ export default function App() {
 
   // Logout
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-    setLowStockAlerts([]);
-    setExpiryAlerts([]);
-    setNewContactMessagesCount(0);
-    setPendingSubscriptionsCount(0);
-    setSuspendedMessage('');
+    localStorage.clear();
+    window.location.reload(true);
   };
 
   // Routing Handler

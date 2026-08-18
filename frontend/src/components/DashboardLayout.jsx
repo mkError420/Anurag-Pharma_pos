@@ -453,7 +453,12 @@ export default function DashboardLayout({
                     {t('shop_settings', 'Shop Settings')}
                   </button>
                   <button
-                    onClick={onLogout}
+                    onClick={() => {
+                      setShowProfileDropdown(false);
+                      setTimeout(() => {
+                        onLogout();
+                      }, 100);
+                    }}
                     className="flex w-full items-center px-4 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 border-t border-slate-100 dark:border-slate-700 text-left font-medium"
                   >
                     {t('sign_out', 'Sign Out')}
