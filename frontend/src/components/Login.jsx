@@ -362,7 +362,7 @@ export default function Login({
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-900/10 dark:bg-indigo-800/10 rounded-full blur-3xl" />
 
       {/* Login Card */}
-      <div className="relative z-10 w-full max-w-md mx-4">
+      <div className="relative z-10 w-full max-w-6xl mx-4">
 
         {/* Brand */}
         <div className="text-center mb-8">
@@ -382,7 +382,10 @@ export default function Login({
         {/* Card */}
         <div className="bg-slate-900/80 dark:bg-slate-800/80 backdrop-blur-xl border border-slate-700/60 dark:border-slate-700 rounded-2xl p-8 shadow-2xl">
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Login Form Section */}
+            <div>
+              <form onSubmit={handleSubmit} className="space-y-5">
 
             {/* Error Message */}
             {error && (
@@ -482,12 +485,13 @@ export default function Login({
                 </>
               )}
             </button>
-          </form>
+              </form>
+            </div>
 
-          {/* Role Hint Cards */}
-          <div className="mt-6 pt-6 border-t border-slate-700/60">
-            <p className="text-xs text-slate-500 text-center mb-3 font-medium uppercase tracking-wider">Demo Credentials</p>
-            <div className="grid grid-cols-1 gap-2">
+            {/* Demo Credentials Section */}
+            <div className="border-t lg:border-t-0 lg:border-l border-slate-700/60 lg:pl-8 pt-6 lg:pt-0">
+              <p className="text-xs text-slate-500 text-center mb-3 font-medium uppercase tracking-wider">Demo Credentials</p>
+              <div className="grid grid-cols-1 gap-2">
               <button
                 type="button"
                 onClick={() => { setEmail('restricted'); setPassword('******'); }}
@@ -537,6 +541,7 @@ export default function Login({
                 <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP STAFF</span>
                 <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">staff1@mkfashion.com · staff123</span>
               </button>
+            </div>
             </div>
           </div>
         </div>
