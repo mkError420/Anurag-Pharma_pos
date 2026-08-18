@@ -616,6 +616,9 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
 
         {/* CTA Buttons */}
         <div className="flex flex-row gap-4 justify-center mb-24">
+          <AnimatedButton onClick={() => window.history.pushState({}, '', '/login')}>
+            Login
+          </AnimatedButton>
           <AnimatedButton onClick={() => setShowLoginPopup(true)}>
             View Demo
           </AnimatedButton>
