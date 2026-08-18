@@ -3608,7 +3608,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   value={activeTab.discountPercent}
                   onChange={(e) => updateActiveTabState('discountPercent', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
                   disabled={parseFloat(activeTab.discountAmount || 0) > 0}
-                  className="w-14 border border-slate-200 rounded px-1 py-0.5 text-right font-medium text-slate-700 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  className="w-18 border border-slate-200 rounded px-1 py-1 text-right font-medium text-slate-700 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -3621,7 +3621,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   value={activeTab.discountAmount}
                   onChange={(e) => updateActiveTabState('discountAmount', Math.max(0, parseFloat(e.target.value) || 0))}
                   disabled={parseFloat(activeTab.discountPercent || 0) > 0}
-                  className="w-16 border border-slate-200 rounded px-1 py-0.5 text-right font-medium text-slate-700 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  className="w-19 border border-slate-200 rounded px-1 py-1 text-right font-medium text-slate-700 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -3690,7 +3690,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                     updateActiveTabState('isPaidTouched', true);
                   }}
                   placeholder={getFinalTotal().toFixed(3)}
-                  className="w-28 border border-slate-200 rounded px-1.5 py-0.5 text-right font-semibold text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-35 border border-slate-200 rounded px-1.5 py-1 text-right font-semibold text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
 
