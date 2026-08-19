@@ -9,6 +9,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const [logo, setLogo] = useState(null);
   const [heroSlides, setHeroSlides] = useState([]);
   const [pricingPlans, setPricingPlans] = useState([]);
+  const [videos, setVideos] = useState([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -245,6 +246,13 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
         if (paymentRes.ok) {
           const data = await paymentRes.json();
           setPaymentNumbers(data.payment_numbers || []);
+        }
+
+        // Fetch videos
+        const videosRes = await fetch(`${API_BASE_URL}/public/videos`);
+        if (videosRes.ok) {
+          const data = await videosRes.json();
+          setVideos(data.sort((a, b) => a.display_order - b.display_order));
         }
       } catch (err) {
         console.error('Failed to fetch data:', err);
@@ -1266,6 +1274,76 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
             </div>
           </div>
         </div>
+
+        {/* Videos Section */}
+        {videos.length > 0 && (
+          <div className="mb-24">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">Video Tutorials</h2>
+              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                Learn how to make the most of our POS system
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {videos.map((video) => (
+                <div key={video.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-xl transition-all">
+                  {video.thumbnail_url ? (
+                    <div 
+                      className="relative h-48 bg-gray-100 cursor-pointer"
+                      onClick={() => {
+                        const youtubeVideoId = getYoutubeVideoId(video.video_url);
+                        if (youtubeVideoId) {
+                          setYoutubeVideoUrl(`https://www.youtube.com/embed/${youtubeVideoId}`);
+                          setShowYoutubePopup(true);
+                        } else {
+                          window.open(video.video_url, '_blank');
+                        }
+                      }}
+                    >
+                      <img
+                        src={video.thumbnail_url}
+                        alt={video.title}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors">
+                        <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center">
+                          <svg className="w-8 h-8 text-gray-900 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div 
+                      className="relative h-48 bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center cursor-pointer"
+                      onClick={() => {
+                        const youtubeVideoId = getYoutubeVideoId(video.video_url);
+                        if (youtubeVideoId) {
+                          setYoutubeVideoUrl(`https://www.youtube.com/embed/${youtubeVideoId}`);
+                          setShowYoutubePopup(true);
+                        } else {
+                          window.open(video.video_url, '_blank');
+                        }
+                      }}
+                    >
+                      <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center">
+                        <svg className="w-8 h-8 text-gray-900 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+                  <div className="p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{video.title}</h3>
+                    {video.description && (
+                      <p className="text-gray-600 text-sm leading-relaxed">{video.description}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Pricing Section */}
         <div className="mb-24">

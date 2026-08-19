@@ -5,6 +5,7 @@ import AboutUs from './components/AboutUs';
 import ContactUs from './components/ContactUs';
 import TeamMembers from './components/TeamMembers';
 import HeroSlides from './components/HeroSlides';
+import Videos from './components/Videos';
 import ContactInformation from './components/ContactInformation';
 import ContactMessages from './components/ContactMessages';
 import PricingPlans from './components/PricingPlans';
@@ -312,6 +313,7 @@ export default function App() {
         case '/attendance': return <Attendance />;
         case '/team-members': return <TeamMembers />;
         case '/hero-slides': return <HeroSlides />;
+        case '/videos': return <Videos />;
         case '/contact-information': return <ContactInformation />;
         case '/contact-messages': return <ContactMessages />;
         case '/pricing-plans': return <PricingPlans />;

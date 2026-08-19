@@ -191,6 +191,11 @@ $routes = [
             $controller = new WebsiteContentController();
             $controller->getPublicPaymentNumbers();
         },
+        // Public Videos Endpoint (no authentication required)
+        '/^public\/videos$/' => function() {
+            $controller = new WebsiteContentController();
+            $controller->getAllVideos();
+        },
         // Diagnostics
         '/^diagnostic$/' => function() {
             header('Content-Type: text/plain');
@@ -372,6 +377,19 @@ $routes = [
                 $controller->getHeroSlideById($args[0]);
             });
         },
+        // Videos (authenticated)
+        '/^videos$/' => function() {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->getAllVideos();
+            });
+        },
+        '/^videos\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->getVideoById($args[0]);
+            });
+        },
         // Team Members (authenticated)
         '/^team-members$/' => function() {
             AuthController::requireAuth(function() {
@@ -501,6 +519,26 @@ $routes = [
                 if (isset($_POST['_method']) && $_POST['_method'] === 'PUT') {
                     $controller = new WebsiteContentController();
                     $controller->updateHeroSlide($args[0]);
+                } else {
+                    http_response_code(405);
+                    header('Content-Type: application/json');
+                    echo json_encode(['error' => 'Method not allowed']);
+                }
+            });
+        },
+        // Videos
+        '/^videos$/' => function($args, $data) {
+            AuthController::requireAuth(function() {
+                $controller = new WebsiteContentController();
+                $controller->createVideo();
+            });
+        },
+        '/^videos\/(\d+)$/' => function($args, $data) {
+            AuthController::requireAuth(function() use ($args) {
+                // Check for _method override
+                if (isset($_POST['_method']) && $_POST['_method'] === 'PUT') {
+                    $controller = new WebsiteContentController();
+                    $controller->updateVideo($args[0]);
                 } else {
                     http_response_code(405);
                     header('Content-Type: application/json');
@@ -684,6 +722,13 @@ $routes = [
             AuthController::requireAuth(function() use ($args) {
                 $controller = new WebsiteContentController();
                 $controller->deleteHeroSlide($args[0]);
+            });
+        },
+        // Videos
+        '/^videos\/(\d+)$/' => function($args) {
+            AuthController::requireAuth(function() use ($args) {
+                $controller = new WebsiteContentController();
+                $controller->deleteVideo($args[0]);
             });
         },
         // Contact Messages

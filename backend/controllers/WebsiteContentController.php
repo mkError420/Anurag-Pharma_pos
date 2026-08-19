@@ -387,6 +387,214 @@ class WebsiteContentController {
     }
 
     // ============================================
+    // VIDEOS CRUD OPERATIONS
+    // ============================================
+
+    public function getAllVideos() {
+        try {
+            $stmt = $this->db->query("
+                SELECT id, title, description, video_url, thumbnail_url, video_type, display_order, status, created_at, updated_at 
+                FROM videos 
+                WHERE status = 'active' 
+                ORDER BY display_order ASC
+            ");
+            $videos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            header('Content-Type: application/json');
+            echo json_encode($videos);
+        } catch (PDOException $e) {
+            error_log('Get all videos error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to fetch videos']);
+        }
+    }
+
+    public function getVideoById($id) {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT id, title, description, video_url, thumbnail_url, video_type, display_order, status, created_at, updated_at 
+                FROM videos 
+                WHERE id = ?
+            ");
+            $stmt->execute([$id]);
+            $video = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$video) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Video not found']);
+                return;
+            }
+            
+            header('Content-Type: application/json');
+            echo json_encode($video);
+        } catch (PDOException $e) {
+            error_log('Get video error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to fetch video']);
+        }
+    }
+
+    public function createVideo() {
+        try {
+            // Handle thumbnail upload
+            $thumbnailUrl = '';
+            if (isset($_FILES['thumbnail']) && $_FILES['thumbnail']['error'] === UPLOAD_ERR_OK) {
+                $uploadDir = '../uploads/videos/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+                
+                $fileName = time() . '_' . basename($_FILES['thumbnail']['name']);
+                $uploadPath = $uploadDir . $fileName;
+                
+                if (move_uploaded_file($_FILES['thumbnail']['tmp_name'], $uploadPath)) {
+                    $thumbnailUrl = 'uploads/videos/' . $fileName;
+                } else {
+                    http_response_code(400);
+                    header('Content-Type: application/json');
+                    echo json_encode(['error' => 'Failed to upload thumbnail']);
+                    return;
+                }
+            }
+
+            // Get form data
+            $title = $_POST['title'] ?? '';
+            $description = $_POST['description'] ?? '';
+            $videoUrl = $_POST['video_url'] ?? '';
+            $videoType = $_POST['video_type'] ?? 'youtube';
+            $displayOrder = $_POST['display_order'] ?? 0;
+
+            if (empty($title) || empty($videoUrl)) {
+                http_response_code(400);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Title and video URL are required']);
+                return;
+            }
+
+            $stmt = $this->db->prepare("
+                INSERT INTO videos (title, description, video_url, thumbnail_url, video_type, display_order, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'active')
+            ");
+            $stmt->execute([$title, $description, $videoUrl, $thumbnailUrl, $videoType, $displayOrder]);
+            
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => 'Video created successfully',
+                'id' => (int)$this->db->lastInsertId(),
+                'title' => $title,
+                'order' => (int)$displayOrder
+            ]);
+        } catch (PDOException $e) {
+            error_log('Create video error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to create video']);
+        }
+    }
+
+    public function updateVideo($id) {
+        try {
+            // Check if video exists
+            $stmt = $this->db->prepare("SELECT thumbnail_url FROM videos WHERE id = ?");
+            $stmt->execute([$id]);
+            $existingVideo = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$existingVideo) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Video not found']);
+                return;
+            }
+
+            $thumbnailUrl = $existingVideo['thumbnail_url'];
+            
+            // Handle file upload if new thumbnail provided
+            if (isset($_FILES['thumbnail']) && $_FILES['thumbnail']['error'] === UPLOAD_ERR_OK) {
+                $uploadDir = '../uploads/videos/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+                
+                $fileName = time() . '_' . basename($_FILES['thumbnail']['name']);
+                $uploadPath = $uploadDir . $fileName;
+                
+                if (move_uploaded_file($_FILES['thumbnail']['tmp_name'], $uploadPath)) {
+                    // Delete old thumbnail
+                    if (!empty($existingVideo['thumbnail_url']) && file_exists('../' . $existingVideo['thumbnail_url'])) {
+                        unlink('../' . $existingVideo['thumbnail_url']);
+                    }
+                    $thumbnailUrl = 'uploads/videos/' . $fileName;
+                }
+            }
+
+            // Get form data
+            $title = $_POST['title'] ?? $existingVideo['title'];
+            $description = $_POST['description'] ?? $existingVideo['description'];
+            $videoUrl = $_POST['video_url'] ?? $existingVideo['video_url'];
+            $videoType = $_POST['video_type'] ?? $existingVideo['video_type'];
+            $displayOrder = $_POST['display_order'] ?? $existingVideo['display_order'];
+            $status = $_POST['status'] ?? $existingVideo['status'];
+
+            $stmt = $this->db->prepare("
+                UPDATE videos 
+                SET title = ?, description = ?, video_url = ?, thumbnail_url = ?, video_type = ?, display_order = ?, status = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$title, $description, $videoUrl, $thumbnailUrl, $videoType, $displayOrder, $status, $id]);
+            
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => 'Video updated successfully',
+                'title' => $title,
+                'order' => (int)$displayOrder
+            ]);
+        } catch (PDOException $e) {
+            error_log('Update video error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to update video']);
+        }
+    }
+
+    public function deleteVideo($id) {
+        try {
+            // Get video info for thumbnail deletion
+            $stmt = $this->db->prepare("SELECT thumbnail_url FROM videos WHERE id = ?");
+            $stmt->execute([$id]);
+            $video = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$video) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Video not found']);
+                return;
+            }
+
+            // Delete thumbnail file
+            if (!empty($video['thumbnail_url']) && file_exists('../' . $video['thumbnail_url'])) {
+                unlink('../' . $video['thumbnail_url']);
+            }
+
+            // Delete from database
+            $stmt = $this->db->prepare("DELETE FROM videos WHERE id = ?");
+            $stmt->execute([$id]);
+            
+            header('Content-Type: application/json');
+            echo json_encode(['message' => 'Video deleted successfully']);
+        } catch (PDOException $e) {
+            error_log('Delete video error: ' . $e->getMessage());
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'Failed to delete video']);
+        }
+    }
+
+    // ============================================
     // CONTACT MESSAGES CRUD OPERATIONS
     // ============================================
 

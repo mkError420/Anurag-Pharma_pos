@@ -61,6 +61,7 @@ export default function Sidebar({
             items: [
               { label: t('subscriptions', 'Subscriptions'), path: '/subscriptions', icon: <PricingIcon />, badge: pendingSubscriptionsCount },
               { label: t('hero_slides', 'Hero Slides'), path: '/hero-slides', icon: <HeroIcon /> },
+              { label: t('videos', 'Videos'), path: '/videos', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> },
               { label: t('team_members', 'Team Members'), path: '/team-members', icon: <TeamIcon /> },
               { label: t('contact_info', 'Contact Info'), path: '/contact-information', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> },
               { label: t('contact_messages', 'Contact Messages'), path: '/contact-messages', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>, badge: newContactMessagesCount },
