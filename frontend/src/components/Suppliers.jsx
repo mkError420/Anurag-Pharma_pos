@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import API_BASE_URL from '../config';
@@ -39,23 +39,84 @@ export default function Suppliers() {
   const [costLogs, setCostLogs] = useState([]);
   const [selectedPo, setSelectedPo] = useState(null);
 
-  // Return & Replace states
+  // Return & Replace states (Modernized System)
+  const [expiredSubTab, setExpiredSubTab] = useState('watchlist'); // 'watchlist', 'new_return', 'history'
+  const [expiryFilterDays, setExpiryFilterDays] = useState('all'); // 'all', 'expired', '7', '15', '30', '60'
+  const [expirySearchTerm, setExpirySearchTerm] = useState('');
+  const [selectedExpiryItemIds, setSelectedExpiryItemIds] = useState([]);
+  
+  // Single Return & Replace Modals
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [selectedExpiredProduct, setSelectedExpiredProduct] = useState(null);
-  const [returnFormData, setReturnFormData] = useState({ quantity: '', notes: '' });
+  const [returnFormData, setReturnFormData] = useState({
+    quantity: '',
+    unit_cost: '',
+    reason: 'Expired',
+    settlement_type: 'deduct_due',
+    refund_amount: '',
+    reference_no: '',
+    notes: ''
+  });
+  const [replaceFormData, setReplaceFormData] = useState({
+    quantity: '',
+    new_expiry_date: '',
+    reason: 'Product Replacement',
+    notes: ''
+  });
+
+  // Universal Return Desk state
+  const [deskFormData, setDeskFormData] = useState({
+    product_id: '',
+    action_type: 'return',
+    quantity: '1',
+    unit_cost: '',
+    reason: 'Expired',
+    settlement_type: 'deduct_due',
+    refund_amount: '',
+    reference_no: '',
+    new_expiry_date: '',
+    notes: ''
+  });
+  const [deskProductSearch, setDeskProductSearch] = useState('');
+  const [showDeskProductDropdown, setShowDeskProductDropdown] = useState(false);
+  const deskProductDropdownRef = useRef(null);
+
+  // Bulk Return / Replace Modal states
+  const [showBulkReturnModal, setShowBulkReturnModal] = useState(false);
+  const [bulkReturnAction, setBulkReturnAction] = useState('return'); // 'return', 'replace'
+  const [bulkReturnSettlement, setBulkReturnSettlement] = useState('deduct_due');
+  const [bulkReturnReason, setBulkReturnReason] = useState('Expired Batch Return');
+  const [bulkReturnNotes, setBulkReturnNotes] = useState('');
+  const [bulkReturnNewExpiry, setBulkReturnNewExpiry] = useState('');
+  const [bulkReturnProcessing, setBulkReturnProcessing] = useState(false);
+
+  // Return History Filter & Debit Note states
+  const [historyActionFilter, setHistoryActionFilter] = useState('all'); // 'all', 'return', 'replace', 'deduct_due'
+  const [historySearchTerm, setHistorySearchTerm] = useState('');
+  const [historyDateFrom, setHistoryDateFrom] = useState('');
+  const [historyDateTo, setHistoryDateTo] = useState('');
+  const [showDebitNoteModal, setShowDebitNoteModal] = useState(false);
+  const [selectedDebitNoteLog, setSelectedDebitNoteLog] = useState(null);
 
   // Product Edit states (inside supplied products profile tab)
   const [showEditProductModal, setShowEditProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
   const [productEditForm, setProductEditForm] = useState({ name: '', sku: '', cost_price: '', price: '', stock_quantity: '', category: '', unit: 'piece' });
   const [updatingProduct, setUpdatingProduct] = useState(false);
-  const [replaceFormData, setReplaceFormData] = useState({ quantity: '', new_expiry_date: '', notes: '' });
 
   // Log Edit CRUD states
   const [showEditLogModal, setShowEditLogModal] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
-  const [editLogFormData, setEditLogFormData] = useState({ quantity: '', notes: '', new_expiry_date: '' });
+  const [editLogFormData, setEditLogFormData] = useState({
+    quantity: '',
+    unit_cost: '',
+    reason: 'Expired',
+    settlement_type: 'none',
+    refund_amount: '',
+    notes: '',
+    new_expiry_date: ''
+  });
 
   // Cost Price Log View/Delete states
   const [showCostLogViewModal, setShowCostLogViewModal] = useState(false);
@@ -490,6 +551,19 @@ export default function Suppliers() {
       setProfileData(null);
     }
   }, [selectedSupplierId]);
+
+  // Close desk-product dropdown when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (deskProductDropdownRef.current && !deskProductDropdownRef.current.contains(e.target)) {
+        setShowDeskProductDropdown(false);
+      }
+    };
+    if (showDeskProductDropdown) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showDeskProductDropdown]);
 
   // Load profile data and stats
   const loadProfileData = async (supplierId) => {
@@ -1145,6 +1219,11 @@ export default function Suppliers() {
       triggerAlert('error', 'Please enter a valid quantity.');
       return;
     }
+    const unitCost = returnFormData.unit_cost !== '' ? parseFloat(returnFormData.unit_cost) : (parseFloat(selectedExpiredProduct.cost_price) || 0);
+    const qty = parseInt(returnFormData.quantity);
+    const totalVal = qty * unitCost;
+    const refundAmt = returnFormData.refund_amount !== '' ? parseFloat(returnFormData.refund_amount) : (returnFormData.settlement_type === 'deduct_due' ? totalVal : 0);
+
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/suppliers/${selectedSupplierId}/returns`, {
@@ -1155,20 +1234,34 @@ export default function Suppliers() {
         },
         body: JSON.stringify({
           product_id: selectedExpiredProduct.id,
-          quantity: parseInt(returnFormData.quantity),
+          quantity: qty,
           action_type: 'return',
+          unit_cost: unitCost,
+          reason: returnFormData.reason || 'Expired',
+          settlement_type: returnFormData.settlement_type || 'none',
+          refund_amount: refundAmt,
+          reference_no: returnFormData.reference_no || undefined,
           notes: returnFormData.notes
         })
       });
       const resData = await response.json();
       if (!response.ok) throw new Error(resData.error || 'Failed to complete return.');
 
-      triggerAlert('success', 'Product return processed successfully!');
+      triggerAlert('success', `Product return registered successfully! Ref: ${resData.reference_no || 'Recorded'}`);
       setShowReturnModal(false);
-      setReturnFormData({ quantity: '', notes: '' });
+      setReturnFormData({
+        quantity: '',
+        unit_cost: '',
+        reason: 'Expired',
+        settlement_type: 'deduct_due',
+        refund_amount: '',
+        reference_no: '',
+        notes: ''
+      });
       setSelectedExpiredProduct(null);
       loadProfileData(selectedSupplierId);
       fetchProducts(); // Refresh products
+      fetchSuppliers(); // Refresh suppliers due balance
     } catch (err) {
       triggerAlert('error', err.message);
     }
@@ -1177,7 +1270,7 @@ export default function Suppliers() {
   const handleReplaceSubmit = async (e) => {
     e.preventDefault();
     if (!selectedExpiredProduct || !replaceFormData.quantity || parseInt(replaceFormData.quantity) <= 0 || !replaceFormData.new_expiry_date) {
-      triggerAlert('error', 'Please fill out all fields.');
+      triggerAlert('error', 'Please fill out all required fields.');
       return;
     }
     try {
@@ -1192,6 +1285,8 @@ export default function Suppliers() {
           product_id: selectedExpiredProduct.id,
           quantity: parseInt(replaceFormData.quantity),
           action_type: 'replace',
+          reason: replaceFormData.reason || 'Product Replacement',
+          settlement_type: 'replacement',
           new_expiry_date: replaceFormData.new_expiry_date,
           notes: replaceFormData.notes
         })
@@ -1199,9 +1294,9 @@ export default function Suppliers() {
       const resData = await response.json();
       if (!response.ok) throw new Error(resData.error || 'Failed to complete replacement.');
 
-      triggerAlert('success', 'Product replacement processed successfully!');
+      triggerAlert('success', 'Product replacement recorded and new expiry date applied!');
       setShowReplaceModal(false);
-      setReplaceFormData({ quantity: '', new_expiry_date: '', notes: '' });
+      setReplaceFormData({ quantity: '', new_expiry_date: '', reason: 'Product Replacement', notes: '' });
       setSelectedExpiredProduct(null);
       loadProfileData(selectedSupplierId);
       fetchProducts(); // Refresh products
@@ -1210,10 +1305,143 @@ export default function Suppliers() {
     }
   };
 
+  // Universal Return Desk Submission
+  const handleUniversalDeskSubmit = async (e) => {
+    e.preventDefault();
+    if (!deskFormData.product_id) {
+      triggerAlert('error', 'Please select a product to return or replace.');
+      return;
+    }
+    const qty = parseInt(deskFormData.quantity);
+    if (isNaN(qty) || qty <= 0) {
+      triggerAlert('error', 'Please enter a valid positive quantity.');
+      return;
+    }
+    const unitCost = parseFloat(deskFormData.unit_cost) || 0;
+    const totalVal = qty * unitCost;
+    const refundAmt = deskFormData.refund_amount !== '' ? parseFloat(deskFormData.refund_amount) : (deskFormData.settlement_type === 'deduct_due' ? totalVal : 0);
+
+    if (deskFormData.action_type === 'replace' && !deskFormData.new_expiry_date) {
+      triggerAlert('error', 'Please provide a new expiry date for the replacement batch.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/suppliers/${selectedSupplierId}/returns`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          product_id: parseInt(deskFormData.product_id),
+          quantity: qty,
+          action_type: deskFormData.action_type,
+          unit_cost: unitCost,
+          reason: deskFormData.reason || 'Other',
+          settlement_type: deskFormData.settlement_type,
+          refund_amount: refundAmt,
+          reference_no: deskFormData.reference_no || undefined,
+          new_expiry_date: deskFormData.action_type === 'replace' ? deskFormData.new_expiry_date : null,
+          notes: deskFormData.notes
+        })
+      });
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Failed to submit return.');
+
+      triggerAlert('success', `Supplier return voucher ${resData.reference_no || 'Created'} processed successfully!`);
+      // Reset desk form
+      setDeskFormData({
+        product_id: '',
+        action_type: 'return',
+        quantity: '1',
+        unit_cost: '',
+        reason: 'Expired',
+        settlement_type: 'deduct_due',
+        refund_amount: '',
+        reference_no: '',
+        new_expiry_date: '',
+        notes: ''
+      });
+      setDeskProductSearch('');
+      loadProfileData(selectedSupplierId);
+      fetchProducts();
+      fetchSuppliers();
+    } catch (err) {
+      triggerAlert('error', err.message);
+    }
+  };
+
+  // Bulk Return / Replace Submission
+  const handleBulkReturnSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedExpiryItemIds || selectedExpiryItemIds.length === 0) {
+      triggerAlert('error', 'No products selected for bulk action.');
+      return;
+    }
+
+    setBulkReturnProcessing(true);
+    try {
+      const token = localStorage.getItem('token');
+      const itemsToProcess = (profileData.expiredProducts || [])
+        .filter(p => selectedExpiryItemIds.includes(p.id))
+        .map(p => ({
+          product_id: p.id,
+          quantity: p.stock_quantity > 0 ? p.stock_quantity : 1,
+          action_type: bulkReturnAction,
+          unit_cost: parseFloat(p.cost_price || 0),
+          reason: bulkReturnReason,
+          new_expiry_date: bulkReturnAction === 'replace' ? bulkReturnNewExpiry : null,
+          notes: bulkReturnNotes
+        }));
+
+      const response = await fetch(`${API_BASE_URL}/suppliers/${selectedSupplierId}/returns/bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action_type: bulkReturnAction,
+          settlement_type: bulkReturnSettlement,
+          reason: bulkReturnReason,
+          notes: bulkReturnNotes,
+          new_expiry_date: bulkReturnAction === 'replace' ? bulkReturnNewExpiry : null,
+          items: itemsToProcess
+        })
+      });
+
+      const resData = await response.json();
+      if (!response.ok) throw new Error(resData.error || 'Failed to process bulk returns.');
+
+      triggerAlert('success', resData.message || 'Bulk return action completed successfully!');
+      setShowBulkReturnModal(false);
+      setSelectedExpiryItemIds([]);
+      setBulkReturnNotes('');
+      setBulkReturnNewExpiry('');
+      loadProfileData(selectedSupplierId);
+      fetchProducts();
+      fetchSuppliers();
+    } catch (err) {
+      triggerAlert('error', err.message);
+    } finally {
+      setBulkReturnProcessing(false);
+    }
+  };
+
   const handleDeleteLog = async (log) => {
-    const confirmMsg = log.action_type === 'return'
-      ? `Are you sure you want to delete this return log? This will revert product stock quantity by adding ${log.quantity} units back.`
-      : 'Are you sure you want to delete this replacement log?';
+    const isReturn = log.action_type === 'return';
+    const isDueDeduct = (log.settlement_type === 'deduct_due') && parseFloat(log.refund_amount || 0) > 0;
+    
+    let confirmMsg = `Are you sure you want to delete this ${log.action_type} record (#${log.reference_no || log.id})?`;
+    if (isReturn) {
+      confirmMsg += `\n• Stock will be restored (+${log.quantity} units).`;
+    }
+    if (isDueDeduct) {
+      confirmMsg += `\n• Supplier due balance will be restored (+${formatCurrency(log.refund_amount)}).`;
+    }
+
     if (!window.confirm(confirmMsg)) return;
 
     try {
@@ -1225,9 +1453,10 @@ export default function Suppliers() {
       const resData = await response.json();
       if (!response.ok) throw new Error(resData.error || 'Failed to delete log.');
 
-      triggerAlert('success', 'Log entry deleted and inventory reverted successfully!');
+      triggerAlert('success', 'Return record deleted and stock/ledger balances reverted successfully!');
       loadProfileData(selectedSupplierId);
-      fetchProducts(); // Refresh products
+      fetchProducts();
+      fetchSuppliers();
     } catch (err) {
       triggerAlert('error', err.message);
     }
@@ -1242,6 +1471,10 @@ export default function Suppliers() {
 
     try {
       const token = localStorage.getItem('token');
+      const qty = parseInt(editLogFormData.quantity);
+      const unitCost = editLogFormData.unit_cost !== '' ? parseFloat(editLogFormData.unit_cost) : parseFloat(selectedLog.unit_cost || 0);
+      const refundAmt = editLogFormData.refund_amount !== '' ? parseFloat(editLogFormData.refund_amount) : (editLogFormData.settlement_type === 'deduct_due' ? (qty * unitCost) : 0);
+
       const response = await fetch(`${API_BASE_URL}/suppliers/returns/${selectedLog.id}`, {
         method: 'PUT',
         headers: {
@@ -1249,7 +1482,11 @@ export default function Suppliers() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          quantity: parseInt(editLogFormData.quantity),
+          quantity: qty,
+          unit_cost: unitCost,
+          reason: editLogFormData.reason,
+          settlement_type: editLogFormData.settlement_type,
+          refund_amount: refundAmt,
           notes: editLogFormData.notes,
           new_expiry_date: selectedLog.action_type === 'replace' ? editLogFormData.new_expiry_date : undefined
         })
@@ -1257,15 +1494,29 @@ export default function Suppliers() {
       const resData = await response.json();
       if (!response.ok) throw new Error(resData.error || 'Failed to update log.');
 
-      triggerAlert('success', 'Log entry updated and inventory adjusted successfully!');
+      triggerAlert('success', 'Return entry updated and inventory/ledger adjusted successfully!');
       setShowEditLogModal(false);
       setSelectedLog(null);
-      setEditLogFormData({ quantity: '', notes: '', new_expiry_date: '' });
+      setEditLogFormData({
+        quantity: '',
+        unit_cost: '',
+        reason: 'Expired',
+        settlement_type: 'none',
+        refund_amount: '',
+        notes: '',
+        new_expiry_date: ''
+      });
       loadProfileData(selectedSupplierId);
-      fetchProducts(); // Refresh products
+      fetchProducts();
+      fetchSuppliers();
     } catch (err) {
       triggerAlert('error', err.message);
     }
+  };
+
+  const openDebitNoteSlip = (log) => {
+    setSelectedDebitNoteLog(log);
+    setShowDebitNoteModal(true);
   };
 
   const handleSaveProductEdit = async (e) => {
@@ -2612,136 +2863,1022 @@ export default function Suppliers() {
               </div>
             )}
 
-            {profileTab === 'expired_products' && (
-              <div className="space-y-6">
-                <div>
-                  <h4 className="font-bold text-slate-700 text-sm mb-3">Expired Products from this Supplier</h4>
-                  <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
-                          <th className="p-3">SKU</th>
-                          <th className="p-3">Product Name</th>
-                          <th className="p-3">Expiry Date</th>
-                          <th className="p-3">Current Stock</th>
-                          <th className="p-3 text-center">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs">
-                        {!profileData.expiredProducts || profileData.expiredProducts.length === 0 ? (
-                          <tr>
-                            <td colSpan="5" className="p-8 text-center text-slate-400">No expired products found from this vendor.</td>
-                          </tr>
-                        ) : (
-                          profileData.expiredProducts.map(p => (
-                            <tr key={p.id} className="hover:bg-slate-50/50">
-                              <td className="p-3 font-mono font-bold text-slate-500">{p.sku}</td>
-                              <td className="p-3 font-semibold text-slate-800">{p.name}</td>
-                              <td className="p-3">
-                                <span className="text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
-                                  {new Date(p.expiry_date).toLocaleDateString()}
-                                </span>
-                              </td>
-                              <td className="p-3 font-semibold">{p.stock_quantity} units</td>
-                              <td className="p-3 text-center space-x-2">
-                                <button
-                                  onClick={() => {
-                                    setSelectedExpiredProduct(p);
-                                    setReturnFormData({ quantity: String(p.stock_quantity), notes: '' });
-                                    setShowReturnModal(true);
-                                  }}
-                                  className="bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-1 px-2.5 rounded border border-amber-200 transition-colors"
-                                >
-                                  Return to Supplier
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setSelectedExpiredProduct(p);
-                                    setReplaceFormData({ quantity: String(p.stock_quantity), new_expiry_date: '', notes: '' });
-                                    setShowReplaceModal(true);
-                                  }}
-                                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-1 px-2.5 rounded border border-emerald-200 transition-colors"
-                                >
-                                  Replace Product
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+            {profileTab === 'expired_products' && (() => {
+              const allExpiryItems = profileData.expiredProducts || [];
+              const rawHistory = profileData.returnsHistory || [];
 
-                <div>
-                  <h4 className="font-bold text-slate-700 text-sm mb-3">Return & Replacement Log History</h4>
-                  <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
-                          <th className="p-3">Date</th>
-                          <th className="p-3">SKU</th>
-                          <th className="p-3">Product Name</th>
-                          <th className="p-3">Qty</th>
-                          <th className="p-3">Action Type</th>
-                          <th className="p-3">New Expiry Date</th>
-                          <th className="p-3">Notes</th>
-                          <th className="p-3 text-center">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs">
-                        {!profileData.returnsHistory || profileData.returnsHistory.length === 0 ? (
-                          <tr>
-                            <td colSpan="8" className="p-8 text-center text-slate-400">No returns or replacements history logged.</td>
-                          </tr>
-                        ) : (
-                          profileData.returnsHistory.map(log => (
-                            <tr key={log.id} className="hover:bg-slate-50/50">
-                              <td className="p-3 text-slate-650">{formatDate(log.created_at)}</td>
-                              <td className="p-3 font-mono text-slate-500 font-bold">{log.product_sku}</td>
-                              <td className="p-3 font-semibold text-slate-800">{log.product_name}</td>
-                              <td className="p-3 font-bold">{log.quantity}</td>
-                              <td className="p-3">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${log.action_type === 'return'
-                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                  }`}>
-                                  {log.action_type === 'return' ? 'Returned' : 'Replaced'}
-                                </span>
-                              </td>
-                              <td className="p-3 text-slate-650">{log.new_expiry_date ? new Date(log.new_expiry_date).toLocaleDateString() : '-'}</td>
-                              <td className="p-3 text-slate-600 italic">{log.notes || '-'}</td>
-                              <td className="p-3 text-center space-x-2">
-                                <button
-                                  onClick={() => {
-                                    setSelectedLog(log);
-                                    setEditLogFormData({
-                                      quantity: String(log.quantity),
-                                      notes: log.notes || '',
-                                      new_expiry_date: log.new_expiry_date ? log.new_expiry_date.split('T')[0] : ''
-                                    });
-                                    setShowEditLogModal(true);
-                                  }}
-                                  className="text-indigo-650 hover:text-indigo-900 font-bold"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteLog(log)}
-                                  className="text-rose-600 hover:text-rose-900 font-bold"
-                                >
-                                  Delete
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+              // Filter Watchlist items
+              const filteredWatchlist = allExpiryItems.filter(p => {
+                if (expiryFilterDays === 'expired' && p.days_left > 0) return false;
+                if (expiryFilterDays === '7' && (p.days_left <= 0 || p.days_left > 7)) return false;
+                if (expiryFilterDays === '15' && (p.days_left <= 0 || p.days_left > 15)) return false;
+                if (expiryFilterDays === '30' && (p.days_left <= 0 || p.days_left > 30)) return false;
+                if (expiryFilterDays === '60' && (p.days_left <= 0 || p.days_left > 60)) return false;
+
+                if (expirySearchTerm.trim()) {
+                  const s = expirySearchTerm.toLowerCase();
+                  return (p.name && p.name.toLowerCase().includes(s)) ||
+                         (p.sku && p.sku.toLowerCase().includes(s)) ||
+                         (p.category && p.category.toLowerCase().includes(s));
+                }
+                return true;
+              });
+
+              // Filter History Logs
+              const filteredHistory = rawHistory.filter(log => {
+                if (historyActionFilter === 'return' && log.action_type !== 'return') return false;
+                if (historyActionFilter === 'replace' && log.action_type !== 'replace') return false;
+                if (historyActionFilter === 'deduct_due' && log.settlement_type !== 'deduct_due') return false;
+
+                if (historySearchTerm.trim()) {
+                  const s = historySearchTerm.toLowerCase();
+                  const matchProduct = (log.product_name && log.product_name.toLowerCase().includes(s)) ||
+                                       (log.product_sku && log.product_sku.toLowerCase().includes(s)) ||
+                                       (log.reference_no && log.reference_no.toLowerCase().includes(s)) ||
+                                       (log.reason && log.reason.toLowerCase().includes(s)) ||
+                                       (log.notes && log.notes.toLowerCase().includes(s));
+                  if (!matchProduct) return false;
+                }
+
+                if (historyDateFrom) {
+                  const from = new Date(historyDateFrom);
+                  from.setHours(0, 0, 0, 0);
+                  if (new Date(log.created_at) < from) return false;
+                }
+                if (historyDateTo) {
+                  const to = new Date(historyDateTo);
+                  to.setHours(23, 59, 59, 999);
+                  if (new Date(log.created_at) > to) return false;
+                }
+
+                return true;
+              });
+
+              const totalExpiredCount = allExpiryItems.filter(p => p.days_left <= 0 && p.stock_quantity > 0).reduce((s, p) => s + p.stock_quantity, 0);
+              const totalExpiredVal = allExpiryItems.filter(p => p.days_left <= 0 && p.stock_quantity > 0).reduce((s, p) => s + (p.stock_quantity * p.cost_price), 0);
+              const totalNearCount = allExpiryItems.filter(p => p.days_left > 0 && p.days_left <= 30 && p.stock_quantity > 0).reduce((s, p) => s + p.stock_quantity, 0);
+              const totalNearVal = allExpiryItems.filter(p => p.days_left > 0 && p.days_left <= 30 && p.stock_quantity > 0).reduce((s, p) => s + (p.stock_quantity * p.cost_price), 0);
+              const totalReturnsVal = rawHistory.filter(l => l.action_type === 'return').reduce((s, l) => s + (parseFloat(l.total_amount) || 0), 0);
+              const totalDueDeducted = rawHistory.filter(l => l.settlement_type === 'deduct_due').reduce((s, l) => s + (parseFloat(l.refund_amount) || 0), 0);
+
+              const selectedCount = selectedExpiryItemIds.length;
+              const selectedValue = allExpiryItems
+                .filter(p => selectedExpiryItemIds.includes(p.id))
+                .reduce((s, p) => s + (p.stock_quantity * p.cost_price), 0);
+
+              const isAllWatchlistSelected = filteredWatchlist.length > 0 && filteredWatchlist.every(p => selectedExpiryItemIds.includes(p.id));
+
+              const toggleSelectAllWatchlist = () => {
+                if (isAllWatchlistSelected) {
+                  const currentIds = filteredWatchlist.map(p => p.id);
+                  setSelectedExpiryItemIds(prev => prev.filter(id => !currentIds.includes(id)));
+                } else {
+                  const newIds = filteredWatchlist.map(p => p.id);
+                  setSelectedExpiryItemIds(prev => Array.from(new Set([...prev, ...newIds])));
+                }
+              };
+
+              const toggleSelectItem = (id) => {
+                setSelectedExpiryItemIds(prev => 
+                  prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+                );
+              };
+
+              // Filter supplied products for universal desk
+              const deskProductOptions = uniqueProducts.filter(p => {
+                if (!deskProductSearch.trim()) return true;
+                const s = deskProductSearch.toLowerCase();
+                return (p.name && p.name.toLowerCase().includes(s)) || (p.sku && p.sku.toLowerCase().includes(s));
+              });
+
+              return (
+                <div className="space-y-6">
+                  {/* KPI Executive Summary Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Card 1: Expired Stock Value */}
+                    <div className="bg-gradient-to-br from-rose-50 to-rose-100/50 border border-rose-200/80 p-4.5 shadow-xs relative overflow-hidden">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[11px] font-bold tracking-wider uppercase text-rose-600 block">Expired Stock Loss</span>
+                          <span className="text-xl font-black text-rose-950 mt-1 block">
+                            {formatCurrency(totalExpiredVal)}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-rose-500 text-white rounded-xl shadow-xs">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center text-xs font-semibold text-rose-700">
+                        <span className="bg-rose-200/60 px-2 py-0.5 rounded-md font-bold text-[11px] mr-2">
+                          {totalExpiredCount} units
+                        </span>
+                        <span>Requires urgent return/write-off</span>
+                      </div>
+                    </div>
+
+                    {/* Card 2: Near Expiry Warning */}
+                    <div className="bg-gradient-to-br from-amber-50 to-amber-100/40 border border-amber-200/80 p-4.5 shadow-xs relative overflow-hidden">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[11px] font-bold tracking-wider uppercase text-amber-700 block">Expiring in 30 Days</span>
+                          <span className="text-xl font-black text-amber-950 mt-1 block">
+                            {formatCurrency(totalNearVal)}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-xs">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center text-xs font-semibold text-amber-800">
+                        <span className="bg-amber-200/60 px-2 py-0.5 rounded-md font-bold text-[11px] mr-2">
+                          {totalNearCount} units
+                        </span>
+                        <span>Approaching expiration window</span>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Total Returns Processed */}
+                    <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/40 border border-indigo-200/80 p-4.5 shadow-xs relative overflow-hidden">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[11px] font-bold tracking-wider uppercase text-indigo-700 block">Total Returned Value</span>
+                          <span className="text-xl font-black text-indigo-950 mt-1 block">
+                            {formatCurrency(totalReturnsVal)}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center text-xs font-semibold text-indigo-800">
+                        <span className="bg-indigo-200/60 px-2 py-0.5 rounded-md font-bold text-[11px] mr-2">
+                          {rawHistory.filter(l => l.action_type === 'return').length} logs
+                        </span>
+                        <span>Total returned to vendor</span>
+                      </div>
+                    </div>
+
+                    {/* Card 4: Due Offset Recovered */}
+                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/40 border border-emerald-200/80 p-4.5 shadow-xs relative overflow-hidden">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[11px] font-bold tracking-wider uppercase text-emerald-700 block">Debt Due Deducted</span>
+                          <span className="text-xl font-black text-emerald-950 mt-1 block">
+                            {formatCurrency(totalDueDeducted)}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-xs">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex items-center text-xs font-semibold text-emerald-800">
+                        <span className="bg-emerald-200/60 px-2 py-0.5 rounded-md font-bold text-[11px] mr-2">
+                          Ledger Offset
+                        </span>
+                        <span>Deducted from supplier dues</span>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Sub-Navigation Tabs */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                    <div className="flex items-center space-x-2 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200/60">
+                      <button
+                        onClick={() => setExpiredSubTab('watchlist')}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ${
+                          expiredSubTab === 'watchlist'
+                            ? 'bg-white text-rose-700 shadow-xs border border-rose-200/50'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <span>🚨 Expiry Watchlist & Alerts</span>
+                        <span className={`px-2 py-0.2 rounded-full text-[10px] font-black ${
+                          allExpiryItems.length > 0 ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {allExpiryItems.length}
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => setExpiredSubTab('new_return')}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ${
+                          expiredSubTab === 'new_return'
+                            ? 'bg-white text-indigo-700 shadow-xs border border-indigo-200/50'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Initiate Return / Desk</span>
+                      </button>
+
+                      <button
+                        onClick={() => setExpiredSubTab('history')}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ${
+                          expiredSubTab === 'history'
+                            ? 'bg-white text-slate-800 shadow-xs border border-slate-200'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Returns & Debit Notes History</span>
+                        <span className="px-2 py-0.2 rounded-full text-[10px] font-black bg-slate-200 text-slate-700">
+                          {rawHistory.length}
+                        </span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => {
+                          setDeskFormData(prev => ({ ...prev, action_type: 'return' }));
+                          setExpiredSubTab('new_return');
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3.5 rounded-xl text-xs shadow-xs transition-colors flex items-center space-x-1.5"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Create Return Slip</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* VIEW 1: WATCHLIST & EXPIRY ALERTS */}
+                  {expiredSubTab === 'watchlist' && (
+                    <div className="space-y-4">
+                      {/* Filter Bar & Search */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Filter Window:</span>
+                            {[
+                              { key: 'all', label: 'All Watchlist' },
+                              { key: 'expired', label: '🔴 Expired Now' },
+                              { key: '7', label: '⚡ Next 7 Days' },
+                              { key: '15', label: '⏳ Next 15 Days' },
+                              { key: '30', label: '📅 Next 30 Days' },
+                              { key: '60', label: '🗓️ Next 60 Days' }
+                            ].map(f => (
+                              <button
+                                key={f.key}
+                                onClick={() => setExpiryFilterDays(f.key)}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${
+                                  expiryFilterDays === f.key
+                                    ? 'bg-rose-500 text-white border-rose-600 shadow-xs'
+                                    : 'bg-white text-slate-650 border-slate-200 hover:border-slate-300'
+                                }`}
+                              >
+                                {f.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="relative w-full sm:w-64">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                              <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                            </div>
+                            <input
+                              type="text"
+                              placeholder="Search item or SKU..."
+                              value={expirySearchTerm}
+                              onChange={(e) => setExpirySearchTerm(e.target.value)}
+                              className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-rose-500 bg-white"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Bulk Action Toolbar */}
+                        {selectedCount > 0 && (
+                          <div className="flex flex-wrap items-center justify-between bg-rose-50 border border-rose-200 rounded-xl p-3 gap-3 animate-fadeIn">
+                            <div className="flex items-center space-x-2 text-xs font-bold text-rose-900">
+                              <span className="bg-rose-200 text-rose-900 px-2 py-0.5 rounded-md text-[11px]">
+                                {selectedCount} items selected
+                              </span>
+                              <span>Total Value: <strong className="text-rose-950 font-black">{formatCurrency(selectedValue)}</strong></span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => {
+                                  setBulkReturnAction('return');
+                                  setBulkReturnSettlement('deduct_due');
+                                  setBulkReturnReason('Expired Batch Return');
+                                  setShowBulkReturnModal(true);
+                                }}
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-1.5 px-3.5 rounded-lg text-xs shadow-xs transition-colors flex items-center space-x-1.5"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                </svg>
+                                <span>Bulk Return to Supplier ({selectedCount})</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setBulkReturnAction('replace');
+                                  setBulkReturnReason('Bulk Batch Replacement');
+                                  setShowBulkReturnModal(true);
+                                }}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3.5 rounded-lg text-xs shadow-xs transition-colors flex items-center space-x-1.5"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Bulk Replace ({selectedCount})</span>
+                              </button>
+                              <button
+                                onClick={() => setSelectedExpiryItemIds([])}
+                                className="text-xs text-slate-500 hover:text-slate-800 font-semibold underline px-2"
+                              >
+                                Clear Selection
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Watchlist Table */}
+                      <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/70">
+                              <th className="p-3.5 w-10 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isAllWatchlistSelected}
+                                  onChange={toggleSelectAllWatchlist}
+                                  className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                                />
+                              </th>
+                              <th className="p-3.5">SKU & Item Details</th>
+                              <th className="p-3.5">Category</th>
+                              <th className="p-3.5">Expiry Status</th>
+                              <th className="p-3.5">Current Stock</th>
+                              <th className="p-3.5">Unit Cost</th>
+                              <th className="p-3.5">Total Value</th>
+                              <th className="p-3.5 text-center">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-xs">
+                            {filteredWatchlist.length === 0 ? (
+                              <tr>
+                                <td colSpan="8" className="p-12 text-center text-slate-400">
+                                  <div className="flex flex-col items-center justify-center space-y-2">
+                                    <div className="p-3 bg-slate-100 rounded-full text-slate-400">
+                                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                    </div>
+                                    <span className="font-semibold text-slate-500">No products matching the active filter in watchlist.</span>
+                                    <span className="text-xs text-slate-400">All products from this supplier are unexpired and in good standing.</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredWatchlist.map(p => {
+                                const isExpired = p.days_left <= 0;
+                                const isNear = p.days_left > 0 && p.days_left <= 30;
+                                const isSelected = selectedExpiryItemIds.includes(p.id);
+
+                                return (
+                                  <tr key={p.id} className={`hover:bg-slate-50/60 transition-colors ${isSelected ? 'bg-rose-50/30' : ''}`}>
+                                    <td className="p-3.5 text-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => toggleSelectItem(p.id)}
+                                        className="rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                                      />
+                                    </td>
+                                    <td className="p-3.5">
+                                      <div className="font-mono font-bold text-slate-500 text-[11px]">{p.sku}</div>
+                                      <div className="font-bold text-slate-850 text-sm mt-0.5">{p.name}</div>
+                                    </td>
+                                    <td className="p-3.5">
+                                      <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-md border border-slate-200 uppercase">
+                                        {p.category || 'Uncategorized'}
+                                      </span>
+                                    </td>
+                                    <td className="p-3.5">
+                                      <div className="flex flex-col items-start gap-1">
+                                        <span className="text-slate-700 font-bold text-xs">
+                                          {new Date(p.expiry_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                        </span>
+                                        {isExpired ? (
+                                          <span className="text-[10px] font-black bg-rose-100 text-rose-800 px-2 py-0.5 rounded-md border border-rose-200 inline-flex items-center">
+                                            🔴 Expired {Math.abs(p.days_left)}d ago
+                                          </span>
+                                        ) : isNear ? (
+                                          <span className="text-[10px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200 inline-flex items-center">
+                                            ⏳ Expires in {p.days_left}d
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200 inline-flex items-center">
+                                            In {p.days_left} days
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="p-3.5">
+                                      <span className={`font-bold px-2.5 py-1 rounded-lg border text-xs ${
+                                        p.stock_quantity > 0
+                                          ? 'bg-slate-100 text-slate-800 border-slate-200'
+                                          : 'bg-rose-50 text-rose-600 border-rose-200'
+                                      }`}>
+                                        {p.stock_quantity} {p.unit || 'units'}
+                                      </span>
+                                    </td>
+                                    <td className="p-3.5 font-bold text-slate-700">
+                                      {formatCurrency(p.cost_price)}
+                                    </td>
+                                    <td className="p-3.5 font-black text-slate-900">
+                                      {formatCurrency(p.stock_quantity * p.cost_price)}
+                                    </td>
+                                    <td className="p-3.5 text-center">
+                                      <div className="flex items-center justify-center space-x-1.5">
+                                        <button
+                                          onClick={() => {
+                                            setSelectedExpiredProduct(p);
+                                            setReturnFormData({
+                                              quantity: String(p.stock_quantity > 0 ? p.stock_quantity : 1),
+                                              unit_cost: String(p.cost_price || 0),
+                                              reason: isExpired ? 'Expired' : 'Near Expiry Stock',
+                                              settlement_type: 'deduct_due',
+                                              refund_amount: String((p.stock_quantity > 0 ? p.stock_quantity : 1) * (p.cost_price || 0)),
+                                              reference_no: '',
+                                              notes: isExpired ? 'Batch expired; requesting return & ledger credit' : 'Returning near-expiry stock'
+                                            });
+                                            setShowReturnModal(true);
+                                          }}
+                                          disabled={!(p.stock_quantity > 0)}
+                                          className={`font-bold py-1.5 px-3 rounded-lg text-xs border transition-all ${
+                                            p.stock_quantity > 0
+                                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 shadow-2xs'
+                                              : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+                                          }`}
+                                          title={p.stock_quantity > 0 ? "Return to Supplier" : "No stock to return"}
+                                        >
+                                          Return
+                                        </button>
+
+                                        <button
+                                          onClick={() => {
+                                            setSelectedExpiredProduct(p);
+                                            setReplaceFormData({
+                                              quantity: String(p.stock_quantity > 0 ? p.stock_quantity : 1),
+                                              new_expiry_date: '',
+                                              reason: 'Batch Replacement',
+                                              notes: 'Supplier agreed to replace with new unexpired lot'
+                                            });
+                                            setShowReplaceModal(true);
+                                          }}
+                                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-1.5 px-3 rounded-lg text-xs border border-emerald-200 shadow-2xs transition-colors"
+                                        >
+                                          Replace
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* VIEW 2: UNIVERSAL RETURN DESK */}
+                  {expiredSubTab === 'new_return' && (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-6">
+                      <div className="border-b border-slate-100 pb-4">
+                        <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Universal Return Generator</span>
+                        <h3 className="text-lg font-black text-slate-800">Initiate Supplier Return or Replacement</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Create an official return slip for any item supplied by {supplier.name} with automatic inventory deduction and financial ledger settlement.
+                        </p>
+                      </div>
+
+                      <form onSubmit={handleUniversalDeskSubmit} className="space-y-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          {/* Column 1: Item & Quantity Selection */}
+                          <div className="space-y-4 bg-slate-50/60 p-4.5 rounded-2xl border border-slate-100">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200/60 pb-2">
+                              1. Item & Quantity Breakdown
+                            </h4>
+
+                            {/* Product Selector */}
+                            <div className="relative" ref={deskProductDropdownRef}>
+                              <label className="block text-xs font-bold text-slate-600 mb-1">
+                                Select Supplied Product *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  placeholder="Search by name or SKU to pick product..."
+                                  value={deskProductSearch}
+                                  onClick={() => setShowDeskProductDropdown(prev => !prev)}
+                                  onChange={(e) => {
+                                    setDeskProductSearch(e.target.value);
+                                    setShowDeskProductDropdown(true);
+                                  }}
+                                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                                />
+                                {deskFormData.product_id && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDeskFormData(prev => ({ ...prev, product_id: '', unit_cost: '' }));
+                                      setDeskProductSearch('');
+                                    }}
+                                    className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-600"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Dropdown Suggestions */}
+                              {showDeskProductDropdown && (
+                                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                                  {deskProductOptions.length === 0 ? (
+                                    <div className="p-3 text-xs text-slate-400 text-center">No products found for this vendor.</div>
+                                  ) : (
+                                    deskProductOptions.map(prod => (
+                                      <button
+                                        type="button"
+                                        key={prod.id}
+                                        onClick={() => {
+                                          setDeskFormData(prev => ({
+                                            ...prev,
+                                            product_id: prod.id,
+                                            unit_cost: String(prod.current_cost || 0),
+                                            refund_amount: String(parseFloat(deskFormData.quantity || 1) * (prod.current_cost || 0))
+                                          }));
+                                          setDeskProductSearch(`${prod.name} (${prod.sku})`);
+                                          setShowDeskProductDropdown(false);
+                                        }}
+                                        className="w-full text-left p-3 hover:bg-indigo-50/50 flex justify-between items-center text-xs transition-colors"
+                                      >
+                                        <div>
+                                          <span className="font-bold text-slate-800 block">{prod.name}</span>
+                                          <span className="text-[10px] font-mono text-slate-400">{prod.sku} · {prod.category || 'Standard'}</span>
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="font-bold text-slate-700 block">{formatCurrency(prod.current_cost)}</span>
+                                          <span className="text-[10px] text-slate-400">Stock: {prod.stock}</span>
+                                        </div>
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Action Type Toggle */}
+                            <div>
+                              <label className="block text-xs font-bold text-slate-600 mb-1.5">Action Type</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setDeskFormData(prev => ({ ...prev, action_type: 'return' }))}
+                                  className={`p-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center space-x-1.5 ${
+                                    deskFormData.action_type === 'return'
+                                      ? 'bg-rose-500 text-white border-rose-600 shadow-xs'
+                                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                  }`}
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                  </svg>
+                                  <span>Return (Stock Out)</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setDeskFormData(prev => ({ ...prev, action_type: 'replace' }))}
+                                  className={`p-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center space-x-1.5 ${
+                                    deskFormData.action_type === 'replace'
+                                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                  }`}
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                  <span>Replace (Exchange)</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Quantity & Unit Cost Grid */}
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1">Return Quantity *</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={deskFormData.quantity}
+                                  onChange={(e) => {
+                                    const q = e.target.value;
+                                    const u = parseFloat(deskFormData.unit_cost) || 0;
+                                    setDeskFormData(prev => ({
+                                      ...prev,
+                                      quantity: q,
+                                      refund_amount: String((parseFloat(q) || 0) * u)
+                                    }));
+                                  }}
+                                  required
+                                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-1">Return Unit Cost (৳)</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={deskFormData.unit_cost}
+                                  onChange={(e) => {
+                                    const u = e.target.value;
+                                    const q = parseFloat(deskFormData.quantity) || 0;
+                                    setDeskFormData(prev => ({
+                                      ...prev,
+                                      unit_cost: u,
+                                      refund_amount: String(q * (parseFloat(u) || 0))
+                                    }));
+                                  }}
+                                  required
+                                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Total Return Amount Preview Box */}
+                            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 flex justify-between items-center">
+                              <div>
+                                <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider block">Total Return Value</span>
+                                <span className="text-xs text-indigo-600">Calculated item worth</span>
+                              </div>
+                              <span className="text-base font-black text-indigo-900">
+                                {formatCurrency((parseFloat(deskFormData.quantity) || 0) * (parseFloat(deskFormData.unit_cost) || 0))}
+                              </span>
+                            </div>
+
+                            {/* Replacement Expiry date if action_type === 'replace' */}
+                            {deskFormData.action_type === 'replace' && (
+                              <div>
+                                <label className="block text-xs font-bold text-emerald-700 mb-1">New Replacement Expiry Date *</label>
+                                <input
+                                  type="date"
+                                  value={deskFormData.new_expiry_date}
+                                  onChange={(e) => setDeskFormData(prev => ({ ...prev, new_expiry_date: e.target.value }))}
+                                  required
+                                  className="w-full border border-emerald-300 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500 bg-emerald-50/40"
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Column 2: Reason, Settlement & Remarks */}
+                          <div className="space-y-4 bg-slate-50/60 p-4.5 rounded-2xl border border-slate-100">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200/60 pb-2">
+                              2. Reason & Financial Settlement
+                            </h4>
+
+                            {/* Return Reason */}
+                            <div>
+                              <label className="block text-xs font-bold text-slate-600 mb-1">Return Reason *</label>
+                              <select
+                                value={deskFormData.reason}
+                                onChange={(e) => setDeskFormData(prev => ({ ...prev, reason: e.target.value }))}
+                                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                              >
+                                <option value="Expired">Expired Product Batch</option>
+                                <option value="Near Expiry">Near-Expiry Warning</option>
+                                <option value="Damaged Goods">Damaged Goods / Packaging</option>
+                                <option value="Defective Quality">Quality Defect / Spoiled</option>
+                                <option value="Wrong Item Delivered">Wrong Item Shipped by Vendor</option>
+                                <option value="Overstock Return">Overstock / Consignment Return</option>
+                                <option value="Customer Return to Supplier">Customer Returned to Vendor</option>
+                                <option value="Other">Other Reason</option>
+                              </select>
+                            </div>
+
+                            {/* Settlement Type */}
+                            <div>
+                              <label className="block text-xs font-bold text-slate-600 mb-1">
+                                Financial Settlement Method
+                              </label>
+                              <select
+                                value={deskFormData.settlement_type}
+                                onChange={(e) => setDeskFormData(prev => ({ ...prev, settlement_type: e.target.value }))}
+                                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                              >
+                                <option value="deduct_due">💳 Deduct from Supplier Due Balance (Offset Debt)</option>
+                                <option value="cash_refund">💵 Cash / Bank Refund Received</option>
+                                <option value="credit_note">📜 Supplier Credit Note (Recorded for future POs)</option>
+                                <option value="replacement">🔄 Product Replacement / Exchange</option>
+                                <option value="none">🚫 No Settlement (Inventory Loss Write-off)</option>
+                              </select>
+
+                              {deskFormData.settlement_type === 'deduct_due' && (
+                                <p className="text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-100 mt-2 font-medium">
+                                  Current outstanding vendor due: <strong>{formatCurrency(supplier.due_balance || 0)}</strong>. Processing this return will automatically reduce your debt balance.
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Reference Number */}
+                            <div>
+                              <label className="block text-xs font-bold text-slate-600 mb-1">
+                                Reference Number / Debit Note Ref (Optional)
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="Auto-generated if left blank (e.g. SR-240820-A1B2)"
+                                value={deskFormData.reference_no}
+                                onChange={(e) => setDeskFormData(prev => ({ ...prev, reference_no: e.target.value }))}
+                                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-mono"
+                              />
+                            </div>
+
+                            {/* Notes / Details */}
+                            <div>
+                              <label className="block text-xs font-bold text-slate-600 mb-1">Notes / Internal Remarks</label>
+                              <textarea
+                                rows="3"
+                                placeholder="Add specific notes, batch lot #, delivery vehicle details or reason notes..."
+                                value={deskFormData.notes}
+                                onChange={(e) => setDeskFormData(prev => ({ ...prev, notes: e.target.value }))}
+                                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Submit Button Bar */}
+                        <div className="flex justify-end space-x-3 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setExpiredSubTab('watchlist')}
+                            className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors flex items-center space-x-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span>Generate Return Slip & Adjust Stock</span>
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* VIEW 3: RETURNS & REPLACEMENTS HISTORY LOG */}
+                  {expiredSubTab === 'history' && (
+                    <div className="space-y-4">
+                      {/* Filter Bar */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Action Filter:</span>
+                            {[
+                              { key: 'all', label: 'All History' },
+                              { key: 'return', label: 'Returns' },
+                              { key: 'replace', label: 'Replacements' },
+                              { key: 'deduct_due', label: 'Due Deductions' }
+                            ].map(f => (
+                              <button
+                                key={f.key}
+                                onClick={() => setHistoryActionFilter(f.key)}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${
+                                  historyActionFilter === f.key
+                                    ? 'bg-slate-800 text-white border-slate-900 shadow-xs'
+                                    : 'bg-white text-slate-650 border-slate-200 hover:border-slate-300'
+                                }`}
+                              >
+                                {f.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="relative w-full sm:w-64">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                              <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                            </div>
+                            <input
+                              type="text"
+                              placeholder="Search ref #, item, reason..."
+                              value={historySearchTerm}
+                              onChange={(e) => setHistorySearchTerm(e.target.value)}
+                              className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-200/60">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date From:</span>
+                            <input
+                              type="date"
+                              value={historyDateFrom}
+                              onChange={(e) => setHistoryDateFrom(e.target.value)}
+                              className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400 text-slate-700 bg-white"
+                            />
+                            <span className="text-slate-400 text-xs">→</span>
+                            <input
+                              type="date"
+                              value={historyDateTo}
+                              onChange={(e) => setHistoryDateTo(e.target.value)}
+                              className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400 text-slate-700 bg-white"
+                            />
+                          </div>
+
+                          {(historyActionFilter !== 'all' || historySearchTerm || historyDateFrom || historyDateTo) && (
+                            <button
+                              onClick={() => {
+                                setHistoryActionFilter('all');
+                                setHistorySearchTerm('');
+                                setHistoryDateFrom('');
+                                setHistoryDateTo('');
+                              }}
+                              className="text-xs font-semibold text-rose-500 hover:text-rose-700 underline"
+                            >
+                              Clear Filters
+                            </button>
+                          )}
+
+                          <span className="ml-auto text-[10px] font-bold text-slate-400">
+                            Showing <span className="text-slate-700">{filteredHistory.length}</span> of <span className="text-slate-700">{rawHistory.length}</span> entries
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* History Log Table */}
+                      <div className="overflow-x-auto border border-slate-200 rounded-2xl shadow-xs bg-white">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/70">
+                              <th className="p-3.5">Ref Voucher</th>
+                              <th className="p-3.5">Date</th>
+                              <th className="p-3.5">Product & SKU</th>
+                              <th className="p-3.5">Qty</th>
+                              <th className="p-3.5">Unit Cost</th>
+                              <th className="p-3.5">Total Value</th>
+                              <th className="p-3.5">Action & Settlement</th>
+                              <th className="p-3.5">Reason & Remarks</th>
+                              <th className="p-3.5 text-center">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-xs">
+                            {filteredHistory.length === 0 ? (
+                              <tr>
+                                <td colSpan="9" className="p-10 text-center text-slate-400">
+                                  No return or replacement vouchers match your filter.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredHistory.map(log => (
+                                <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
+                                  <td className="p-3.5">
+                                    <button
+                                      onClick={() => openDebitNoteSlip(log)}
+                                      className="font-mono font-bold text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-150 inline-flex items-center space-x-1"
+                                      title="Click to view & print Debit Note slip"
+                                    >
+                                      <span>#{log.reference_no || `SR-${log.id}`}</span>
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                      </svg>
+                                    </button>
+                                  </td>
+                                  <td className="p-3.5 text-slate-600 whitespace-nowrap">
+                                    {formatDate(log.created_at)}
+                                  </td>
+                                  <td className="p-3.5">
+                                    <div className="font-bold text-slate-800">{log.product_name}</div>
+                                    <div className="font-mono text-[10px] text-slate-400">{log.product_sku}</div>
+                                  </td>
+                                  <td className="p-3.5 font-bold text-slate-800">
+                                    {log.quantity} {log.product_unit || 'units'}
+                                  </td>
+                                  <td className="p-3.5 text-slate-600">
+                                    {formatCurrency(log.unit_cost)}
+                                  </td>
+                                  <td className="p-3.5 font-black text-slate-900">
+                                    {formatCurrency(log.total_amount || (log.quantity * log.unit_cost))}
+                                  </td>
+                                  <td className="p-3.5">
+                                    <div className="flex flex-col items-start gap-1">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                        log.action_type === 'return'
+                                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      }`}>
+                                        {log.action_type === 'return' ? 'Returned' : 'Replaced'}
+                                      </span>
+
+                                      {log.settlement_type === 'deduct_due' && (
+                                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-150">
+                                          Due Deducted: {formatCurrency(log.refund_amount || log.total_amount)}
+                                        </span>
+                                      )}
+                                      {log.settlement_type === 'cash_refund' && (
+                                        <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-150">
+                                          Cash Refunded
+                                        </span>
+                                      )}
+                                      {log.settlement_type === 'credit_note' && (
+                                        <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-150">
+                                          Credit Note
+                                        </span>
+                                      )}
+                                      {log.new_expiry_date && (
+                                        <span className="text-[9px] font-bold text-emerald-700">
+                                          New Expiry: {new Date(log.new_expiry_date).toLocaleDateString()}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-3.5 text-xs">
+                                    <div className="font-semibold text-slate-700">{log.reason || 'Expired'}</div>
+                                    {log.notes && <div className="text-[11px] text-slate-400 italic max-w-xs truncate">{log.notes}</div>}
+                                  </td>
+                                  <td className="p-3.5 text-center">
+                                    <div className="flex items-center justify-center space-x-2">
+                                      <button
+                                        onClick={() => openDebitNoteSlip(log)}
+                                        className="text-indigo-600 hover:text-indigo-900 font-bold text-xs bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-lg border border-indigo-150"
+                                        title="Print Debit Note Voucher"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedLog(log);
+                                          setEditLogFormData({
+                                            quantity: String(log.quantity),
+                                            unit_cost: String(log.unit_cost || 0),
+                                            reason: log.reason || 'Expired',
+                                            settlement_type: log.settlement_type || 'none',
+                                            refund_amount: String(log.refund_amount || 0),
+                                            notes: log.notes || '',
+                                            new_expiry_date: log.new_expiry_date ? log.new_expiry_date.split('T')[0] : ''
+                                          });
+                                          setShowEditLogModal(true);
+                                        }}
+                                        className="text-slate-600 hover:text-slate-900 font-bold text-xs p-1.5 rounded-lg hover:bg-slate-100"
+                                        title="Edit Log Entry"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteLog(log)}
+                                        className="text-rose-600 hover:text-rose-900 font-bold text-xs p-1.5 rounded-lg hover:bg-rose-50"
+                                        title="Delete Log (Revert Stock & Balance)"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
 
@@ -2762,6 +3899,12 @@ export default function Suppliers() {
 
         {/* RENDER REPLACE MODAL */}
         {showReplaceModal && renderReplaceModal()}
+
+        {/* RENDER BULK RETURN MODAL */}
+        {showBulkReturnModal && renderBulkReturnModal()}
+
+        {/* RENDER DEBIT NOTE SLIP MODAL */}
+        {showDebitNoteModal && renderDebitNoteModal()}
 
         {/* RENDER EDIT LOG MODAL */}
         {showEditLogModal && renderEditLogModal()}
@@ -5353,16 +6496,21 @@ export default function Suppliers() {
     );
   }
 
-  // RETURN EXPIRED PRODUCT MODAL
+  // RETURN EXPIRED PRODUCT MODAL (UPGRADED)
   function renderReturnModal() {
     if (!selectedExpiredProduct) return null;
+    const unitCost = returnFormData.unit_cost !== '' ? parseFloat(returnFormData.unit_cost) : (parseFloat(selectedExpiredProduct.cost_price) || 0);
+    const qty = parseInt(returnFormData.quantity) || 0;
+    const totalVal = qty * unitCost;
+
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-        <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl overflow-hidden flex flex-col">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+        <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl overflow-hidden flex flex-col my-8">
           <div className="flex justify-between items-center pb-3 border-b border-slate-100">
             <div>
-              <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">Return to Supplier</span>
+              <span className="text-xs font-bold text-rose-600 uppercase tracking-wider">Initiate Product Return</span>
               <h3 className="text-lg font-bold text-slate-800">{selectedExpiredProduct.name}</h3>
+              <span className="text-xs font-mono text-slate-400">{selectedExpiredProduct.sku}</span>
             </div>
             <button onClick={() => { setShowReturnModal(false); setSelectedExpiredProduct(null); }} className="text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5372,27 +6520,103 @@ export default function Suppliers() {
           </div>
 
           <form onSubmit={handleReturnSubmit} className="mt-4 space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Quantity to Return (Max {selectedExpiredProduct.stock_quantity}) *</label>
-              <input
-                type="number"
-                min="1"
-                max={selectedExpiredProduct.stock_quantity}
-                value={returnFormData.quantity}
-                onChange={(e) => setReturnFormData({ ...returnFormData, quantity: e.target.value })}
-                required
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Qty to Return (Max {selectedExpiredProduct.stock_quantity}) *
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={selectedExpiredProduct.stock_quantity}
+                  value={returnFormData.quantity}
+                  onChange={(e) => {
+                    const q = e.target.value;
+                    const u = returnFormData.unit_cost !== '' ? parseFloat(returnFormData.unit_cost) : (parseFloat(selectedExpiredProduct.cost_price) || 0);
+                    setReturnFormData(prev => ({
+                      ...prev,
+                      quantity: q,
+                      refund_amount: String((parseInt(q) || 0) * u)
+                    }));
+                  }}
+                  required
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:ring-1 focus:ring-rose-500 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Return Unit Cost (৳)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={returnFormData.unit_cost !== '' ? returnFormData.unit_cost : (selectedExpiredProduct.cost_price || '')}
+                  onChange={(e) => {
+                    const u = e.target.value;
+                    const q = parseInt(returnFormData.quantity) || 0;
+                    setReturnFormData(prev => ({
+                      ...prev,
+                      unit_cost: u,
+                      refund_amount: String(q * (parseFloat(u) || 0))
+                    }));
+                  }}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:ring-1 focus:ring-rose-500 bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Total Return Worth Calculation */}
+            <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex justify-between items-center">
+              <div>
+                <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wider block">Return Claim Value</span>
+                <span className="text-xs text-rose-600">{qty} units @ {formatCurrency(unitCost)}</span>
+              </div>
+              <span className="text-lg font-black text-rose-900">{formatCurrency(totalVal)}</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Return Reason</label>
+                <select
+                  value={returnFormData.reason}
+                  onChange={(e) => setReturnFormData({ ...returnFormData, reason: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 bg-white"
+                >
+                  <option value="Expired">Expired Product Batch</option>
+                  <option value="Near Expiry">Near-Expiry Warning</option>
+                  <option value="Damaged Goods">Damaged Goods / Packaging</option>
+                  <option value="Defective Quality">Defective Quality / Spoiled</option>
+                  <option value="Wrong Item Delivered">Wrong Item Delivered</option>
+                  <option value="Overstock Return">Overstock / Consignment Return</option>
+                  <option value="Other">Other Reason</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Settlement Method</label>
+                <select
+                  value={returnFormData.settlement_type}
+                  onChange={(e) => setReturnFormData({ ...returnFormData, settlement_type: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 bg-white"
+                >
+                  <option value="deduct_due">💳 Deduct from Supplier Due</option>
+                  <option value="cash_refund">💵 Cash / Bank Refund</option>
+                  <option value="credit_note">📜 Supplier Credit Note</option>
+                  <option value="none">🚫 No Financial Claim (Loss)</option>
+                </select>
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Notes / Reason</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Notes / Reason Details</label>
               <textarea
                 value={returnFormData.notes}
                 onChange={(e) => setReturnFormData({ ...returnFormData, notes: e.target.value })}
-                placeholder="e.g. Expired batch return, requesting refund or credit"
-                rows="3"
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                placeholder="e.g. Expired batch returned to representative; ledger credited"
+                rows="2"
+                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 bg-white"
               />
             </div>
 
@@ -5406,9 +6630,9 @@ export default function Suppliers() {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold transition-colors shadow"
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
               >
-                Submit Return
+                Submit Return & Adjust Stock
               </button>
             </div>
           </form>
@@ -5417,7 +6641,7 @@ export default function Suppliers() {
     );
   }
 
-  // REPLACE EXPIRED PRODUCT MODAL
+  // REPLACE EXPIRED PRODUCT MODAL (UPGRADED)
   function renderReplaceModal() {
     if (!selectedExpiredProduct) return null;
     return (
@@ -5425,8 +6649,9 @@ export default function Suppliers() {
         <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl overflow-hidden flex flex-col">
           <div className="flex justify-between items-center pb-3 border-b border-slate-100">
             <div>
-              <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Replace Product</span>
+              <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Product Replacement</span>
               <h3 className="text-lg font-bold text-slate-800">{selectedExpiredProduct.name}</h3>
+              <span className="text-xs font-mono text-slate-400">{selectedExpiredProduct.sku}</span>
             </div>
             <button onClick={() => { setShowReplaceModal(false); setSelectedExpiredProduct(null); }} className="text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5445,7 +6670,7 @@ export default function Suppliers() {
                   value={replaceFormData.quantity}
                   onChange={(e) => setReplaceFormData({ ...replaceFormData, quantity: e.target.value })}
                   required
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
                 />
               </div>
               <div>
@@ -5456,19 +6681,30 @@ export default function Suppliers() {
                   value={replaceFormData.new_expiry_date}
                   onChange={(e) => setReplaceFormData({ ...replaceFormData, new_expiry_date: e.target.value })}
                   required
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Notes / Details</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Replacement Reason</label>
+              <input
+                type="text"
+                value={replaceFormData.reason}
+                onChange={(e) => setReplaceFormData({ ...replaceFormData, reason: e.target.value })}
+                placeholder="e.g. Expired batch replaced with fresh batch"
+                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Notes / Batch Details</label>
               <textarea
                 value={replaceFormData.notes}
                 onChange={(e) => setReplaceFormData({ ...replaceFormData, notes: e.target.value })}
-                placeholder="e.g. Replaced by supplier with new unexpired batch"
-                rows="3"
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                placeholder="e.g. Replaced by supplier representative; verified unexpired"
+                rows="2"
+                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
               />
             </div>
 
@@ -5482,7 +6718,7 @@ export default function Suppliers() {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold transition-colors shadow"
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
               >
                 Confirm Replacement
               </button>
@@ -5493,19 +6729,412 @@ export default function Suppliers() {
     );
   }
 
-  // EDIT LOG MODAL
+  // BULK RETURN & REPLACE MODAL
+  function renderBulkReturnModal() {
+    if (!showBulkReturnModal) return null;
+    const selectedItems = (profileData.expiredProducts || []).filter(p => selectedExpiryItemIds.includes(p.id));
+    const totalBulkQty = selectedItems.reduce((s, p) => s + (p.stock_quantity > 0 ? p.stock_quantity : 1), 0);
+    const totalBulkVal = selectedItems.reduce((s, p) => s + ((p.stock_quantity > 0 ? p.stock_quantity : 1) * (p.cost_price || 0)), 0);
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+        <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl overflow-hidden flex flex-col my-8 max-h-[90vh]">
+          <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+            <div>
+              <span className={`text-xs font-bold uppercase tracking-wider ${bulkReturnAction === 'return' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                Bulk {bulkReturnAction === 'return' ? 'Return to Supplier' : 'Batch Replacement'}
+              </span>
+              <h3 className="text-lg font-black text-slate-800">Process {selectedItems.length} Selected Items</h3>
+            </div>
+            <button onClick={() => setShowBulkReturnModal(false)} className="text-slate-400 hover:text-slate-600">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <form onSubmit={handleBulkReturnSubmit} className="mt-4 space-y-4 overflow-y-auto pr-1 flex-1">
+            {/* Selected Items Review List */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="bg-slate-50 p-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between border-b border-slate-200">
+                <span>Selected Products ({selectedItems.length})</span>
+                <span>Qty & Cost Value</span>
+              </div>
+              <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs p-1">
+                {selectedItems.map(item => (
+                  <div key={item.id} className="p-2 flex justify-between items-center hover:bg-slate-50">
+                    <div>
+                      <span className="font-bold text-slate-800 block">{item.name}</span>
+                      <span className="font-mono text-[10px] text-slate-400">{item.sku}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold text-slate-700 block">{item.stock_quantity > 0 ? item.stock_quantity : 1} units</span>
+                      <span className="text-[10px] text-slate-500 font-semibold">{formatCurrency((item.stock_quantity > 0 ? item.stock_quantity : 1) * (item.cost_price || 0))}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-slate-50 p-3 border-t border-slate-200 flex justify-between items-center text-xs font-bold text-slate-800">
+                <span>Total Summary: {totalBulkQty} total units</span>
+                <span className="text-sm font-black text-rose-700">{formatCurrency(totalBulkVal)}</span>
+              </div>
+            </div>
+
+            {/* Action Type Toggle */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Bulk Action</label>
+                <select
+                  value={bulkReturnAction}
+                  onChange={(e) => setBulkReturnAction(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="return">Return to Supplier (Deduct Stock)</option>
+                  <option value="replace">Replace Products (Update Expiry)</option>
+                </select>
+              </div>
+
+              {bulkReturnAction === 'return' ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Settlement Method</label>
+                  <select
+                    value={bulkReturnSettlement}
+                    onChange={(e) => setBulkReturnSettlement(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                  >
+                    <option value="deduct_due">💳 Deduct from Supplier Due ({formatCurrency(totalBulkVal)})</option>
+                    <option value="cash_refund">💵 Cash / Bank Refund Received</option>
+                    <option value="credit_note">📜 Supplier Credit Note</option>
+                    <option value="none">🚫 No Financial Settlement (Loss)</option>
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-emerald-700 mb-1">Shared Replacement Expiry Date *</label>
+                  <input
+                    type="date"
+                    min={new Date().toBDISODateString()}
+                    value={bulkReturnNewExpiry}
+                    onChange={(e) => setBulkReturnNewExpiry(e.target.value)}
+                    required={bulkReturnAction === 'replace'}
+                    className="w-full border border-emerald-300 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500 bg-emerald-50/40"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Shared Return Reason</label>
+              <input
+                type="text"
+                value={bulkReturnReason}
+                onChange={(e) => setBulkReturnReason(e.target.value)}
+                placeholder="e.g. Expired batch bulk return"
+                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Batch Notes</label>
+              <textarea
+                value={bulkReturnNotes}
+                onChange={(e) => setBulkReturnNotes(e.target.value)}
+                placeholder="Add batch notes, vendor pickup details or ledger notes..."
+                rows="2"
+                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+              />
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowBulkReturnModal(false)}
+                disabled={bulkReturnProcessing}
+                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={bulkReturnProcessing}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors disabled:opacity-50 flex items-center space-x-2"
+              >
+                {bulkReturnProcessing ? (
+                  <span>Processing...</span>
+                ) : (
+                  <span>Confirm Bulk {bulkReturnAction === 'return' ? 'Return' : 'Replacement'} ({selectedItems.length})</span>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // DEBIT NOTE / SUPPLIER RETURN SLIP MODAL (PRINTABLE)
+  function renderDebitNoteModal() {
+    if (!selectedDebitNoteLog || !showDebitNoteModal) return null;
+    const log = selectedDebitNoteLog;
+    const isReturn = log.action_type === 'return';
+    // Derive supplier from state — renderDebitNoteModal is outside the JSX render scope
+    const sup = suppliers.find(s => s.id === selectedSupplierId) || {};
+
+    const handlePrintDebitNote = () => {
+      const printWin = window.open('', 'PRINT', 'height=850,width=900');
+      if (!printWin) {
+        alert('Pop-up was blocked. Please allow pop-ups for this site and try again.');
+        return;
+      }
+      printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Debit Note Voucher #${log.reference_no || log.id}</title>
+            <style>
+              body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px; color: #0f172a; line-height: 1.5; }
+              .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 25px; }
+              .header h1 { margin: 0; font-size: 24px; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px; }
+              .header p { margin: 4px 0 0 0; color: #64748b; font-size: 13px; }
+              .badge { display: inline-block; background: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 12px; text-transform: uppercase; }
+              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+              .card { background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; }
+              .card h4 { margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; }
+              .card p { margin: 2px 0; font-size: 13px; font-weight: 600; color: #334155; }
+              table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13px; }
+              th { background: #f1f5f9; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569; border-bottom: 1px solid #cbd5e1; }
+              td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
+              .text-right { text-align: right; }
+              .totals-box { margin-left: auto; width: 320px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 35px; }
+              .totals-row { display: flex; justify-content: space-between; padding: 8px 14px; font-size: 13px; }
+              .totals-row.grand { background: #f8fafc; border-top: 2px solid #cbd5e1; font-weight: 800; font-size: 15px; color: #0f172a; }
+              .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 60px; }
+              .sig-line { border-top: 1px dashed #94a3b8; padding-top: 8px; text-align: center; font-size: 12px; font-weight: 600; color: #475569; }
+              @media print {
+                body { padding: 0; }
+                button { display: none; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div>
+                <h1>DEBIT NOTE / RETURN VOUCHER</h1>
+                <p>Voucher Ref: <strong>#${log.reference_no || ('SR-' + log.id)}</strong></p>
+                <p>Date Generated: ${formatDate(log.created_at)}</p>
+              </div>
+              <div>
+                <span class="badge">${log.action_type === 'return' ? 'Goods Return' : 'Replacement'}</span>
+              </div>
+            </div>
+
+            <div class="grid">
+              <div class="card">
+                <h4>Vendor / Supplier Details</h4>
+                <p style="font-size: 15px; color: #0f172a;">${sup.name || 'Supplier'}</p>
+                <p style="font-weight: 400;">Phone: ${sup.phone || 'N/A'}</p>
+                <p style="font-weight: 400;">Email: ${sup.email || 'N/A'}</p>
+                <p style="font-weight: 400;">Contact: ${sup.contact_name || 'N/A'}</p>
+              </div>
+              <div class="card">
+                <h4>Return Settlement & Reference</h4>
+                <p>Settlement: <span style="text-transform: uppercase;">${(log.settlement_type || 'NONE').replace('_', ' ')}</span></p>
+                <p>Reason: ${log.reason || 'Expired'}</p>
+                ${log.new_expiry_date ? `<p>New Expiry Date: ${new Date(log.new_expiry_date).toLocaleDateString()}</p>` : ''}
+                ${log.notes ? `<p style="font-weight: 400; font-style: italic;">"${log.notes}"</p>` : ''}
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Product SKU</th>
+                  <th>Product Description</th>
+                  <th class="text-right">Unit Cost</th>
+                  <th class="text-right">Quantity</th>
+                  <th class="text-right">Claim Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="font-family: monospace; font-weight: 700;">${log.product_sku || 'N/A'}</td>
+                  <td>
+                    <strong>${log.product_name}</strong>
+                    ${log.product_category ? `<br/><span style="font-size: 11px; color: #64748b;">${log.product_category}</span>` : ''}
+                  </td>
+                  <td class="text-right">Tk ${parseFloat(log.unit_cost || 0).toFixed(2)}</td>
+                  <td class="text-right"><strong>${log.quantity} ${log.product_unit || 'pcs'}</strong></td>
+                  <td class="text-right"><strong>Tk ${(parseFloat(log.total_amount) || (log.quantity * (parseFloat(log.unit_cost) || 0))).toFixed(2)}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="totals-box">
+              <div class="totals-row">
+                <span>Claim Subtotal:</span>
+                <span>Tk ${(parseFloat(log.total_amount) || (log.quantity * (parseFloat(log.unit_cost) || 0))).toFixed(2)}</span>
+              </div>
+              ${log.settlement_type === 'deduct_due' ? `
+                <div class="totals-row" style="color: #059669; font-weight: 600;">
+                  <span>Due Balance Deducted:</span>
+                  <span>- Tk ${parseFloat(log.refund_amount || log.total_amount).toFixed(2)}</span>
+                </div>
+              ` : ''}
+              <div class="totals-row grand">
+                <span>Total Net Claim:</span>
+                <span>Tk ${(parseFloat(log.total_amount) || (log.quantity * (parseFloat(log.unit_cost) || 0))).toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div class="signatures">
+              <div class="sig-line">
+                Prepared / Authorized By (Shop Management)
+              </div>
+              <div class="sig-line">
+                Received & Acknowledged By (${sup.name || 'Supplier'})
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+      printWin.document.close();
+      printWin.focus();
+      setTimeout(() => {
+        printWin.print();
+      }, 300);
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+        <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl overflow-hidden flex flex-col my-8 max-h-[90vh]">
+          {/* Header */}
+          <div className="flex justify-between items-start pb-4 border-b border-slate-100">
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Debit Note Voucher</span>
+                <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                  {isReturn ? 'Goods Return' : 'Replacement'}
+                </span>
+              </div>
+              <h3 className="text-xl font-black text-slate-800 mt-1">#{log.reference_no || ('SR-' + log.id)}</h3>
+              <p className="text-xs text-slate-500">Issued to {sup.name || 'Supplier'} on {formatDate(log.created_at)}</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handlePrintDebitNote}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-xs transition-colors flex items-center space-x-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                <span>Print Voucher</span>
+              </button>
+              <button onClick={() => setShowDebitNoteModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Slip Body Preview */}
+          <div className="mt-4 space-y-4 overflow-y-auto pr-1 flex-1 text-xs">
+            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Vendor Information</span>
+                <span className="font-bold text-slate-800 text-sm block mt-0.5">{sup.name || 'Supplier'}</span>
+                <span className="text-slate-600 block">{sup.phone || 'No phone'} · {sup.email || 'No email'}</span>
+                <span className="text-slate-500 block">Contact: {sup.contact_name || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Return & Settlement Metadata</span>
+                <span className="font-bold text-slate-800 block mt-0.5 capitalize">
+                  Method: {log.settlement_type?.replace('_', ' ') || 'None'}
+                </span>
+                <span className="text-slate-600 block">Reason: <strong>{log.reason || 'Expired'}</strong></span>
+                {log.new_expiry_date && (
+                  <span className="text-emerald-700 font-bold block">
+                    New Expiry Date: {new Date(log.new_expiry_date).toLocaleDateString()}
+                  </span>
+                )}
+                {log.notes && <span className="text-slate-500 italic block mt-1">"{log.notes}"</span>}
+              </div>
+            </div>
+
+            {/* Line items table */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-100/70 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="p-3">SKU</th>
+                    <th className="p-3">Product Name</th>
+                    <th className="p-3 text-right">Unit Cost</th>
+                    <th className="p-3 text-right">Quantity</th>
+                    <th className="p-3 text-right">Total Claim</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="p-3 font-mono font-bold text-slate-500">{log.product_sku || 'N/A'}</td>
+                    <td className="p-3 font-bold text-slate-800">{log.product_name}</td>
+                    <td className="p-3 text-right text-slate-650">{formatCurrency(log.unit_cost)}</td>
+                    <td className="p-3 text-right font-black text-slate-800">{log.quantity} {log.product_unit || 'units'}</td>
+                    <td className="p-3 text-right font-black text-slate-900">{formatCurrency(log.total_amount || (log.quantity * log.unit_cost))}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Summary Box */}
+            <div className="flex justify-end">
+              <div className="w-72 bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+                <div className="flex justify-between text-slate-600">
+                  <span>Gross Claim Total:</span>
+                  <span className="font-bold">{formatCurrency(log.total_amount || (log.quantity * log.unit_cost))}</span>
+                </div>
+                {log.settlement_type === 'deduct_due' && (
+                  <div className="flex justify-between text-emerald-700 font-bold">
+                    <span>Due Balance Offset:</span>
+                    <span>- {formatCurrency(log.refund_amount || log.total_amount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-slate-900 font-black text-sm pt-2 border-t border-slate-200">
+                  <span>Net Claim Value:</span>
+                  <span>{formatCurrency(log.total_amount || (log.quantity * log.unit_cost))}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="pt-4 border-t border-slate-100 flex justify-between items-center text-xs">
+            <span className="text-slate-400">POS Inventory & Supplier Management</span>
+            <button
+              onClick={() => setShowDebitNoteModal(false)}
+              className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl font-semibold hover:bg-slate-50 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // EDIT LOG MODAL (UPGRADED)
   function renderEditLogModal() {
     if (!selectedLog) return null;
     const isReturn = selectedLog.action_type === 'return';
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-        <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl overflow-hidden flex flex-col">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+        <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl overflow-hidden flex flex-col my-8">
           <div className="flex justify-between items-center pb-3 border-b border-slate-100">
             <div>
               <span className="text-xs font-bold text-indigo-650 uppercase tracking-wider">
-                Edit {isReturn ? 'Return' : 'Replacement'} Log
+                Edit {isReturn ? 'Return' : 'Replacement'} Entry
               </span>
               <h3 className="text-lg font-bold text-slate-800">{selectedLog.product_name}</h3>
+              <span className="text-xs font-mono text-slate-400">Ref #{selectedLog.reference_no || selectedLog.id}</span>
             </div>
             <button onClick={() => { setShowEditLogModal(false); setSelectedLog(null); }} className="text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5515,7 +7144,7 @@ export default function Suppliers() {
           </div>
 
           <form onSubmit={handleEditLogSubmit} className="mt-4 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Quantity *</label>
                 <input
@@ -5524,32 +7153,78 @@ export default function Suppliers() {
                   value={editLogFormData.quantity}
                   onChange={(e) => setEditLogFormData({ ...editLogFormData, quantity: e.target.value })}
                   required
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
                 />
               </div>
-              {!isReturn && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">New Expiry Date *</label>
-                  <input
-                    type="date"
-                    min={new Date().toBDISODateString()}
-                    value={editLogFormData.new_expiry_date}
-                    onChange={(e) => setEditLogFormData({ ...editLogFormData, new_expiry_date: e.target.value })}
-                    required
-                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Unit Cost (৳)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editLogFormData.unit_cost}
+                  onChange={(e) => setEditLogFormData({ ...editLogFormData, unit_cost: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                />
+              </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Reason</label>
+                <select
+                  value={editLogFormData.reason}
+                  onChange={(e) => setEditLogFormData({ ...editLogFormData, reason: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="Expired">Expired</option>
+                  <option value="Near Expiry">Near Expiry</option>
+                  <option value="Damaged Goods">Damaged Goods</option>
+                  <option value="Defective Quality">Defective Quality</option>
+                  <option value="Wrong Item Delivered">Wrong Item Delivered</option>
+                  <option value="Overstock Return">Overstock Return</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Settlement</label>
+                <select
+                  value={editLogFormData.settlement_type}
+                  onChange={(e) => setEditLogFormData({ ...editLogFormData, settlement_type: e.target.value })}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="deduct_due">Deduct Due</option>
+                  <option value="cash_refund">Cash Refund</option>
+                  <option value="credit_note">Credit Note</option>
+                  <option value="none">None</option>
+                </select>
+              </div>
+            </div>
+
+            {!isReturn && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">New Expiry Date *</label>
+                <input
+                  type="date"
+                  min={new Date().toBDISODateString()}
+                  value={editLogFormData.new_expiry_date}
+                  onChange={(e) => setEditLogFormData({ ...editLogFormData, new_expiry_date: e.target.value })}
+                  required
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                />
+              </div>
+            )}
+
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Notes / Details</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Notes / Remarks</label>
               <textarea
                 value={editLogFormData.notes}
                 onChange={(e) => setEditLogFormData({ ...editLogFormData, notes: e.target.value })}
                 placeholder="Edit notes..."
-                rows="3"
-                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                rows="2"
+                className="w-full border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
               />
             </div>
 
@@ -5563,7 +7238,7 @@ export default function Suppliers() {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-semibold transition-colors shadow"
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs"
               >
                 Save Updates
               </button>

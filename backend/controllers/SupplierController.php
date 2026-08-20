@@ -1754,22 +1754,47 @@ class SupplierController {
                 $log['new_cost_price'] = (float)$log['new_cost_price'];
             }
 
-            // Expired products list
+            // Expired and Near-Expiry products list (within next 90 days)
             $stmt = DB::query(
-                'SELECT id, name, sku, expiry_date, stock_quantity 
+                'SELECT id, name, sku, category, unit, cost_price, price, expiry_date, stock_quantity,
+                        DATEDIFF(expiry_date, CURRENT_DATE()) AS days_left
                  FROM products 
-                 WHERE supplier_id = ? AND shop_id = ? AND expiry_date IS NOT NULL AND expiry_date <= CURRENT_DATE()',
+                 WHERE supplier_id = ? AND shop_id = ? AND expiry_date IS NOT NULL AND expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY)
+                 ORDER BY expiry_date ASC',
                 [$supplierId, $shopId]
             );
             $expiredProducts = $stmt->fetchAll();
+            $expiredMetrics = [
+                'totalExpiredCount' => 0,
+                'totalExpiredValue' => 0.0,
+                'totalNearExpiryCount' => 0,
+                'totalNearExpiryValue' => 0.0
+            ];
+
             foreach ($expiredProducts as &$ep) {
                 $ep['id'] = (int)$ep['id'];
                 $ep['stock_quantity'] = (int)$ep['stock_quantity'];
+                $ep['cost_price'] = (float)($ep['cost_price'] ?? 0);
+                $ep['price'] = (float)($ep['price'] ?? 0);
+                $ep['days_left'] = (int)$ep['days_left'];
+                $val = $ep['stock_quantity'] * $ep['cost_price'];
+
+                if ($ep['days_left'] <= 0) {
+                    if ($ep['stock_quantity'] > 0) {
+                        $expiredMetrics['totalExpiredCount'] += $ep['stock_quantity'];
+                        $expiredMetrics['totalExpiredValue'] += $val;
+                    }
+                } else if ($ep['days_left'] <= 30) {
+                    if ($ep['stock_quantity'] > 0) {
+                        $expiredMetrics['totalNearExpiryCount'] += $ep['stock_quantity'];
+                        $expiredMetrics['totalNearExpiryValue'] += $val;
+                    }
+                }
             }
 
-            // Return logs (Returns & replacements history)
+            // Return logs (Returns & replacements history with financial settlements & debit note details)
             $stmt = DB::query(
-                'SELECT sr.*, p.name AS product_name, p.sku AS product_sku 
+                'SELECT sr.*, p.name AS product_name, p.sku AS product_sku, p.category AS product_category, p.unit AS product_unit 
                  FROM supplier_returns sr 
                  JOIN products p ON sr.product_id = p.id 
                  WHERE sr.supplier_id = ? AND sr.shop_id = ? 
@@ -1778,13 +1803,33 @@ class SupplierController {
             );
             $returns = $stmt->fetchAll();
 
+            $totalReturnedValue = 0.0;
+            $totalDueDeducted = 0.0;
+
             foreach ($returns as &$ret) {
                 $ret['id'] = (int)$ret['id'];
                 $ret['shop_id'] = (int)$ret['shop_id'];
                 $ret['supplier_id'] = (int)$ret['supplier_id'];
                 $ret['product_id'] = (int)$ret['product_id'];
                 $ret['quantity'] = (int)$ret['quantity'];
+                $ret['unit_cost'] = (float)($ret['unit_cost'] ?? 0);
+                $ret['total_amount'] = (float)($ret['total_amount'] ?? ($ret['quantity'] * $ret['unit_cost']));
+                $ret['refund_amount'] = (float)($ret['refund_amount'] ?? 0);
+                $ret['reason'] = $ret['reason'] ?? 'Expired';
+                $ret['settlement_type'] = $ret['settlement_type'] ?? 'none';
+                $ret['reference_no'] = $ret['reference_no'] ?? ('SR-' . str_pad($ret['id'], 5, '0', STR_PAD_LEFT));
+                $ret['status'] = $ret['status'] ?? 'completed';
+
+                if ($ret['action_type'] === 'return') {
+                    $totalReturnedValue += $ret['total_amount'];
+                }
+                if ($ret['settlement_type'] === 'deduct_due') {
+                    $totalDueDeducted += $ret['refund_amount'];
+                }
             }
+
+            $expiredMetrics['totalReturnedValue'] = $totalReturnedValue;
+            $expiredMetrics['totalDueDeducted'] = $totalDueDeducted;
 
             $response = [
                 'supplier' => $supplier,
@@ -1792,6 +1837,7 @@ class SupplierController {
                     'totalSpent' => $totalSpent,
                     'poStats' => $poStats
                 ],
+                'expiredMetrics' => $expiredMetrics,
                 'purchaseOrders' => $pos,
                 'costLogs' => $costLogs,
                 'expiredProducts' => $expiredProducts,
@@ -1986,25 +2032,31 @@ class SupplierController {
     public static function createSupplierReturn($id, $requestData) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'shop_staff']);
 
         $supplierId = (int)$id;
         $shopId = Auth::$shopId;
         $productId = $requestData['product_id'] ?? null;
         $quantity = (int)($requestData['quantity'] ?? 0);
         $actionType = $requestData['action_type'] ?? 'return'; // return / replace
+        $unitCost = isset($requestData['unit_cost']) ? (float)$requestData['unit_cost'] : null;
+        $reason = $requestData['reason'] ?? 'Expired';
+        $settlementType = $requestData['settlement_type'] ?? 'none'; // deduct_due, cash_refund, credit_note, replacement, none
+        $refundAmount = isset($requestData['refund_amount']) ? (float)$requestData['refund_amount'] : 0.00;
+        $referenceNo = !empty($requestData['reference_no']) ? trim($requestData['reference_no']) : null;
         $notes = $requestData['notes'] ?? null;
         $newExpiryDate = $requestData['new_expiry_date'] ?? null;
+        $status = $requestData['status'] ?? 'completed';
 
         if (empty($productId) || $quantity <= 0) {
-            Auth::jsonError('Product ID and valid quantity are required.', 400);
+            Auth::jsonError('Product selection and valid quantity are required.', 400);
         }
 
         try {
             DB::beginTransaction();
 
             // Verify product belongs to shop
-            $stmt = DB::query('SELECT stock_quantity FROM products WHERE id = ? AND shop_id = ?', [$productId, $shopId]);
+            $stmt = DB::query('SELECT stock_quantity, cost_price FROM products WHERE id = ? AND shop_id = ?', [$productId, $shopId]);
             $prod = $stmt->fetch();
 
             if (!$prod) {
@@ -2012,16 +2064,41 @@ class SupplierController {
                 Auth::jsonError('Product not found in this shop.', 404);
             }
 
+            if ($unitCost === null) {
+                $unitCost = (float)($prod['cost_price'] ?? 0);
+            }
+
+            $totalAmount = $quantity * $unitCost;
+
             if ($actionType === 'return' && (int)$prod['stock_quantity'] < $quantity) {
                 DB::rollBack();
-                Auth::jsonError('Insufficient stock quantity to perform this return.', 400);
+                Auth::jsonError('Insufficient stock quantity to perform this return. (Available: ' . (int)$prod['stock_quantity'] . ')', 400);
+            }
+
+            if (empty($referenceNo)) {
+                $referenceNo = 'SR-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
             }
 
             // Record return log
             DB::query(
-                'INSERT INTO supplier_returns (shop_id, supplier_id, product_id, quantity, action_type, notes, new_expiry_date) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [$shopId, $supplierId, $productId, $quantity, $actionType, $notes, !empty($newExpiryDate) ? $newExpiryDate : null]
+                'INSERT INTO supplier_returns (shop_id, supplier_id, product_id, quantity, action_type, unit_cost, total_amount, reason, settlement_type, refund_amount, reference_no, status, notes, new_expiry_date) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $shopId,
+                    $supplierId,
+                    $productId,
+                    $quantity,
+                    $actionType,
+                    $unitCost,
+                    $totalAmount,
+                    $reason,
+                    $settlementType,
+                    $refundAmount,
+                    $referenceNo,
+                    $status,
+                    $notes,
+                    !empty($newExpiryDate) ? $newExpiryDate : null
+                ]
             );
             $logId = DB::lastInsertId();
 
@@ -2031,6 +2108,14 @@ class SupplierController {
                     'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND shop_id = ?',
                     [$quantity, $productId, $shopId]
                 );
+
+                // Financial settlement: if deduct_due selected, reduce supplier's outstanding due balance
+                if ($settlementType === 'deduct_due' && $refundAmount > 0) {
+                    DB::query(
+                        'UPDATE suppliers SET due_balance = GREATEST(due_balance - ?, 0) WHERE id = ? AND shop_id = ?',
+                        [$refundAmount, $supplierId, $shopId]
+                    );
+                }
             } else if ($actionType === 'replace' && !empty($newExpiryDate)) {
                 // Update expiry date on replace
                 DB::query(
@@ -2044,25 +2129,142 @@ class SupplierController {
             header('Content-Type: application/json');
             http_response_code(201);
             echo json_encode([
-                'message' => 'Supplier return action registered.',
-                'log_id' => (int)$logId
+                'message' => 'Supplier return/replacement action recorded successfully.',
+                'log_id' => (int)$logId,
+                'reference_no' => $referenceNo,
+                'total_amount' => $totalAmount
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
             error_log('Create supplier return error: ' . $e->getMessage());
-            Auth::jsonError('Server error registering supplier return.', 500);
+            Auth::jsonError('Server error registering supplier return: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public static function bulkCreateSupplierReturns($id, $requestData) {
+        Auth::authenticate();
+        Auth::enforceTenant();
+        Auth::authorize(['shop_admin', 'shop_staff']);
+
+        $supplierId = (int)$id;
+        $shopId = Auth::$shopId;
+        $items = $requestData['items'] ?? [];
+        $actionType = $requestData['action_type'] ?? 'return';
+        $settlementType = $requestData['settlement_type'] ?? 'none';
+        $reason = $requestData['reason'] ?? 'Expired Batch Return';
+        $sharedNotes = $requestData['notes'] ?? null;
+        $sharedNewExpiry = $requestData['new_expiry_date'] ?? null;
+
+        if (!is_array($items) || empty($items)) {
+            Auth::jsonError('No items provided for bulk return.', 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $batchRef = 'SR-' . date('ymd') . '-B' . strtoupper(substr(uniqid(), -3));
+            $totalProcessed = 0;
+            $totalRefundDeducted = 0.0;
+
+            foreach ($items as $item) {
+                $productId = (int)($item['product_id'] ?? 0);
+                $qty = (int)($item['quantity'] ?? 0);
+                $itemAction = $item['action_type'] ?? $actionType;
+                $itemReason = $item['reason'] ?? $reason;
+                $itemNewExpiry = $item['new_expiry_date'] ?? $sharedNewExpiry;
+                $itemNotes = $item['notes'] ?? $sharedNotes;
+
+                if ($productId <= 0 || $qty <= 0) continue;
+
+                $stmt = DB::query('SELECT stock_quantity, cost_price FROM products WHERE id = ? AND shop_id = ?', [$productId, $shopId]);
+                $prod = $stmt->fetch();
+                if (!$prod) continue;
+
+                if ($itemAction === 'return' && (int)$prod['stock_quantity'] < $qty) {
+                    DB::rollBack();
+                    Auth::jsonError("Insufficient stock for product ID {$productId} to complete bulk return.", 400);
+                }
+
+                $unitCost = isset($item['unit_cost']) ? (float)$item['unit_cost'] : (float)($prod['cost_price'] ?? 0);
+                $totalAmt = $qty * $unitCost;
+                $refundAmt = isset($item['refund_amount']) ? (float)$item['refund_amount'] : ($settlementType === 'deduct_due' ? $totalAmt : 0.00);
+
+                DB::query(
+                    'INSERT INTO supplier_returns (shop_id, supplier_id, product_id, quantity, action_type, unit_cost, total_amount, reason, settlement_type, refund_amount, reference_no, status, notes, new_expiry_date) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        $shopId,
+                        $supplierId,
+                        $productId,
+                        $qty,
+                        $itemAction,
+                        $unitCost,
+                        $totalAmt,
+                        $itemReason,
+                        $settlementType,
+                        $refundAmt,
+                        $batchRef,
+                        'completed',
+                        $itemNotes,
+                        !empty($itemNewExpiry) ? $itemNewExpiry : null
+                    ]
+                );
+
+                if ($itemAction === 'return') {
+                    DB::query(
+                        'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND shop_id = ?',
+                        [$qty, $productId, $shopId]
+                    );
+                    if ($settlementType === 'deduct_due' && $refundAmt > 0) {
+                        $totalRefundDeducted += $refundAmt;
+                    }
+                } else if ($itemAction === 'replace' && !empty($itemNewExpiry)) {
+                    DB::query(
+                        'UPDATE products SET expiry_date = ? WHERE id = ? AND shop_id = ?',
+                        [$itemNewExpiry, $productId, $shopId]
+                    );
+                }
+
+                $totalProcessed++;
+            }
+
+            if ($settlementType === 'deduct_due' && $totalRefundDeducted > 0) {
+                DB::query(
+                    'UPDATE suppliers SET due_balance = GREATEST(due_balance - ?, 0) WHERE id = ? AND shop_id = ?',
+                    [$totalRefundDeducted, $supplierId, $shopId]
+                );
+            }
+
+            DB::commit();
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'message' => "Successfully processed bulk return for {$totalProcessed} items.",
+                'reference_no' => $batchRef,
+                'processed_count' => $totalProcessed,
+                'total_due_deducted' => $totalRefundDeducted
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            error_log('Bulk supplier return error: ' . $e->getMessage());
+            Auth::jsonError('Server error processing bulk returns: ' . $e->getMessage(), 500);
         }
     }
 
     public static function updateSupplierReturn($logId, $requestData) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'shop_staff']);
 
         $logId = (int)$logId;
         $shopId = Auth::$shopId;
         $quantity = (int)($requestData['quantity'] ?? 0);
+        $unitCost = isset($requestData['unit_cost']) ? (float)$requestData['unit_cost'] : null;
+        $reason = $requestData['reason'] ?? null;
+        $settlementType = $requestData['settlement_type'] ?? null;
+        $refundAmount = isset($requestData['refund_amount']) ? (float)$requestData['refund_amount'] : null;
         $notes = $requestData['notes'] ?? null;
         $newExpiryDate = $requestData['new_expiry_date'] ?? null;
 
@@ -2081,11 +2283,18 @@ class SupplierController {
                 Auth::jsonError('Return log entry not found.', 404);
             }
 
-            $productId = $log['product_id'];
+            $supplierId = (int)$log['supplier_id'];
+            $productId = (int)$log['product_id'];
             $oldQty = (int)$log['quantity'];
+            $oldUnitCost = (float)($log['unit_cost'] ?? 0);
+            $newUnitCost = $unitCost !== null ? $unitCost : $oldUnitCost;
+            $newTotalAmount = $quantity * $newUnitCost;
+            $newReason = $reason !== null ? $reason : ($log['reason'] ?? 'Expired');
+            $newSettlement = $settlementType !== null ? $settlementType : ($log['settlement_type'] ?? 'none');
+            $oldRefundAmount = (float)($log['refund_amount'] ?? 0);
+            $newRefundAmount = $refundAmount !== null ? $refundAmount : $oldRefundAmount;
 
             if ($log['action_type'] === 'return') {
-                // Verify inventory adjustment difference
                 $pStmt = DB::query('SELECT stock_quantity FROM products WHERE id = ? AND shop_id = ?', [$productId, $shopId]);
                 $prod = $pStmt->fetch();
 
@@ -2101,13 +2310,24 @@ class SupplierController {
                     'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND shop_id = ?',
                     [$netDifference, $productId, $shopId]
                 );
+
+                // Adjust due balance if settlement was deduct_due
+                if ($log['settlement_type'] === 'deduct_due') {
+                    // Revert old refund amount
+                    DB::query('UPDATE suppliers SET due_balance = due_balance + ? WHERE id = ? AND shop_id = ?', [$oldRefundAmount, $supplierId, $shopId]);
+                }
+                if ($newSettlement === 'deduct_due' && $newRefundAmount > 0) {
+                    // Apply new refund amount
+                    DB::query('UPDATE suppliers SET due_balance = GREATEST(due_balance - ?, 0) WHERE id = ? AND shop_id = ?', [$newRefundAmount, $supplierId, $shopId]);
+                }
             }
 
             // Update log
             DB::query(
-                'UPDATE supplier_returns SET quantity = ?, notes = ?, new_expiry_date = ? 
+                'UPDATE supplier_returns 
+                 SET quantity = ?, unit_cost = ?, total_amount = ?, reason = ?, settlement_type = ?, refund_amount = ?, notes = ?, new_expiry_date = ? 
                  WHERE id = ? AND shop_id = ?',
-                [$quantity, $notes, !empty($newExpiryDate) ? $newExpiryDate : null, $logId, $shopId]
+                [$quantity, $newUnitCost, $newTotalAmount, $newReason, $newSettlement, $newRefundAmount, $notes, !empty($newExpiryDate) ? $newExpiryDate : null, $logId, $shopId]
             );
 
             if ($log['action_type'] === 'replace' && !empty($newExpiryDate)) {
@@ -2120,12 +2340,12 @@ class SupplierController {
             DB::commit();
 
             header('Content-Type: application/json');
-            echo json_encode(['message' => 'Supplier return action updated.']);
+            echo json_encode(['message' => 'Supplier return action updated successfully.']);
 
         } catch (\Exception $e) {
             DB::rollBack();
             error_log('Update supplier return error: ' . $e->getMessage());
-            Auth::jsonError('Server error updating return action.', 500);
+            Auth::jsonError('Server error updating return action: ' . $e->getMessage(), 500);
         }
     }
 
@@ -2154,6 +2374,14 @@ class SupplierController {
                     'UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ? AND shop_id = ?',
                     [(int)$log['quantity'], $log['product_id'], $shopId]
                 );
+
+                // If due balance was deducted, restore supplier's due balance
+                if (($log['settlement_type'] ?? '') === 'deduct_due' && (float)($log['refund_amount'] ?? 0) > 0) {
+                    DB::query(
+                        'UPDATE suppliers SET due_balance = due_balance + ? WHERE id = ? AND shop_id = ?',
+                        [(float)$log['refund_amount'], (int)$log['supplier_id'], $shopId]
+                    );
+                }
             }
 
             DB::query('DELETE FROM supplier_returns WHERE id = ? AND shop_id = ?', [$logId, $shopId]);
@@ -2161,7 +2389,7 @@ class SupplierController {
             DB::commit();
 
             header('Content-Type: application/json');
-            echo json_encode(['message' => 'Supplier return action deleted and inventory reverted.']);
+            echo json_encode(['message' => 'Supplier return action deleted and inventory & due balances reverted.']);
 
         } catch (\Exception $e) {
             DB::rollBack();

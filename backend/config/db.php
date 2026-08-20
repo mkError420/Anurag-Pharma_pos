@@ -272,6 +272,13 @@ class DB {
                     `product_id` INT NOT NULL,
                     `quantity` INT NOT NULL,
                     `action_type` ENUM('return', 'replace') NOT NULL,
+                    `unit_cost` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                    `total_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                    `reason` VARCHAR(100) NULL DEFAULT 'Expired',
+                    `settlement_type` VARCHAR(50) NOT NULL DEFAULT 'none',
+                    `refund_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                    `reference_no` VARCHAR(50) NULL,
+                    `status` VARCHAR(30) NOT NULL DEFAULT 'completed',
                     `notes` TEXT NULL,
                     `new_expiry_date` DATE NULL,
                     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -281,6 +288,28 @@ class DB {
                     CONSTRAINT `fk_supplier_returns_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
+
+            if ($tableExists('supplier_returns') && !$columnExists('supplier_returns', 'unit_cost')) {
+                $pdo->exec("ALTER TABLE `supplier_returns` ADD COLUMN `unit_cost` DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+            }
+            if ($tableExists('supplier_returns') && !$columnExists('supplier_returns', 'total_amount')) {
+                $pdo->exec("ALTER TABLE `supplier_returns` ADD COLUMN `total_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+            }
+            if ($tableExists('supplier_returns') && !$columnExists('supplier_returns', 'reason')) {
+                $pdo->exec("ALTER TABLE `supplier_returns` ADD COLUMN `reason` VARCHAR(100) NULL DEFAULT 'Expired'");
+            }
+            if ($tableExists('supplier_returns') && !$columnExists('supplier_returns', 'settlement_type')) {
+                $pdo->exec("ALTER TABLE `supplier_returns` ADD COLUMN `settlement_type` VARCHAR(50) NOT NULL DEFAULT 'none'");
+            }
+            if ($tableExists('supplier_returns') && !$columnExists('supplier_returns', 'refund_amount')) {
+                $pdo->exec("ALTER TABLE `supplier_returns` ADD COLUMN `refund_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+            }
+            if ($tableExists('supplier_returns') && !$columnExists('supplier_returns', 'reference_no')) {
+                $pdo->exec("ALTER TABLE `supplier_returns` ADD COLUMN `reference_no` VARCHAR(50) NULL");
+            }
+            if ($tableExists('supplier_returns') && !$columnExists('supplier_returns', 'status')) {
+                $pdo->exec("ALTER TABLE `supplier_returns` ADD COLUMN `status` VARCHAR(30) NOT NULL DEFAULT 'completed'");
+            }
 
             // Create customer_returns table if not exists
             $pdo->exec("
