@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Footer from './Footer';
 import API_BASE_URL from '../config';
 import AnimatedButton from './AnimatedButton';
@@ -23,6 +23,24 @@ export default function ContactUs({ onNavigate, publicPage }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navRef = useRef(null);
+
+  // Hide mobile menu on outside click or touch anywhere on the display
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (mobileMenuOpen && navRef.current && !navRef.current.contains(e.target)) {
+        setMobileMenuOpen(false);
+      }
+    };
+    if (mobileMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [mobileMenuOpen]);
 
   const navLinks = [
     { label: 'Home', page: 'home', path: '/' },
@@ -118,8 +136,17 @@ export default function ContactUs({ onNavigate, publicPage }) {
           }
         }
       `}</style>
+      {/* Mobile Menu Backdrop Overlay to dismiss on display click */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/25 backdrop-blur-[2px] z-30 sm:hidden transition-opacity duration-300"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Navbar */}
-      <nav className="bg-white border-b border-gray-200 sticky top-9 z-40 shadow-sm">
+      <nav ref={navRef} className="bg-white border-b border-gray-200 sticky top-9 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             {/* Logo */}
