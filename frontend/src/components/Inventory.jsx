@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import Adjustments from './Adjustments';
 import API_BASE_URL from '../config';
@@ -25,11 +25,14 @@ export default function Inventory() {
   const [products, setProducts] = useState([]);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 60;
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [searchFocusedIndex, setSearchFocusedIndex] = useState(-1);
+  const [selectedCompany, setSelectedCompany] = useState('');
+  const [companyInputValue, setCompanyInputValue] = useState('');
   const [lowStockFilter, setLowStockFilter] = useState(false);
   const [expiryFilter, setExpiryFilter] = useState(false);
   const [error, setError] = useState(null);
@@ -42,9 +45,62 @@ export default function Inventory() {
   const [selectedLetter, setSelectedLetter] = useState('');
   const [showStockDistribution, setShowStockDistribution] = useState(false);
 
+  // Available unique companies/suppliers from suppliers and products list
+  const availableCompanies = useMemo(() => {
+    const compMap = new Map();
+    suppliers.forEach(s => {
+      if (s && s.name && s.name.trim()) {
+        compMap.set(s.name.trim().toLowerCase(), { id: s.id, name: s.name.trim() });
+      }
+    });
+    products.forEach(p => {
+      if (p.supplier_name && p.supplier_name.trim()) {
+        const name = p.supplier_name.trim();
+        const key = name.toLowerCase();
+        if (!compMap.has(key)) {
+          compMap.set(key, { id: p.supplier_id || name, name });
+        }
+      }
+    });
+    return Array.from(compMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [suppliers, products]);
+
   // Filter and sort products alphabetically, by search, and by active alert filters
   const filteredProducts = products
     .filter(p => {
+      // Exclude expired products with 0 stock (returned to company / discarded)
+      const stock = parseFloat(p.stock_quantity || 0);
+      let isExpired = false;
+      if (p.expiry_date) {
+        const exp = new Date(p.expiry_date);
+        exp.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        isExpired = exp.getTime() < today.getTime();
+      }
+      if (isExpired && stock <= 0) {
+        return false;
+      }
+
+      // Filter by selected company/supplier (supports partial typing)
+      if (selectedCompany) {
+        const prodSupplierName = (p.supplier_name || '').trim().toLowerCase();
+        const targetName = selectedCompany.trim().toLowerCase();
+
+        // Partial match on supplier_name (supports live typing)
+        const matchName = prodSupplierName && prodSupplierName.includes(targetName);
+
+        // Check via suppliers list for extra accuracy
+        const matchingSupplier = suppliers.find(s =>
+          s.name && s.name.trim().toLowerCase().includes(targetName)
+        );
+        const matchSupplierObj = matchingSupplier
+          ? prodSupplierName === matchingSupplier.name.trim().toLowerCase()
+          : false;
+
+        if (!matchName && !matchSupplierObj) return false;
+      }
+
       // Filter by search term
       if (search) {
         const searchLower = search.toLowerCase();
@@ -58,11 +114,11 @@ export default function Inventory() {
       }
       // Filter by low stock if lowStockFilter is on and expiryFilter is off
       if (lowStockFilter && !expiryFilter) {
-        return parseFloat(p.stock_quantity || 0) <= parseFloat(p.low_stock_threshold || 10);
+        return stock > 0 && stock <= parseFloat(p.low_stock_threshold || 10);
       }
       // Filter by expiry if expiryFilter is on and lowStockFilter is off
       if (expiryFilter && !lowStockFilter) {
-        if (!p.expiry_date) return false;
+        if (!p.expiry_date || stock <= 0) return false;
         const exp = new Date(p.expiry_date);
         exp.setHours(0, 0, 0, 0);
         const t30 = new Date();
@@ -72,9 +128,9 @@ export default function Inventory() {
       }
       // If both filters are on, match either
       if (lowStockFilter && expiryFilter) {
-        const isLow = parseFloat(p.stock_quantity || 0) <= parseFloat(p.low_stock_threshold || 10);
+        const isLow = stock > 0 && stock <= parseFloat(p.low_stock_threshold || 10);
         let isExp = false;
-        if (p.expiry_date) {
+        if (p.expiry_date && stock > 0) {
           const exp = new Date(p.expiry_date);
           exp.setHours(0, 0, 0, 0);
           const t30 = new Date();
@@ -581,7 +637,9 @@ export default function Inventory() {
       return;
     }
 
-    const headers = ['ID', 'Name', 'SKU', 'Category', 'Cost Price', 'Sale Price', 'Stock Quantity', 'Low Stock Threshold', 'Expiry Date'];
+    const headers = isSuperAdmin
+      ? ['ID', 'SKU', 'Shop Name', 'Product Name', 'Category', 'Company Name', 'Cost Price', 'Sale Price', 'Stock Quantity', 'Unit', 'Low Stock Threshold', 'Expiry Date']
+      : ['ID', 'SKU', 'Product Name', 'Category', 'Company Name', 'Cost Price', 'Sale Price', 'Stock Quantity', 'Unit', 'Low Stock Threshold', 'Expiry Date'];
 
     const escapeCSV = (val) => {
       if (val === null || val === undefined) return '';
@@ -592,17 +650,38 @@ export default function Inventory() {
       return str;
     };
 
-    const rows = productsToExport.map(p => [
-      p.id,
-      escapeCSV(p.name),
-      escapeCSV(p.sku),
-      escapeCSV(p.category || ''),
-      parseFloat(p.cost_price).toFixed(2),
-      parseFloat(p.price).toFixed(2),
-      p.stock_quantity,
-      p.low_stock_threshold,
-      p.expiry_date ? p.expiry_date.split('T')[0] : 'N/A'
-    ]);
+    const rows = productsToExport.map(p => {
+      const companyName = p.supplier_name || (suppliers.find(s => s.id === p.supplier_id)?.name) || 'N/A';
+      if (isSuperAdmin) {
+        return [
+          p.id,
+          escapeCSV(p.sku),
+          escapeCSV(p.shop_name || 'N/A'),
+          escapeCSV(p.name),
+          escapeCSV(p.category || ''),
+          escapeCSV(companyName),
+          parseFloat(p.cost_price || 0).toFixed(2),
+          parseFloat(p.price || 0).toFixed(2),
+          p.stock_quantity,
+          escapeCSV(p.unit || 'piece'),
+          p.low_stock_threshold,
+          p.expiry_date ? p.expiry_date.split('T')[0] : 'N/A'
+        ];
+      }
+      return [
+        p.id,
+        escapeCSV(p.sku),
+        escapeCSV(p.name),
+        escapeCSV(p.category || ''),
+        escapeCSV(companyName),
+        parseFloat(p.cost_price || 0).toFixed(2),
+        parseFloat(p.price || 0).toFixed(2),
+        p.stock_quantity,
+        escapeCSV(p.unit || 'piece'),
+        p.low_stock_threshold,
+        p.expiry_date ? p.expiry_date.split('T')[0] : 'N/A'
+      ];
+    });
 
     const csvContent = "\uFEFF" + [
       headers.join(','),
@@ -662,9 +741,9 @@ export default function Inventory() {
       setUploading(false);
     }
   };
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const indexOfLastProduct = currentPage * itemsPerPage;
-  const indexOfFirstProduct = indexOfLastProduct - itemsPerPage;
+  const totalPages = itemsPerPage === 0 ? 1 : Math.ceil(filteredProducts.length / itemsPerPage);
+  const indexOfLastProduct = itemsPerPage === 0 ? filteredProducts.length : currentPage * itemsPerPage;
+  const indexOfFirstProduct = itemsPerPage === 0 ? 0 : indexOfLastProduct - itemsPerPage;
   const currentProducts = filteredProducts.slice(indexOfFirstProduct, indexOfLastProduct);
 
   const selectedHistoryProduct = products.find(p => String(p.id) === String(selectedHistoryProductId));
@@ -775,7 +854,7 @@ export default function Inventory() {
               {/* Product Count Summary */}
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <button
-                  onClick={() => { setLowStockFilter(false); setExpiryFilter(false); setSelectedLetter(''); }}
+                  onClick={() => { setLowStockFilter(false); setExpiryFilter(false); setSelectedLetter(''); setSelectedCompany(''); setCompanyInputValue(''); }}
                   className="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                   title="Show all products"
                 >
@@ -793,6 +872,18 @@ export default function Inventory() {
                     Filtered: {filteredProducts.length} products
                   </span>
                 )}
+                {selectedCompany && (
+                  <span className="inline-flex items-center gap-1.5 bg-indigo-100 text-indigo-800 border border-indigo-200 px-3 py-1 rounded-lg text-xs font-bold">
+                    <span>Company: {selectedCompany}</span>
+                    <button
+                      onClick={() => { setSelectedCompany(''); setCompanyInputValue(''); setCurrentPage(1); }}
+                      className="hover:text-indigo-950 font-extrabold ml-1 cursor-pointer"
+                      title="Clear company filter"
+                    >
+                      ×
+                    </button>
+                  </span>
+                )}
                 <button
                   onClick={() => setLowStockFilter(prev => !prev)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -803,7 +894,10 @@ export default function Inventory() {
                   title="Click to toggle Low Stock filter"
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${lowStockFilter ? 'bg-white' : 'bg-rose-500'}`}></span>
-                  Low Stock: {products.filter(p => parseFloat(p.stock_quantity || 0) <= parseFloat(p.low_stock_threshold || 10)).length}
+                  Low Stock: {products.filter(p => {
+                    const stock = parseFloat(p.stock_quantity || 0);
+                    return stock > 0 && stock <= parseFloat(p.low_stock_threshold || 10);
+                  }).length}
                 </button>
                 <button
                   onClick={() => setExpiryFilter(prev => !prev)}
@@ -817,6 +911,8 @@ export default function Inventory() {
                   <span className={`w-1.5 h-1.5 rounded-full ${expiryFilter ? 'bg-white' : 'bg-amber-500'}`}></span>
                   Expired / Expiring: {products.filter(p => {
                     if (!p.expiry_date) return false;
+                    const stock = parseFloat(p.stock_quantity || 0);
+                    if (stock <= 0) return false; // Exclude returned/out-of-stock items
                     const exp = new Date(p.expiry_date);
                     exp.setHours(0, 0, 0, 0);
                     const t30 = new Date();
@@ -854,7 +950,19 @@ export default function Inventory() {
                   All
                 </button>
                 {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((letter) => {
-                  const count = products.filter(p => p.name && p.name.trim().toUpperCase().startsWith(letter)).length;
+                  const count = products.filter(p => {
+                    const stock = parseFloat(p.stock_quantity || 0);
+                    let isExpired = false;
+                    if (p.expiry_date) {
+                      const exp = new Date(p.expiry_date);
+                      exp.setHours(0, 0, 0, 0);
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      isExpired = exp.getTime() < today.getTime();
+                    }
+                    if (isExpired && stock <= 0) return false;
+                    return p.name && p.name.trim().toUpperCase().startsWith(letter);
+                  }).length;
                   const isSelected = selectedLetter === letter;
 
                   return (
@@ -899,42 +1007,133 @@ export default function Inventory() {
           {/* Filter and Search Bar */}
           <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
 
-            {/* Search */}
-            <div className="relative flex-1 max-w-md">
-              <input
-                type="text"
-                placeholder="Search by name or SKU..."
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setSearchFocusedIndex(-1); }}
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    setSearchFocusedIndex(prev => (prev < currentProducts.length - 1 ? prev + 1 : prev));
-                  } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    setSearchFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
-                  } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (searchFocusedIndex >= 0 && currentProducts[searchFocusedIndex]) {
-                      const product = currentProducts[searchFocusedIndex];
-                      if (!isSuperAdmin) {
-                        openEdit(product);
-                      } else {
-                        setSelectedHistoryProductId(product.id);
-                        setActiveTab('history');
+            {/* Search + Per-page selector */}
+            <div className="flex items-center gap-2 flex-1 max-w-2xl">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Search by name or SKU..."
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setSearchFocusedIndex(-1); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setSearchFocusedIndex(prev => (prev < currentProducts.length - 1 ? prev + 1 : prev));
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setSearchFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (searchFocusedIndex >= 0 && currentProducts[searchFocusedIndex]) {
+                        const product = currentProducts[searchFocusedIndex];
+                        if (!isSuperAdmin) {
+                          openEdit(product);
+                        } else {
+                          setSelectedHistoryProductId(product.id);
+                          setActiveTab('history');
+                        }
                       }
                     }
-                  }
-                }}
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-              <svg className="absolute left-3 top-2.5 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+                  }}
+                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+                <svg className="absolute left-3 top-2.5 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+
+              {/* Per-page selector beside search */}
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="text-xs text-slate-400 font-semibold hidden sm:inline whitespace-nowrap">Per page:</span>
+                <div className="flex gap-1">
+                  {[50, 100, 200, 500, 1000, 0].map((n) => {
+                    const label = n === 0 ? 'All' : String(n);
+                    const isActive = itemsPerPage === n;
+                    return (
+                      <button
+                        key={label}
+                        onClick={() => { setItemsPerPage(n); setCurrentPage(1); }}
+                        className={`px-2 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                          isActive
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-white text-slate-500 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700'
+                        }`}
+                        title={n === 0 ? 'Show all products' : `Show ${n} per page`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Filters Group */}
-            <div className="flex flex-wrap items-center gap-4 md:gap-6">
+            <div className="flex flex-wrap items-center gap-3 md:gap-4">
+              {/* Company / Supplier Filter — writable combo-box */}
+              <div className="relative min-w-[180px] sm:min-w-[240px]">
+                <datalist id="company-suggestions">
+                  {availableCompanies.map((comp) => (
+                    <option key={comp.name} value={comp.name} />
+                  ))}
+                </datalist>
+                <input
+                  type="text"
+                  list="company-suggestions"
+                  value={companyInputValue}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCompanyInputValue(val);
+                    // Check if the typed value matches a known company (exact or partial)
+                    const trimmed = val.trim();
+                    if (!trimmed) {
+                      setSelectedCompany('');
+                      setCurrentPage(1);
+                      return;
+                    }
+                    // Try exact match first (case-insensitive)
+                    const exact = availableCompanies.find(
+                      c => c.name.toLowerCase() === trimmed.toLowerCase()
+                    );
+                    if (exact) {
+                      setSelectedCompany(exact.name);
+                    } else {
+                      // Partial: apply filter as user types
+                      setSelectedCompany(trimmed);
+                    }
+                    setCurrentPage(1);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setCompanyInputValue('');
+                      setSelectedCompany('');
+                      setCurrentPage(1);
+                    }
+                  }}
+                  placeholder={`Search company... (${availableCompanies.length})`}
+                  className={`w-full pl-8 pr-8 py-2 border rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all ${
+                    selectedCompany
+                      ? 'bg-indigo-50 border-indigo-300 text-indigo-800 placeholder:text-indigo-400 shadow-xs'
+                      : 'bg-white border-slate-200 text-slate-700 placeholder:text-slate-400 hover:bg-slate-50'
+                  }`}
+                />
+                <svg className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                {companyInputValue && (
+                  <button
+                    type="button"
+                    onClick={() => { setCompanyInputValue(''); setSelectedCompany(''); setCurrentPage(1); }}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-indigo-600 p-0.5 rounded-full transition-colors cursor-pointer"
+                    title="Clear Company filter"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
               {isSuperAdmin && (
                 <div className="flex items-center space-x-2 text-xs font-semibold text-slate-655 mr-2">
                   <span className="text-slate-500">Tenant Shop:</span>
@@ -1290,11 +1489,19 @@ export default function Inventory() {
           </div>
 
           {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
-              <div className="text-xs font-semibold text-slate-500">
-                Showing <span className="text-slate-800">{indexOfFirstProduct + 1}</span> to <span className="text-slate-800">{Math.min(indexOfLastProduct, filteredProducts.length)}</span> of <span className="text-slate-800">{filteredProducts.length}</span> entries
-              </div>
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+            {/* Left: entry info */}
+            <span className="text-xs font-semibold text-slate-500">
+              Showing{' '}
+              <span className="text-slate-800">{filteredProducts.length === 0 ? 0 : indexOfFirstProduct + 1}</span>
+              {' '}to{' '}
+              <span className="text-slate-800">{Math.min(indexOfLastProduct, filteredProducts.length)}</span>
+              {' '}of{' '}
+              <span className="text-slate-800">{filteredProducts.length}</span> entries
+            </span>
+
+            {/* Right: page navigation (hidden when showing All) */}
+            {itemsPerPage !== 0 && totalPages > 1 && (
               <div className="flex items-center flex-wrap gap-1.5 justify-center sm:justify-end">
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -1308,14 +1515,11 @@ export default function Inventory() {
                   const maxPagesToShow = 20;
                   let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
                   let endPage = startPage + maxPagesToShow - 1;
-
                   if (endPage > totalPages) {
                     endPage = totalPages;
                     startPage = Math.max(1, endPage - maxPagesToShow + 1);
                   }
-
                   const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
-
                   return pages.map((page) => (
                     <button
                       key={page}
@@ -1323,7 +1527,7 @@ export default function Inventory() {
                       className={`w-9 h-9 rounded-xl text-xs font-bold transition-all flex-shrink-0 ${currentPage === page
                         ? 'bg-slate-600 text-white shadow-xs'
                         : 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200'
-                        }`}
+                      }`}
                     >
                       {page}
                     </button>
@@ -1338,8 +1542,9 @@ export default function Inventory() {
                   Next
                 </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
 
           {/* --- ADD NEW PRODUCT MODAL --- */}
           {showAddModal && (

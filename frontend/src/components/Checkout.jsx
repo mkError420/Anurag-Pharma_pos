@@ -142,8 +142,26 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
       if (!response.ok) throw new Error('Failed to fetch products.');
       const data = await response.json();
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Filter out products that are expired AND have 0 stock (returned to company / discarded)
+      const validProducts = data.filter(p => {
+        const stock = parseFloat(p.stock_quantity || 0);
+        let isExpired = false;
+        if (p.expiry_date) {
+          const exp = new Date(p.expiry_date);
+          exp.setHours(0, 0, 0, 0);
+          isExpired = exp.getTime() < today.getTime();
+        }
+        // If expired and 0 stock (returned to company), do not show in POS checkout
+        if (isExpired && stock <= 0) return false;
+        return true;
+      });
+
       // Sort: in-stock products first, out-of-stock (≤ 0) pushed to the bottom
-      const sorted = [...data].sort((a, b) => {
+      const sorted = [...validProducts].sort((a, b) => {
         const aOut = parseFloat(a.stock_quantity || 0) <= 0 ? 1 : 0;
         const bOut = parseFloat(b.stock_quantity || 0) <= 0 ? 1 : 0;
         return aOut - bOut; // stable: preserves original server order within each group

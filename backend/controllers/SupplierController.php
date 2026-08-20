@@ -1754,12 +1754,12 @@ class SupplierController {
                 $log['new_cost_price'] = (float)$log['new_cost_price'];
             }
 
-            // Expired and Near-Expiry products list (within next 90 days)
+            // Expired and Near-Expiry products list (within next 90 days, only in-stock items)
             $stmt = DB::query(
                 'SELECT id, name, sku, category, unit, cost_price, price, expiry_date, stock_quantity,
                         DATEDIFF(expiry_date, CURRENT_DATE()) AS days_left
                  FROM products 
-                 WHERE supplier_id = ? AND shop_id = ? AND expiry_date IS NOT NULL AND expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY)
+                 WHERE supplier_id = ? AND shop_id = ? AND stock_quantity > 0 AND expiry_date IS NOT NULL AND expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 90 DAY)
                  ORDER BY expiry_date ASC',
                 [$supplierId, $shopId]
             );
@@ -2103,11 +2103,39 @@ class SupplierController {
             $logId = DB::lastInsertId();
 
             if ($actionType === 'return') {
-                // Deduct stock
+                // Deduct stock (ensure non-negative)
                 DB::query(
-                    'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND shop_id = ?',
+                    'UPDATE products SET stock_quantity = GREATEST(stock_quantity - ?, 0) WHERE id = ? AND shop_id = ?',
                     [$quantity, $productId, $shopId]
                 );
+
+                // Deduct from inventory batches (prioritizing expired batches)
+                try {
+                    $batchStmt = DB::query(
+                        'SELECT id, quantity, expiry_date FROM inventory_batches 
+                         WHERE product_id = ? AND shop_id = ? AND quantity > 0
+                         ORDER BY 
+                            CASE WHEN expiry_date IS NOT NULL AND expiry_date <= CURRENT_DATE() THEN 0 
+                                 WHEN expiry_date IS NOT NULL THEN 1 ELSE 2 END ASC,
+                            expiry_date ASC, id ASC',
+                        [$productId, $shopId]
+                    );
+                    $batches = $batchStmt->fetchAll();
+                    $remQty = $quantity;
+                    foreach ($batches as $b) {
+                        if ($remQty <= 0) break;
+                        $bQty = (int)$b['quantity'];
+                        if ($bQty <= $remQty) {
+                            DB::query('UPDATE inventory_batches SET quantity = 0, status = "returned" WHERE id = ?', [$b['id']]);
+                            $remQty -= $bQty;
+                        } else {
+                            DB::query('UPDATE inventory_batches SET quantity = quantity - ? WHERE id = ?', [$remQty, $b['id']]);
+                            $remQty = 0;
+                        }
+                    }
+                } catch (\Exception $ex) {
+                    // Batch table may not exist
+                }
 
                 // Financial settlement: if deduct_due selected, reduce supplier's outstanding due balance
                 if ($settlementType === 'deduct_due' && $refundAmount > 0) {
@@ -2213,9 +2241,38 @@ class SupplierController {
 
                 if ($itemAction === 'return') {
                     DB::query(
-                        'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND shop_id = ?',
+                        'UPDATE products SET stock_quantity = GREATEST(stock_quantity - ?, 0) WHERE id = ? AND shop_id = ?',
                         [$qty, $productId, $shopId]
                     );
+
+                    // Deduct from inventory batches
+                    try {
+                        $batchStmt = DB::query(
+                            'SELECT id, quantity, expiry_date FROM inventory_batches 
+                             WHERE product_id = ? AND shop_id = ? AND quantity > 0
+                             ORDER BY 
+                                CASE WHEN expiry_date IS NOT NULL AND expiry_date <= CURRENT_DATE() THEN 0 
+                                     WHEN expiry_date IS NOT NULL THEN 1 ELSE 2 END ASC,
+                                expiry_date ASC, id ASC',
+                            [$productId, $shopId]
+                        );
+                        $batches = $batchStmt->fetchAll();
+                        $remQty = $qty;
+                        foreach ($batches as $b) {
+                            if ($remQty <= 0) break;
+                            $bQty = (int)$b['quantity'];
+                            if ($bQty <= $remQty) {
+                                DB::query('UPDATE inventory_batches SET quantity = 0, status = "returned" WHERE id = ?', [$b['id']]);
+                                $remQty -= $bQty;
+                            } else {
+                                DB::query('UPDATE inventory_batches SET quantity = quantity - ? WHERE id = ?', [$remQty, $b['id']]);
+                                $remQty = 0;
+                            }
+                        }
+                    } catch (\Exception $ex) {
+                        // Batch table may not exist
+                    }
+
                     if ($settlementType === 'deduct_due' && $refundAmt > 0) {
                         $totalRefundDeducted += $refundAmt;
                     }
