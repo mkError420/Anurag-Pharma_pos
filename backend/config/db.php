@@ -398,6 +398,7 @@ class DB {
                     `phone` VARCHAR(30) NOT NULL,
                     `payment_method` VARCHAR(50) DEFAULT 'bKash',
                     `transaction_id` VARCHAR(100) NULL,
+                    `receipt_image` VARCHAR(255) NULL,
                     `status` ENUM('pending', 'approved', 'active', 'rejected', 'expired') DEFAULT 'pending',
                     `start_date` DATE NULL,
                     `end_date` DATE NULL,
@@ -412,6 +413,10 @@ class DB {
 
             if ($tableExists('subscriptions') && !$columnExists('subscriptions', 'shop_id')) {
                 $pdo->exec("ALTER TABLE `subscriptions` ADD COLUMN `shop_id` INT NULL AFTER `plan_id`");
+            }
+
+            if ($tableExists('subscriptions') && !$columnExists('subscriptions', 'receipt_image')) {
+                $pdo->exec("ALTER TABLE `subscriptions` ADD COLUMN `receipt_image` VARCHAR(255) NULL AFTER `transaction_id`");
             }
 
             // Create other_sales table if not exists

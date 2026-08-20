@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Footer from './Footer';
 import API_BASE_URL from '../config';
 import AnimatedButton from './AnimatedButton';
@@ -42,6 +42,28 @@ export default function AboutUs({ onNavigate, publicPage }) {
     fetchData();
   }, []);
 
+  // Intersection Observer for team card stagger animation
+  const [visibleTeam, setVisibleTeam] = useState(new Set());
+  const teamRefs = useRef([]);
+
+  useEffect(() => {
+    if (teamMembers.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const idx = parseInt(entry.target.dataset.idx);
+            setTimeout(() => {
+              setVisibleTeam((prev) => new Set([...prev, idx]));
+            }, idx * 120);
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+    teamRefs.current.forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [teamMembers]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -49,29 +71,57 @@ export default function AboutUs({ onNavigate, publicPage }) {
         .site-logo-shimmer {
           font-size: 1.5rem;
           font-weight: 800;
-          background: linear-gradient(
-            110deg,
-            #0f172a 30%,
-            #38bdf8 50%,
-            #0f172a 70%
-          );
+          background: linear-gradient(110deg, #0f172a 30%, #38bdf8 50%, #0f172a 70%);
           background-size: 200% 100%;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           animation: shimmer 3s infinite linear;
         }
-
         @keyframes shimmer {
-          0% {
-            background-position: 200% 0;
-          }
-          100% {
-            background-position: -200% 0;
-          }
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        /* Team card animations */
+        .team-card-enter {
+          opacity: 0;
+          transform: translateY(40px) scale(0.96);
+          transition: opacity 0.55s cubic-bezier(.4,0,.2,1), transform 0.55s cubic-bezier(.4,0,.2,1);
+        }
+        .team-card-enter.visible {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        .team-card-hover {
+          transition: transform 0.28s cubic-bezier(.4,0,.2,1), box-shadow 0.28s ease;
+        }
+        .team-card-hover:hover {
+          transform: translateY(-8px) scale(1.02);
+          box-shadow: 0 24px 48px -8px rgba(99,102,241,0.18), 0 8px 24px -4px rgba(0,0,0,0.10);
+        }
+        .founder-glow:hover {
+          box-shadow: 0 0 0 4px rgba(99,102,241,0.15), 0 32px 64px -12px rgba(99,102,241,0.25);
+        }
+        .avatar-ring {
+          background: linear-gradient(135deg, #6366f1, #8b5cf6, #06b6d4);
+          padding: 3px;
+          border-radius: 50%;
+        }
+        .avatar-ring-founder {
+          background: linear-gradient(135deg, #f59e0b, #ef4444, #8b5cf6);
+          padding: 4px;
+          border-radius: 50%;
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+        .founder-float {
+          animation: float 3.5s ease-in-out infinite;
         }
       `}</style>
+
       {/* Navbar */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+      <nav className="bg-white border-b border-gray-200 sticky top-9 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             {/* Logo */}
@@ -237,87 +287,153 @@ export default function AboutUs({ onNavigate, publicPage }) {
           </div>
         </div>
 
-        {/* Classic Team Section */}
+        {/* ── Meet Our Team ── */}
         <div className="mb-24">
-          <h2 className="text-3xl font-serif font-bold text-gray-900 text-center mb-12">Meet Our Team</h2>
-          <p className="text-gray-600 text-center max-w-3xl mx-auto mb-12 leading-relaxed">
-            Our team consists of experienced professionals passionate about technology and retail. From developers to support specialists, everyone at our company is committed to delivering the best possible experience for our customers.
-          </p>
+          {/* Section Header */}
+          <div className="text-center mb-16">
+            <span className="inline-block text-xs font-bold uppercase tracking-[0.3em] text-indigo-500 bg-indigo-50 border border-indigo-100 px-4 py-1.5 rounded-full mb-4">Our People</span>
+            <h2 className="text-4xl font-extrabold text-gray-900 mb-4">Meet Our Team</h2>
+            <div className="w-16 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mx-auto mb-6"></div>
+            <p className="text-gray-500 max-w-2xl mx-auto leading-relaxed">
+              A passionate group of innovators dedicated to building the best POS experience for businesses everywhere.
+            </p>
+          </div>
+
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-700"></div>
+            <div className="flex items-center justify-center py-20">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full border-4 border-indigo-100 border-t-indigo-500 animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-6 h-6 rounded-full bg-indigo-500 animate-pulse"></div>
+                </div>
+              </div>
             </div>
           ) : teamMembers.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <p>No team members to display at this time.</p>
+            <div className="text-center py-20">
+              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <p className="text-gray-400 font-medium">No team members to display yet.</p>
             </div>
-          ) : (
-            <div>
-              {/* Founders/CEO Row */}
-              {(() => {
-                const founders = teamMembers.filter(member => 
-                  member.role.toLowerCase().includes('founder') || 
-                  member.role.toLowerCase().includes('ceo') ||
-                  member.role.toLowerCase().includes('co-founder')
-                );
-                return founders.length > 0 ? (
-                  <div className="mb-12">
-                    <div className="flex justify-center">
-                      {founders.map((member) => (
-                        <div key={member.id} className="text-center p-6 border border-gray-200 bg-white shadow-lg mx-4">
-                          {member.image_url ? (
-                            <img
-                              src={member.image_url}
-                              alt={member.name}
-                              className="w-32 h-32 rounded-full object-cover mx-auto mb-4 border-4 border-gray-100"
-                            />
-                          ) : (
-                            <div className="w-32 h-32 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 border-4 border-gray-100">
-                              <span className="text-gray-600 font-bold text-3xl">{member.name.charAt(0)}</span>
-                            </div>
-                          )}
-                          <h3 className="text-gray-900 font-serif font-bold text-xl mb-2">{member.name}</h3>
-                          <p className="text-gray-800 text-sm font-semibold italic">{member.role}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null;
-              })()}
+          ) : (() => {
+            const founders = teamMembers.filter(m =>
+              m.role.toLowerCase().includes('founder') ||
+              m.role.toLowerCase().includes('ceo') ||
+              m.role.toLowerCase().includes('co-founder')
+            );
+            const others = teamMembers.filter(m =>
+              !m.role.toLowerCase().includes('founder') &&
+              !m.role.toLowerCase().includes('ceo') &&
+              !m.role.toLowerCase().includes('co-founder')
+            );
+            let globalIdx = 0;
 
-              {/* Other Team Members Row */}
-              {(() => {
-                const otherMembers = teamMembers.filter(member => 
-                  !member.role.toLowerCase().includes('founder') && 
-                  !member.role.toLowerCase().includes('ceo') &&
-                  !member.role.toLowerCase().includes('co-founder')
-                );
-                return otherMembers.length > 0 ? (
-                  <div>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-                      {otherMembers.map((member) => (
-                        <div key={member.id} className="text-center p-6 border border-gray-200 bg-white">
-                          {member.image_url ? (
-                            <img
-                              src={member.image_url}
-                              alt={member.name}
-                              className="w-24 h-24 rounded-full object-cover mx-auto mb-4 border-4 border-gray-100"
-                            />
-                          ) : (
-                            <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 border-4 border-gray-100">
-                              <span className="text-gray-600 font-bold text-2xl">{member.name.charAt(0)}</span>
+            return (
+              <div>
+                {/* ── Founder / CEO Spotlight Row ── */}
+                {founders.length > 0 && (
+                  <div className="mb-16">
+                    <div className="flex flex-wrap justify-center gap-8">
+                      {founders.map((member) => {
+                        const idx = globalIdx++;
+                        return (
+                          <div
+                            key={member.id}
+                            ref={(el) => { teamRefs.current[idx] = el; }}
+                            data-idx={idx}
+                            className={`team-card-enter founder-glow team-card-hover ${
+                              visibleTeam.has(idx) ? 'visible' : ''
+                            } relative bg-white rounded-3xl border border-slate-100 p-8 flex flex-col items-center w-64 shadow-lg`}
+                          >
+                            {/* Premium badge */}
+                            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                              <span className="bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow">
+                                {member.role.toLowerCase().includes('ceo') ? '⭐ CEO' : '🏆 Founder'}
+                              </span>
                             </div>
-                          )}
-                          <h3 className="text-gray-900 font-serif font-bold text-lg mb-2">{member.name}</h3>
-                          <p className="text-gray-600 text-sm italic">{member.role}</p>
-                        </div>
-                      ))}
+
+                            {/* Avatar with gradient ring + float animation */}
+                            <div className="avatar-ring-founder founder-float mb-5 mt-2">
+                              <div className="bg-white rounded-full p-0.5">
+                                {member.image_url ? (
+                                  <img
+                                    src={member.image_url}
+                                    alt={member.name}
+                                    className="w-28 h-28 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-28 h-28 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center">
+                                    <span className="text-4xl font-black text-indigo-600">{member.name.charAt(0)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <h3 className="text-gray-900 font-extrabold text-xl mb-1 text-center">{member.name}</h3>
+                            <span className="inline-block bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-[11px] font-bold px-3 py-1 rounded-full mb-3">
+                              {member.role}
+                            </span>
+                            {member.bio && (
+                              <p className="text-gray-500 text-xs text-center leading-relaxed mt-1">{member.bio}</p>
+                            )}
+
+                            {/* Decorative bottom shimmer line */}
+                            <div className="absolute bottom-0 left-8 right-8 h-0.5 rounded-full bg-gradient-to-r from-transparent via-indigo-300 to-transparent"></div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                ) : null;
-              })()}
-            </div>
-          )}
+                )}
+
+                {/* ── Team Members Grid ── */}
+                {others.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {others.map((member) => {
+                      const idx = globalIdx++;
+                      return (
+                        <div
+                          key={member.id}
+                          ref={(el) => { teamRefs.current[idx] = el; }}
+                          data-idx={idx}
+                          className={`team-card-enter team-card-hover ${
+                            visibleTeam.has(idx) ? 'visible' : ''
+                          } bg-white rounded-2xl border border-slate-100 p-6 flex flex-col items-center shadow-sm hover:border-indigo-200`}
+                        >
+                          {/* Avatar with gradient ring */}
+                          <div className="avatar-ring mb-4">
+                            <div className="bg-white rounded-full p-0.5">
+                              {member.image_url ? (
+                                <img
+                                  src={member.image_url}
+                                  alt={member.name}
+                                  className="w-20 h-20 rounded-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-slate-100 to-indigo-100 flex items-center justify-center">
+                                  <span className="text-2xl font-black text-indigo-500">{member.name.charAt(0)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <h3 className="text-gray-900 font-bold text-base mb-1 text-center">{member.name}</h3>
+                          <span className="inline-block bg-indigo-50 text-indigo-700 border border-indigo-100 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+                            {member.role}
+                          </span>
+                          {member.bio && (
+                            <p className="text-gray-400 text-[11px] text-center leading-relaxed mt-2 line-clamp-2">{member.bio}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Classic Quote Section */}

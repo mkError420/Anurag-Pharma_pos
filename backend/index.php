@@ -455,6 +455,44 @@ $routes = [
                 $controller->getSubscriptionById($args[0]);
             });
         },
+        // Static Uploads Serving Route
+        '/^uploads\/(.+)$/' => function($args) {
+            $subPath = $args[0];
+            $candidates = [
+                __DIR__ . '/uploads/' . $subPath,
+                dirname(__DIR__) . '/uploads/' . $subPath,
+                __DIR__ . '/../uploads/' . $subPath
+            ];
+            $found = null;
+            foreach ($candidates as $candidate) {
+                if (file_exists($candidate) && is_file($candidate)) {
+                    $found = $candidate;
+                    break;
+                }
+            }
+            if (!$found) {
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'Uploaded file not found', 'requested' => $subPath]);
+                return;
+            }
+            $ext = strtolower(pathinfo($found, PATHINFO_EXTENSION));
+            $mimeTypes = [
+                'jpg'  => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+                'png'  => 'image/png',
+                'gif'  => 'image/gif',
+                'webp' => 'image/webp',
+                'svg'  => 'image/svg+xml',
+                'pdf'  => 'application/pdf',
+                'txt'  => 'text/plain'
+            ];
+            $mime = $mimeTypes[$ext] ?? mime_content_type($found) ?? 'application/octet-stream';
+            header('Content-Type: ' . $mime);
+            header('Content-Length: ' . filesize($found));
+            readfile($found);
+            exit;
+        },
     ],
     'POST' => [
         // Auth

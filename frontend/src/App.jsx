@@ -32,6 +32,7 @@ import ManualOrders from './components/ManualOrders';
 import AllTransactions from './components/AllTransactions';
 import Attendance from './components/Attendance';
 import { extractDominantColor } from './utils/colorExtractor';
+import TopInfoBar from './components/TopInfoBar';
 
 import API_BASE_URL from './config';
 
@@ -437,6 +438,10 @@ export default function App() {
             </div>
           </div>
         )}
+        {/* Shared sticky top bar for all public pages */}
+        <div className="sticky top-0 z-50">
+          <TopInfoBar />
+        </div>
         {publicPage === 'home' && <Home onNavigate={setPublicPage} onLoginSuccess={handleLoginSuccess} publicPage={publicPage} />}
         {publicPage === 'about' && <AboutUs onNavigate={setPublicPage} publicPage={publicPage} />}
         {publicPage === 'contact' && <ContactUs onNavigate={setPublicPage} publicPage={publicPage} />}

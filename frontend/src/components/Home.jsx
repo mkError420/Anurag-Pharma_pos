@@ -42,6 +42,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
     transaction_id: '',
     notes: ''
   });
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState('');
   const [subSubmitting, setSubSubmitting] = useState(false);
   const [subSuccessMsg, setSubSuccessMsg] = useState('');
   const [subErrorMsg, setSubErrorMsg] = useState('');
@@ -59,6 +61,8 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   const handleOpenSubscriptionModal = (plan) => {
     setSelectedPlanForSub(plan);
     setReceiptData(null);
+    setReceiptFile(null);
+    setReceiptPreview('');
     setSubForm({
       subscriber_name: '',
       shop_name: '',
@@ -73,6 +77,27 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
     setShowSubscriptionModal(true);
   };
 
+  const handleReceiptFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setSubErrorMsg('Receipt file size exceeds 5MB limit. Please choose a smaller image.');
+      return;
+    }
+    setReceiptFile(file);
+    setSubErrorMsg('');
+    const reader = new FileReader();
+    reader.onload = (loadEvt) => {
+      setReceiptPreview(loadEvt.target.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveReceiptFile = () => {
+    setReceiptFile(null);
+    setReceiptPreview('');
+  };
+
   const handleSubscribeSubmit = async (e) => {
     e.preventDefault();
     setSubSubmitting(true);
@@ -80,17 +105,26 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
     setSubSuccessMsg('');
 
     try {
+      const formData = new FormData();
+      formData.append('plan_id', selectedPlanForSub?.id || '');
+      formData.append('plan_name', selectedPlanForSub?.name || '');
+      formData.append('price', selectedPlanForSub?.price || 0);
+      formData.append('currency', selectedPlanForSub?.currency || 'BDT');
+      formData.append('billing_period', selectedPlanForSub?.billing_period || 'month');
+      formData.append('subscriber_name', subForm.subscriber_name);
+      formData.append('shop_name', subForm.shop_name);
+      formData.append('email', subForm.email);
+      formData.append('phone', subForm.phone);
+      formData.append('payment_method', subForm.payment_method);
+      formData.append('transaction_id', subForm.transaction_id);
+      formData.append('notes', subForm.notes);
+      if (receiptFile) {
+        formData.append('receipt', receiptFile);
+      }
+
       const response = await fetch(`${API_BASE_URL}/public/subscriptions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan_id: selectedPlanForSub?.id,
-          plan_name: selectedPlanForSub?.name,
-          price: selectedPlanForSub?.price,
-          currency: selectedPlanForSub?.currency || 'BDT',
-          billing_period: selectedPlanForSub?.billing_period || 'month',
-          ...subForm
-        })
+        body: formData
       });
 
       let data = {};
@@ -115,6 +149,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
           billing_period: selectedPlanForSub?.billing_period || 'month',
           payment_method: subForm.payment_method,
           transaction_id: subForm.transaction_id,
+          receipt_image: data.receipt_image || receiptPreview || null,
           notes: subForm.notes,
           status: 'Pending Verification'
         });
@@ -406,7 +441,7 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
         }
       `}</style>
       {/* ── Navbar ── */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+      <nav className="bg-white border-b border-gray-200 sticky top-9 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
 
@@ -1492,9 +1527,39 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                         <span className="text-base font-extrabold text-emerald-400">{receiptData.currency} {receiptData.price}</span>
                       </div>
 
+                      {/* Uploaded Receipt Preview if attached */}
+                      {receiptData.receipt_image && (
+                        <div className="p-2.5 bg-white/95 rounded-lg border border-emerald-200">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[11px] font-bold text-gray-800 flex items-center gap-1.5">
+                              <span>🧾</span> Attached Payment Receipt
+                            </span>
+                            <a
+                              href={receiptData.receipt_image.startsWith('data:') || receiptData.receipt_image.startsWith('http') ? receiptData.receipt_image : `${API_BASE_URL.replace(/\/api$/, '')}/${receiptData.receipt_image}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold underline flex items-center gap-0.5"
+                            >
+                              Open Full Size ↗
+                            </a>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={receiptData.receipt_image.startsWith('data:') || receiptData.receipt_image.startsWith('http') ? receiptData.receipt_image : `${API_BASE_URL.replace(/\/api$/, '')}/${receiptData.receipt_image}`}
+                              alt="Payment Receipt"
+                              className="w-16 h-16 object-cover rounded-lg border border-gray-200 shadow-xs"
+                            />
+                            <div className="text-[11px] text-gray-500">
+                              <p className="font-semibold text-gray-700">Receipt submitted for verification</p>
+                              <p className="text-[10px] text-emerald-600 font-medium">✓ Uploaded to Super Admin Dashboard</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="p-2 bg-white/80 rounded-lg text-[11px] text-gray-600 border border-emerald-100 leading-tight">
                         <p className="font-semibold text-gray-800">📌 Next Steps:</p>
-                        Our Super Admin team will verify your transaction and activate your shop in <span className="font-bold text-gray-900">Manage Tenant Shops</span>.
+                        Our Super Admin team will verify your transaction receipt and activate your shop in <span className="font-bold text-gray-900">Manage Tenant Shops</span>.
                       </div>
                     </div>
 
@@ -1680,6 +1745,73 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
                           className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs font-mono focus:outline-none focus:border-gray-900"
                         />
                       </div>
+                    </div>
+
+                    {/* Receipt Upload Section */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-gray-700 text-[11px] font-bold uppercase">
+                          Payment Receipt / Screenshot <span className="text-gray-400 font-normal lowercase">(optional)</span>
+                        </label>
+                        {receiptFile && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveReceiptFile}
+                            className="text-[10px] text-rose-600 hover:text-rose-800 font-semibold"
+                          >
+                            ✕ Remove
+                          </button>
+                        )}
+                      </div>
+
+                      {receiptPreview ? (
+                        <div className="p-2 bg-slate-50 border border-emerald-300 rounded-lg flex items-center justify-between gap-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <img
+                              src={receiptPreview}
+                              alt="Receipt Preview"
+                              className="w-12 h-12 object-cover rounded-md border border-slate-200 shrink-0 bg-white"
+                            />
+                            <div className="truncate">
+                              <p className="text-xs font-semibold text-slate-800 truncate">{receiptFile?.name || 'Receipt image'}</p>
+                              <p className="text-[10px] text-emerald-600 font-medium">
+                                {(receiptFile?.size ? (receiptFile.size / 1024).toFixed(1) + ' KB' : 'Ready to upload')} • Ready
+                              </p>
+                            </div>
+                          </div>
+                          <label
+                            htmlFor="plan-receipt-upload"
+                            className="shrink-0 px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-md text-[11px] font-medium cursor-pointer transition-colors"
+                          >
+                            Change
+                          </label>
+                          <input
+                            id="plan-receipt-upload"
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={handleReceiptFileChange}
+                            className="hidden"
+                          />
+                        </div>
+                      ) : (
+                        <label
+                          htmlFor="plan-receipt-upload"
+                          className="flex items-center justify-center gap-2 p-2.5 border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50/70 hover:bg-indigo-50/40 rounded-lg cursor-pointer transition-all text-xs text-slate-600"
+                        >
+                          <svg className="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                          </svg>
+                          <span className="font-medium text-slate-700">Upload payment slip / screenshot</span>
+                          <span className="text-[10px] text-slate-400 hidden sm:inline">(JPG, PNG, WebP)</span>
+                          <input
+                            id="plan-receipt-upload"
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={handleReceiptFileChange}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
                     </div>
 
                     {/* Row 4: Notes (Compact Single-line) */}

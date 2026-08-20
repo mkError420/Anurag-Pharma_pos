@@ -1202,7 +1202,16 @@ class WebsiteContentController {
 
     public function createPublicSubscription() {
         try {
-            $input = json_decode(file_get_contents('php://input'), true);
+            $postData = $_POST;
+            $fileData = $_FILES;
+
+            // If $_POST is empty, check JSON input
+            if (empty($postData)) {
+                $rawInput = file_get_contents('php://input');
+                $input = json_decode($rawInput, true) ?: [];
+            } else {
+                $input = $postData;
+            }
 
             $planId = !empty($input['plan_id']) ? (int)$input['plan_id'] : null;
             $planName = trim($input['plan_name'] ?? '');
@@ -1217,6 +1226,38 @@ class WebsiteContentController {
             $transactionId = trim($input['transaction_id'] ?? '');
             $notes = trim($input['notes'] ?? '');
 
+            // Handle receipt file upload or receipt_image url
+            $receiptUrl = trim($input['receipt_image'] ?? ($input['receipt_url'] ?? ''));
+            $receiptFile = $fileData['receipt'] ?? ($fileData['receipt_image'] ?? null);
+
+            if ($receiptFile && isset($receiptFile['error']) && $receiptFile['error'] === UPLOAD_ERR_OK) {
+                $dir1 = __DIR__ . '/../uploads/receipts/'; // backend/uploads/receipts/
+                $dir2 = dirname(__DIR__, 2) . '/uploads/receipts/'; // root uploads/receipts/
+
+                foreach ([$dir1, $dir2] as $dir) {
+                    if (!is_dir($dir)) {
+                        @mkdir($dir, 0777, true);
+                    }
+                }
+
+                $fileExtension = strtolower(pathinfo($receiptFile['name'], PATHINFO_EXTENSION));
+                $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'pdf', 'gif'];
+                if (!in_array($fileExtension, $allowedExtensions)) {
+                    $fileExtension = 'jpg';
+                }
+                $fileName = 'receipt_' . time() . '_' . uniqid() . '.' . $fileExtension;
+                $target1 = $dir1 . $fileName;
+                $target2 = $dir2 . $fileName;
+
+                if (move_uploaded_file($receiptFile['tmp_name'], $target1)) {
+                    @copy($target1, $target2);
+                    $receiptUrl = 'uploads/receipts/' . $fileName;
+                } else if (@copy($receiptFile['tmp_name'], $target2)) {
+                    @copy($target2, $target1);
+                    $receiptUrl = 'uploads/receipts/' . $fileName;
+                }
+            }
+
             if (empty($planName) || empty($subscriberName) || empty($shopName) || empty($email) || empty($phone)) {
                 http_response_code(400);
                 header('Content-Type: application/json');
@@ -1228,14 +1269,14 @@ class WebsiteContentController {
                 INSERT INTO subscriptions (
                     plan_id, plan_name, price, currency, billing_period,
                     subscriber_name, shop_name, email, phone,
-                    payment_method, transaction_id, status, notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+                    payment_method, transaction_id, receipt_image, status, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
             ");
 
             $stmt->execute([
                 $planId, $planName, $price, $currency, $billingPeriod,
                 $subscriberName, $shopName, $email, $phone,
-                $paymentMethod, $transactionId, $notes
+                $paymentMethod, $transactionId, $receiptUrl, $notes
             ]);
 
             $id = $this->db->lastInsertId();
@@ -1245,7 +1286,8 @@ class WebsiteContentController {
             echo json_encode([
                 'success' => true,
                 'message' => 'Subscription request submitted successfully',
-                'subscription_id' => (int)$id
+                'subscription_id' => (int)$id,
+                'receipt_image' => $receiptUrl
             ]);
         } catch (\Exception $e) {
             error_log('Create public subscription error: ' . $e->getMessage());
@@ -1320,6 +1362,7 @@ class WebsiteContentController {
             $phone = trim($input['phone'] ?? '');
             $paymentMethod = trim($input['payment_method'] ?? 'bKash');
             $transactionId = trim($input['transaction_id'] ?? '');
+            $receiptImage = trim($input['receipt_image'] ?? '');
             $status = trim($input['status'] ?? 'active');
             $startDate = !empty($input['start_date']) ? $input['start_date'] : date('Y-m-d');
             $endDate = !empty($input['end_date']) ? $input['end_date'] : date('Y-m-d', strtotime('+1 month'));
@@ -1337,8 +1380,8 @@ class WebsiteContentController {
                 INSERT INTO subscriptions (
                     plan_id, shop_id, plan_name, price, currency, billing_period,
                     subscriber_name, shop_name, email, phone,
-                    payment_method, transaction_id, status, start_date, end_date, notes, admin_notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    payment_method, transaction_id, receipt_image, status, start_date, end_date, notes, admin_notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             // Sync shop and admin user if status is active/approved
@@ -1348,7 +1391,7 @@ class WebsiteContentController {
             $stmt->execute([
                 $planId, $shopId, $planName, $price, $currency, $billingPeriod,
                 $subscriberName, $shopName, $email, $phone,
-                $paymentMethod, $transactionId, $status, $startDate, $endDate, $notes, $adminNotes
+                $paymentMethod, $transactionId, $receiptImage, $status, $startDate, $endDate, $notes, $adminNotes
             ]);
 
             $id = $this->db->lastInsertId();
@@ -1398,6 +1441,7 @@ class WebsiteContentController {
             $phone = isset($input['phone']) ? trim($input['phone']) : $existing['phone'];
             $paymentMethod = isset($input['payment_method']) ? trim($input['payment_method']) : $existing['payment_method'];
             $transactionId = isset($input['transaction_id']) ? trim($input['transaction_id']) : $existing['transaction_id'];
+            $receiptImage = isset($input['receipt_image']) ? trim($input['receipt_image']) : ($existing['receipt_image'] ?? null);
             $status = isset($input['status']) ? trim($input['status']) : $existing['status'];
             $startDate = isset($input['start_date']) ? $input['start_date'] : $existing['start_date'];
             $endDate = isset($input['end_date']) ? $input['end_date'] : $existing['end_date'];
@@ -1421,7 +1465,7 @@ class WebsiteContentController {
                 UPDATE subscriptions SET
                     shop_id = ?, plan_name = ?, price = ?, currency = ?, billing_period = ?,
                     subscriber_name = ?, shop_name = ?, email = ?, phone = ?,
-                    payment_method = ?, transaction_id = ?, status = ?,
+                    payment_method = ?, transaction_id = ?, receipt_image = ?, status = ?,
                     start_date = ?, end_date = ?, notes = ?, admin_notes = ?
                 WHERE id = ?
             ");
@@ -1429,7 +1473,7 @@ class WebsiteContentController {
             $updateStmt->execute([
                 $shopId, $planName, $price, $currency, $billingPeriod,
                 $subscriberName, $shopName, $email, $phone,
-                $paymentMethod, $transactionId, $status,
+                $paymentMethod, $transactionId, $receiptImage, $status,
                 $startDate, $endDate, $notes, $adminNotes,
                 $id
             ]);

@@ -14,6 +14,7 @@ export default function SubscriptionManagement() {
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedSubscription, setSelectedSubscription] = useState(null);
+  const [previewReceipt, setPreviewReceipt] = useState(null);
   const [formData, setFormData] = useState({
     plan_id: '',
     plan_name: '',
@@ -26,12 +27,22 @@ export default function SubscriptionManagement() {
     phone: '',
     payment_method: 'bKash',
     transaction_id: '',
+    receipt_image: '',
     status: 'active',
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     notes: '',
     admin_notes: ''
   });
+
+  const getMediaUrl = (path) => {
+    if (!path) return '';
+    if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+      return path;
+    }
+    const base = API_BASE_URL.replace(/\/api$/, '');
+    return `${base}/${path.replace(/^\//, '')}`;
+  };
 
   // Payment Numbers modal state
   const [paymentNumbers, setPaymentNumbers] = useState([]);
@@ -158,6 +169,7 @@ export default function SubscriptionManagement() {
       phone: '',
       payment_method: 'bKash',
       transaction_id: '',
+      receipt_image: '',
       status: 'active',
       start_date: new Date().toISOString().split('T')[0],
       end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -182,6 +194,7 @@ export default function SubscriptionManagement() {
       phone: sub.phone || '',
       payment_method: sub.payment_method || 'bKash',
       transaction_id: sub.transaction_id || '',
+      receipt_image: sub.receipt_image || '',
       status: sub.status || 'pending',
       start_date: sub.start_date || new Date().toISOString().split('T')[0],
       end_date: sub.end_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -545,6 +558,7 @@ export default function SubscriptionManagement() {
                   <th className="px-6 py-4">Subscriber & Shop</th>
                   <th className="px-6 py-4">Plan & Price</th>
                   <th className="px-6 py-4">Payment & Trx</th>
+                  <th className="px-6 py-4">Receipt Slip</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Validity</th>
                   <th className="px-6 py-4 text-right">Actions</th>
@@ -581,6 +595,49 @@ export default function SubscriptionManagement() {
                           <span className="text-slate-400 italic">No Trx ID</span>
                         )}
                       </div>
+                    </td>
+
+                    {/* Receipt Slip */}
+                    <td className="px-6 py-4">
+                      {sub.receipt_image ? (
+                        <div
+                          onClick={() => setPreviewReceipt({
+                            url: getMediaUrl(sub.receipt_image),
+                            isPdf: sub.receipt_image.toLowerCase().endsWith('.pdf'),
+                            subscriber: sub.subscriber_name,
+                            shop: sub.shop_name,
+                            trx: sub.transaction_id,
+                            plan: sub.plan_name,
+                            amount: `${sub.currency} ${sub.price}`
+                          })}
+                          className="group relative inline-flex items-center gap-2 p-1.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 rounded-xl cursor-pointer shadow-2xs hover:shadow-sm transition-all"
+                          title="Click to view full receipt"
+                        >
+                          {sub.receipt_image.toLowerCase().endsWith('.pdf') ? (
+                            <div className="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-900/40 text-rose-600 flex items-center justify-center font-bold text-xs border border-rose-200">
+                              PDF
+                            </div>
+                          ) : (
+                            <img
+                              src={getMediaUrl(sub.receipt_image)}
+                              alt="Receipt"
+                              className="w-10 h-10 object-cover rounded-lg border border-emerald-200 dark:border-emerald-700 group-hover:scale-105 transition-transform bg-white"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="%23059669" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+                              }}
+                            />
+                          )}
+                          <div className="text-left pr-1.5">
+                            <span className="block text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-0.5">
+                              <span>🧾</span> View
+                            </span>
+                            <span className="block text-[9px] text-slate-400 font-medium">Click to inspect</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">No receipt</span>
+                      )}
                     </td>
 
                     {/* Status */}
@@ -855,6 +912,70 @@ export default function SubscriptionManagement() {
 
               </div>
 
+              {/* Receipt Image Attachment in Edit/Create Modal */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1.5 flex items-center justify-between">
+                  <span>🧾 Attached Payment Receipt</span>
+                  {formData.receipt_image && (
+                    <span className="text-[11px] text-emerald-600 font-semibold lowercase">✓ receipt present</span>
+                  )}
+                </label>
+                {formData.receipt_image ? (
+                  <div className="flex items-center justify-between gap-4 p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={getMediaUrl(formData.receipt_image)}
+                        alt="Receipt Preview"
+                        className="w-14 h-14 object-cover rounded-lg border border-slate-200 dark:border-slate-600 bg-white cursor-pointer shadow-xs hover:scale-105 transition-transform"
+                        onClick={() => setPreviewReceipt({
+                          url: getMediaUrl(formData.receipt_image),
+                          subscriber: formData.subscriber_name,
+                          shop: formData.shop_name,
+                          trx: formData.transaction_id,
+                          plan: formData.plan_name,
+                          amount: `${formData.currency} ${formData.price}`
+                        })}
+                      />
+                      <div>
+                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Payment Slip / Screenshot</p>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewReceipt({
+                            url: getMediaUrl(formData.receipt_image),
+                            subscriber: formData.subscriber_name,
+                            shop: formData.shop_name,
+                            trx: formData.transaction_id,
+                            plan: formData.plan_name,
+                            amount: `${formData.currency} ${formData.price}`
+                          })}
+                          className="text-xs text-sky-600 hover:text-sky-800 font-semibold underline mt-0.5"
+                        >
+                          Enlarge & Inspect Slip ↗
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, receipt_image: '' })}
+                      className="px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg border border-rose-200 dark:border-rose-800 font-semibold transition-colors"
+                    >
+                      Remove Slip
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      value={formData.receipt_image || ''}
+                      onChange={(e) => setFormData({ ...formData, receipt_image: e.target.value })}
+                      placeholder="e.g. uploads/receipts/receipt_123.jpg or image URL..."
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-xs font-mono"
+                    />
+                    <p className="text-[11px] text-slate-400">Public subscribers upload receipts automatically when submitting from the home page.</p>
+                  </div>
+                )}
+              </div>
+
               {/* Admin Notes */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase mb-1">Super Admin Notes</label>
@@ -948,58 +1069,58 @@ export default function SubscriptionManagement() {
                     <button
                       type="button"
                       onClick={handleAddPaymentAccount}
-                      className="mt-2 text-xs font-bold text-emerald-600 hover:underline"
+                      className="mt-2 text-xs font-bold text-slate-900 dark:text-white underline"
                     >
-                      + Add your first payment number (e.g. bKash / Nagad)
+                      Add first account
                     </button>
                   </div>
                 ) : (
-                  paymentNumbers.map((pn, index) => (
+                  paymentNumbers.map((acc, index) => (
                     <div
                       key={index}
-                      className="p-3 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-600 flex flex-col sm:flex-row items-start sm:items-center gap-2.5"
+                      className="p-3 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center gap-3"
                     >
-                      <div className="w-full sm:w-36 shrink-0">
+                      <div className="w-1/4">
                         <select
-                          value={pn.method}
+                          value={acc.method}
                           onChange={(e) => handlePaymentAccountChange(index, 'method', e.target.value)}
-                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                          className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs font-semibold"
                         >
                           <option value="bKash">bKash</option>
                           <option value="Nagad">Nagad</option>
                           <option value="Rocket">Rocket</option>
+                          <option value="Upay">Upay</option>
                           <option value="Bank Transfer">Bank Transfer</option>
-                          <option value="Card">Card</option>
-                          <option value="Cash">Cash</option>
+                          <option value="Other">Other</option>
                         </select>
                       </div>
 
-                      <div className="flex-1 w-full">
+                      <div className="flex-1">
                         <input
                           type="text"
                           required
-                          value={pn.number || ''}
+                          placeholder="Account Number (e.g. 01700-000000)"
+                          value={acc.number}
                           onChange={(e) => handlePaymentAccountChange(index, 'number', e.target.value)}
-                          placeholder="Phone / Account / IBAN Number"
-                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-slate-900 font-mono"
+                          className="w-full px-3 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs font-mono font-semibold"
                         />
                       </div>
 
-                      <div className="w-full sm:w-44 shrink-0">
+                      <div className="w-1/3">
                         <input
                           type="text"
-                          value={pn.account_name || ''}
+                          placeholder="Type (e.g. Personal, Agent)"
+                          value={acc.account_name || ''}
                           onChange={(e) => handlePaymentAccountChange(index, 'account_name', e.target.value)}
-                          placeholder="Type (e.g. Merchant / Personal)"
-                          className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-white rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-slate-900"
+                          className="w-full px-2.5 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg text-xs"
                         />
                       </div>
 
                       <button
                         type="button"
                         onClick={() => handleRemovePaymentAccount(index)}
-                        className="p-2 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/30 rounded-lg transition-colors shrink-0"
-                        title="Remove Account"
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/40 rounded-lg transition-colors"
+                        title="Remove"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1036,6 +1157,80 @@ export default function SubscriptionManagement() {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* High-Resolution Receipt Viewer Modal */}
+      {previewReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-slate-700 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white border-b border-slate-800">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <span>🧾</span> Payment Receipt Slip
+                </h3>
+                <p className="text-xs text-slate-300">
+                  {previewReceipt.subscriber} • {previewReceipt.shop} {previewReceipt.trx ? `(TRX: ${previewReceipt.trx})` : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewReceipt.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg border border-slate-700 text-slate-200 transition-colors"
+                >
+                  Open in Tab ↗
+                </a>
+                <button
+                  onClick={() => setPreviewReceipt(null)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 flex items-center justify-center bg-slate-950/40">
+              {previewReceipt.isPdf ? (
+                <div className="w-full text-center space-y-4">
+                  <iframe
+                    src={previewReceipt.url}
+                    title="PDF Receipt"
+                    className="w-full h-[60vh] rounded-xl border border-slate-700 bg-white"
+                  />
+                  <a
+                    href={previewReceipt.url}
+                    download
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow"
+                  >
+                    Download PDF Receipt Document
+                  </a>
+                </div>
+              ) : (
+                <img
+                  src={previewReceipt.url}
+                  alt="Payment Receipt Slip"
+                  className="max-h-[65vh] max-w-full object-contain rounded-xl shadow-lg border border-slate-700 bg-white"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="1.5"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
+                  }}
+                />
+              )}
+            </div>
+            <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
+              <span>Plan: <strong className="text-slate-800 dark:text-slate-200">{previewReceipt.plan}</strong> ({previewReceipt.amount})</span>
+              <button
+                type="button"
+                onClick={() => setPreviewReceipt(null)}
+                className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-semibold text-xs transition-colors"
+              >
+                Close Preview
+              </button>
+            </div>
           </div>
         </div>
       )}
