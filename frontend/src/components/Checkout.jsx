@@ -3605,7 +3605,8 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   min="0"
                   max="100"
                   step="0.1"
-                  value={activeTab.discountPercent}
+                  value={activeTab.discountPercent || ''}
+                  placeholder="0"
                   onChange={(e) => updateActiveTabState('discountPercent', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
                   disabled={parseFloat(activeTab.discountAmount || 0) > 0}
                   className="w-18 border border-slate-200 rounded px-1 py-1 text-right font-medium text-slate-700 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
@@ -3618,7 +3619,8 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   type="number"
                   min="0"
                   step="1"
-                  value={activeTab.discountAmount}
+                  value={activeTab.discountAmount || ''}
+                  placeholder="0"
                   onChange={(e) => updateActiveTabState('discountAmount', Math.max(0, parseFloat(e.target.value) || 0))}
                   disabled={parseFloat(activeTab.discountPercent || 0) > 0}
                   className="w-19 border border-slate-200 rounded px-1 py-1 text-right font-medium text-slate-700 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
@@ -3684,7 +3686,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   type="number"
                   min="0"
                   step="0.001"
-                  value={activeTab.paidAmount}
+                  value={activeTab.paidAmount || ''}
                   onChange={(e) => {
                     updateActiveTabState('paidAmount', e.target.value);
                     updateActiveTabState('isPaidTouched', true);
