@@ -42,7 +42,7 @@ export default function Inventory() {
   const [selectedLetter, setSelectedLetter] = useState('');
   const [showStockDistribution, setShowStockDistribution] = useState(false);
 
-  // Filter and sort products alphabetically and by search
+  // Filter and sort products alphabetically, by search, and by active alert filters
   const filteredProducts = products
     .filter(p => {
       // Filter by search term
@@ -53,10 +53,50 @@ export default function Inventory() {
         if (!matchesName && !matchesSku) return false;
       }
       // Filter by selected letter
-      if (!selectedLetter) return true;
-      return p.name && p.name.trim().toUpperCase().startsWith(selectedLetter);
+      if (selectedLetter && (!p.name || !p.name.trim().toUpperCase().startsWith(selectedLetter))) {
+        return false;
+      }
+      // Filter by low stock if lowStockFilter is on and expiryFilter is off
+      if (lowStockFilter && !expiryFilter) {
+        return parseFloat(p.stock_quantity || 0) <= parseFloat(p.low_stock_threshold || 10);
+      }
+      // Filter by expiry if expiryFilter is on and lowStockFilter is off
+      if (expiryFilter && !lowStockFilter) {
+        if (!p.expiry_date) return false;
+        const exp = new Date(p.expiry_date);
+        exp.setHours(0, 0, 0, 0);
+        const t30 = new Date();
+        t30.setHours(0, 0, 0, 0);
+        t30.setDate(t30.getDate() + 30);
+        return exp.getTime() <= t30.getTime();
+      }
+      // If both filters are on, match either
+      if (lowStockFilter && expiryFilter) {
+        const isLow = parseFloat(p.stock_quantity || 0) <= parseFloat(p.low_stock_threshold || 10);
+        let isExp = false;
+        if (p.expiry_date) {
+          const exp = new Date(p.expiry_date);
+          exp.setHours(0, 0, 0, 0);
+          const t30 = new Date();
+          t30.setHours(0, 0, 0, 0);
+          t30.setDate(t30.getDate() + 30);
+          isExp = exp.getTime() <= t30.getTime();
+        }
+        return isLow || isExp;
+      }
+      return true;
     })
-    .sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+    .sort((a, b) => {
+      // If expiry filter is active, sort products with earliest expiry / expired first
+      if (expiryFilter) {
+        if (a.expiry_date && b.expiry_date) {
+          return new Date(a.expiry_date) - new Date(b.expiry_date);
+        }
+        if (a.expiry_date) return -1;
+        if (b.expiry_date) return 1;
+      }
+      return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+    });
 
 
   // Modals state
@@ -734,13 +774,17 @@ export default function Inventory() {
               <p className="text-sm text-slate-500">Manage shop items, monitor levels, and set restock alerts</p>
               {/* Product Count Summary */}
               <div className="flex flex-wrap items-center gap-2 mt-2">
-                <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 px-3 py-1 rounded-lg text-xs font-bold">
+                <button
+                  onClick={() => { setLowStockFilter(false); setExpiryFilter(false); setSelectedLetter(''); }}
+                  className="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  title="Show all products"
+                >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 3H8a1 1 0 00-1 1v3h10V4a1 1 0 00-1-1z" />
                   </svg>
                   Total: {products.length} products
-                </span>
+                </button>
                 {filteredProducts.length !== products.length && (
                   <span className="inline-flex items-center gap-1.5 bg-slate-50 text-slate-600 border border-slate-200 px-3 py-1 rounded-lg text-xs font-bold">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -749,10 +793,38 @@ export default function Inventory() {
                     Filtered: {filteredProducts.length} products
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-600 border border-rose-100 px-3 py-1 rounded-lg text-xs font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                  Low Stock: {products.filter(p => p.stock_quantity <= p.low_stock_threshold).length}
-                </span>
+                <button
+                  onClick={() => setLowStockFilter(prev => !prev)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    lowStockFilter
+                      ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400'
+                      : 'bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100'
+                  }`}
+                  title="Click to toggle Low Stock filter"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${lowStockFilter ? 'bg-white' : 'bg-rose-500'}`}></span>
+                  Low Stock: {products.filter(p => parseFloat(p.stock_quantity || 0) <= parseFloat(p.low_stock_threshold || 10)).length}
+                </button>
+                <button
+                  onClick={() => setExpiryFilter(prev => !prev)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    expiryFilter
+                      ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-400'
+                      : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'
+                  }`}
+                  title="Click to toggle Expired/Expiring filter"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${expiryFilter ? 'bg-white' : 'bg-amber-500'}`}></span>
+                  Expired / Expiring: {products.filter(p => {
+                    if (!p.expiry_date) return false;
+                    const exp = new Date(p.expiry_date);
+                    exp.setHours(0, 0, 0, 0);
+                    const t30 = new Date();
+                    t30.setHours(0, 0, 0, 0);
+                    t30.setDate(t30.getDate() + 30);
+                    return exp.getTime() <= t30.getTime();
+                  }).length}
+                </button>
               </div>
             </div>
 
@@ -882,23 +954,31 @@ export default function Inventory() {
               )}
 
               {/* Low Stock Checkbox Filter */}
-              <label className="flex items-center space-x-2.5 cursor-pointer text-sm font-semibold text-slate-600">
+              <label className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border text-xs sm:text-sm font-semibold transition-all cursor-pointer select-none ${
+                lowStockFilter 
+                  ? 'bg-rose-50 border-rose-300 text-rose-700 shadow-xs' 
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}>
                 <input
                   type="checkbox"
                   checked={lowStockFilter}
                   onChange={(e) => setLowStockFilter(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
                 />
                 <span>Low Stock</span>
               </label>
 
               {/* Expiry Checkbox Filter */}
-              <label className="flex items-center space-x-2.5 cursor-pointer text-sm font-semibold text-slate-600">
+              <label className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border text-xs sm:text-sm font-semibold transition-all cursor-pointer select-none ${
+                expiryFilter 
+                  ? 'bg-amber-50 border-amber-300 text-amber-800 shadow-xs' 
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}>
                 <input
                   type="checkbox"
                   checked={expiryFilter}
                   onChange={(e) => setExpiryFilter(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                 />
                 <span>Expired Stock</span>
               </label>
@@ -1079,7 +1159,7 @@ export default function Inventory() {
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {loading ? (
                     <tr>
-                      <td colSpan={8} className="p-12 text-center">
+                      <td colSpan={12} className="p-12 text-center">
                         <div className="flex justify-center items-center">
                           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                         </div>
@@ -1087,7 +1167,7 @@ export default function Inventory() {
                     </tr>
                   ) : filteredProducts.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-12 text-center text-slate-400">
+                      <td colSpan={12} className="p-12 text-center text-slate-400">
                         No products matched current search filters.
                       </td>
                     </tr>

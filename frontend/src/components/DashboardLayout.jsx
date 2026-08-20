@@ -21,6 +21,7 @@ export default function DashboardLayout({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [alertFilter, setAlertFilter] = useState('all'); // 'all', 'low_stock', 'expiry'
   const [currentTime, setCurrentTime] = useState(new Date());
   const notificationsRef = useRef(null);
   const profileDropdownRef = useRef(null);
@@ -194,57 +195,17 @@ export default function DashboardLayout({
 
             
             {user.role !== 'super_admin' && (() => {
-              // Group low stock items by name
-              const uniqueLowStockItems = [];
-              const lowStockMap = new Map();
-              (lowStockItems || []).forEach(item => {
-                const nameKey = (item.name || '').trim().toLowerCase();
-                if (!lowStockMap.has(nameKey)) {
-                  const clonedItem = { ...item, total_stock_quantity: parseFloat(item.stock_quantity || 0) };
-                  lowStockMap.set(nameKey, clonedItem);
-                  uniqueLowStockItems.push(clonedItem);
-                } else {
-                  lowStockMap.get(nameKey).total_stock_quantity += parseFloat(item.stock_quantity || 0);
-                }
-              });
-
-              // Group expiry items by name, but only alert if ALL products with same name are expiring soon
-              const uniqueExpiryItems = [];
-              const expiryMap = new Map();
+              const allLowStock = Array.isArray(lowStockItems) ? lowStockItems : [];
               const today = new Date();
               today.setHours(0, 0, 0, 0);
-              const thirtyDaysFromNow = new Date(today);
-              thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
-              // First, group all products by name
-              const productsByName = new Map();
-              (expiryItems || []).forEach(item => {
-                if (!item.expiry_date) return;
-                const nameKey = (item.name || '').trim().toLowerCase();
-                if (!productsByName.has(nameKey)) {
-                  productsByName.set(nameKey, []);
-                }
-                productsByName.get(nameKey).push(item);
-              });
+              // Process and sort all expiry items (earliest/expired first)
+              const allExpiry = (Array.isArray(expiryItems) ? expiryItems : [])
+                .filter(item => item && item.expiry_date)
+                .sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
 
-              // Then, only include products where ALL variants are expiring within 30 days
-              productsByName.forEach((items, nameKey) => {
-                const allExpiringSoon = items.every(item => {
-                  const expiry = new Date(item.expiry_date);
-                  expiry.setHours(0, 0, 0, 0);
-                  return expiry.getTime() <= thirtyDaysFromNow.getTime();
-                });
+              const totalAlerts = allLowStock.length + allExpiry.length;
 
-                if (allExpiringSoon) {
-                  // Find the item with the earliest expiry date
-                  const earliestItem = items.reduce((earliest, current) => {
-                    return new Date(current.expiry_date) < new Date(earliest.expiry_date) ? current : earliest;
-                  });
-                  uniqueExpiryItems.push(earliestItem);
-                }
-              });
-
-              const totalAlerts = uniqueLowStockItems.length + uniqueExpiryItems.length;
               return (
                 <div className="relative">
                   <button
@@ -252,7 +213,7 @@ export default function DashboardLayout({
                       setShowNotifications(!showNotifications);
                       setShowProfileDropdown(false);
                     }}
-                    className={`relative p-2 text-slate-500 dark:text-slate-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none ${
+                    className={`relative p-2 text-slate-500 dark:text-slate-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none transition-colors ${
                       totalAlerts > 0 ? 'text-amber-500 hover:text-amber-600' : ''
                     }`}
                     title={t('inventory_alerts', 'Stock & Expiry Notifications')}
@@ -261,9 +222,9 @@ export default function DashboardLayout({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
                     {totalAlerts > 0 && (
-                      <span className="absolute top-1.5 right-1.5 flex h-3.5 w-3.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500 text-[10px] font-bold text-white items-center justify-center">
+                      <span className="absolute top-1 right-1 flex h-4 min-w-[16px] px-1 items-center justify-center">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-4 min-w-[16px] px-1 bg-rose-500 text-[10px] font-bold text-white items-center justify-center shadow-sm">
                           {formatNumber(totalAlerts)}
                         </span>
                       </span>
@@ -272,81 +233,184 @@ export default function DashboardLayout({
 
                   {/* Notifications Dropdown Drawer */}
                   {showNotifications && (
-                    <div ref={notificationsRef} className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
-                      <div className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                        <span>{t('inventory_alerts', 'Inventory Alerts')}</span>
-                        <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full">
-                          {formatNumber(totalAlerts)} {t('warnings', 'Warnings')}
-                        </span>
+                    <div ref={notificationsRef} className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                      {/* Header */}
+                      <div className="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-slate-800 dark:text-slate-100 text-sm">
+                            {t('inventory_alerts', 'Inventory Alerts')}
+                          </span>
+                          {totalAlerts > 0 && (
+                            <span className="text-xs font-semibold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full">
+                              {formatNumber(totalAlerts)} {t('alerts', 'Alerts')}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
+
+                      {/* Filter Tabs */}
+                      {totalAlerts > 0 && (
+                        <div className="flex items-center border-b border-slate-200 dark:border-slate-700 px-3 py-1.5 bg-slate-50/50 dark:bg-slate-800 text-xs font-medium space-x-1.5">
+                          <button
+                            onClick={() => setAlertFilter('all')}
+                            className={`px-2.5 py-1 rounded-lg transition-colors ${
+                              alertFilter === 'all'
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {t('all_alerts', 'All')} ({formatNumber(totalAlerts)})
+                          </button>
+                          <button
+                            onClick={() => setAlertFilter('low_stock')}
+                            className={`px-2.5 py-1 rounded-lg transition-colors ${
+                              alertFilter === 'low_stock'
+                                ? 'bg-amber-600 text-white shadow-sm'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {t('low_stock_tab', 'Low Stock')} ({formatNumber(allLowStock.length)})
+                          </button>
+                          <button
+                            onClick={() => setAlertFilter('expiry')}
+                            className={`px-2.5 py-1 rounded-lg transition-colors ${
+                              alertFilter === 'expiry'
+                                ? 'bg-rose-600 text-white shadow-sm'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {t('expiry_tab', 'Expiry Alerts')} ({formatNumber(allExpiry.length)})
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Alerts List */}
+                      <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700/60">
                         {totalAlerts === 0 ? (
-                          <div className="p-4 text-center text-slate-400 dark:text-slate-500 text-sm">
-                            {t('no_alerts', 'All products are stocked & fresh!')}
+                          <div className="p-8 text-center">
+                            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              {t('no_alerts', 'All stock levels and expiry dates are in good standing.')}
+                            </p>
                           </div>
                         ) : (
                           <>
                             {/* Low Stock Items */}
-                            {uniqueLowStockItems.map((item) => (
-                              <div key={`low-${item.id}`} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                <div className="flex justify-between items-start">
-                                  <h4 className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate pr-2">
-                                    {item.name} <span className="text-xs font-mono text-slate-400 font-normal">({item.sku})</span>
-                                  </h4>
-                                  <span className="text-[10px] text-rose-500 font-bold bg-rose-50 px-1.5 py-0.5 rounded shrink-0 uppercase border border-rose-100">
-                                    {t('warning', 'Low Stock')}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                  {t('quantity', 'Qty')}: {formatNumber(item.total_stock_quantity)}
-                                </p>
-                              </div>
-                            ))}
-
-                            {/* Expiring/Expired Items */}
-                            {uniqueExpiryItems.map((item) => {
-                              const today = new Date();
-                              today.setHours(0, 0, 0, 0);
-                              const expiry = new Date(item.expiry_date);
-                              expiry.setHours(0, 0, 0, 0);
-                              const isExpired = expiry.getTime() < today.getTime();
-                              const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-                              return (
-                                <div key={`exp-${item.id}`} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                  <div className="flex justify-between items-start">
-                                    <h4 className="text-sm font-medium text-slate-800 truncate pr-2">
-                                      {item.name} <span className="text-xs font-mono text-slate-400 font-normal">({item.sku})</span>
-                                    </h4>
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase border ${
-                                      isExpired 
-                                        ? 'text-rose-600 bg-rose-50 border-rose-100' 
-                                        : 'text-amber-600 bg-amber-50 border-amber-100'
-                                    }`}>
-                                      {isExpired ? 'Expired' : 'Expiring'}
+                            {(alertFilter === 'all' || alertFilter === 'low_stock') &&
+                              allLowStock.map((item) => (
+                                <div
+                                  key={`low-${item.id}`}
+                                  onClick={() => {
+                                    if (onNavigate) onNavigate('/products');
+                                    setShowNotifications(false);
+                                  }}
+                                  className="p-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer transition-colors"
+                                >
+                                  <div className="flex justify-between items-start gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <h4 className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                                        {item.name}
+                                      </h4>
+                                      {item.sku && (
+                                        <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
+                                          SKU: {item.sku}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="inline-flex items-center text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-full shrink-0">
+                                      {t('low_stock', 'Low Stock')}
                                     </span>
                                   </div>
-                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                    {isExpired 
-                                      ? `Expired on ${expiry.toLocaleDateString()}` 
-                                      : `Expiring in ${diffDays} days (${expiry.toLocaleDateString()})`
-                                    }
-                                  </p>
+                                  <div className="mt-1.5 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
+                                    <span>
+                                      {t('stock', 'Stock')}: <strong className="text-amber-600 dark:text-amber-400 font-bold">{formatNumber(item.stock_quantity)}</strong> {item.unit || 'pcs'}
+                                    </span>
+                                    <span className="text-slate-400 dark:text-slate-500 text-[11px]">
+                                      {t('threshold', 'Alert Threshold')}: {formatNumber(item.low_stock_threshold || 10)} {item.unit || 'pcs'}
+                                    </span>
+                                  </div>
                                 </div>
-                              );
-                            })}
+                              ))}
+
+                            {/* Expiring / Expired Items */}
+                            {(alertFilter === 'all' || alertFilter === 'expiry') &&
+                              allExpiry.map((item) => {
+                                const expiry = new Date(item.expiry_date);
+                                expiry.setHours(0, 0, 0, 0);
+                                const diffTime = expiry.getTime() - today.getTime();
+                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                const isExpired = diffDays < 0;
+                                const isToday = diffDays === 0;
+
+                                return (
+                                  <div
+                                    key={`exp-${item.id}`}
+                                    onClick={() => {
+                                      if (onNavigate) onNavigate('/products');
+                                      setShowNotifications(false);
+                                    }}
+                                    className="p-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer transition-colors"
+                                  >
+                                    <div className="flex justify-between items-start gap-2">
+                                      <div className="min-w-0 flex-1">
+                                        <h4 className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                                          {item.name}
+                                        </h4>
+                                        {item.sku && (
+                                          <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
+                                            SKU: {item.sku}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span
+                                        className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border ${
+                                          isExpired
+                                            ? 'text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800/60'
+                                            : isToday
+                                            ? 'text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/60 border-orange-200 dark:border-orange-800/60'
+                                            : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800/60'
+                                        }`}
+                                      >
+                                        {isExpired
+                                          ? t('expired', 'Expired')
+                                          : isToday
+                                          ? t('expires_today', 'Expires Today')
+                                          : t('expiring_soon', 'Expiring Soon')}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1.5 flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
+                                      <span className={isExpired ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-slate-600 dark:text-slate-300'}>
+                                        {isExpired
+                                          ? `Expired ${Math.abs(diffDays)} day${Math.abs(diffDays) === 1 ? '' : 's'} ago`
+                                          : isToday
+                                          ? 'Expires today'
+                                          : `Expires in ${diffDays} day${diffDays === 1 ? '' : 's'}`} ({expiry.toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US')})
+                                      </span>
+                                      <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                                        {t('stock', 'Stock')}: {formatNumber(item.stock_quantity)} {item.unit || 'pcs'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                           </>
                         )}
                       </div>
-                      <div className="p-2 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700 text-center">
+
+                      {/* Footer */}
+                      <div className="p-2.5 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700 text-center">
                         <button
                           onClick={() => {
                             if (onNavigate) onNavigate('/products');
                             setShowNotifications(false);
                           }}
-                          className="w-full text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 py-1"
+                          className="w-full text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
                         >
-                          {t('view_inventory', 'View Low Stock & Expiring Inventory')}
+                          {t('view_inventory', 'View Low Stock & Expiring Inventory')} →
                         </button>
                       </div>
                     </div>
