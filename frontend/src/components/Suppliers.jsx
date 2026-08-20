@@ -184,6 +184,69 @@ export default function Suppliers() {
   // PO cart for multiple products
   const [poCart, setPoCart] = useState([]);
 
+  // ── BARCODE SCANNER states ─────────────────────────────────────────────
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [barcodeMode, setBarcodeMode] = useState(false); // scanner strip visible
+  const [barcodeStatus, setBarcodeStatus] = useState(null); // { type: 'success'|'error'|'warn', msg }
+  const [barcodeLastScanned, setBarcodeLastScanned] = useState(null);
+  const barcodeInputRef = useRef(null);
+
+  // Handle barcode scan / Enter press
+  const handleBarcodeScan = (rawCode) => {
+    const code = (rawCode || '').trim();
+    if (!code) return;
+    setBarcodeInput('');
+
+    // Lookup by SKU (exact) first, then by barcode field if exists
+    const matched = productsList.find(
+      p => p.sku && p.sku.toLowerCase() === code.toLowerCase()
+    );
+
+    if (!matched) {
+      setBarcodeStatus({ type: 'error', msg: `❌ No product found for barcode: "${code}"` });
+      setBarcodeLastScanned(code);
+      setTimeout(() => setBarcodeStatus(null), 3000);
+      return;
+    }
+
+    // Check if already in cart — increment qty instead
+    const existingIdx = poCart.findIndex(
+      c => String(c.product_id) === String(matched.id)
+    );
+    if (existingIdx >= 0) {
+      setPoCart(prev => {
+        const updated = [...prev];
+        updated[existingIdx] = {
+          ...updated[existingIdx],
+          quantity_ordered: updated[existingIdx].quantity_ordered + 1
+        };
+        return updated;
+      });
+      setBarcodeStatus({ type: 'warn', msg: `+1 → ${matched.name} (qty updated in cart)` });
+    } else {
+      // Add as new cart item with qty 1
+      const newItem = {
+        product_id: matched.id,
+        is_new: false,
+        name: matched.name,
+        sku: matched.sku,
+        category: matched.category || '',
+        cost_price: parseFloat(matched.current_cost || matched.cost_price || 0),
+        selling_price: parseFloat(matched.price || matched.selling_price || 0),
+        quantity_ordered: 1,
+        expiry_date: null,
+        unit: matched.unit || 'piece',
+        low_stock_threshold: parseInt(matched.low_stock_threshold || 10)
+      };
+      setPoCart(prev => [...prev, newItem]);
+      setBarcodeStatus({ type: 'success', msg: `✔ Added: ${matched.name} (SKU: ${matched.sku})` });
+    }
+    setBarcodeLastScanned(code);
+    setTimeout(() => setBarcodeStatus(null), 2500);
+    // Keep focus on barcode input for rapid scanning
+    setTimeout(() => barcodeInputRef.current?.focus(), 50);
+  };
+
   // Track which cart item is being edited
   const [editingCartItemIndex, setEditingCartItemIndex] = useState(null);
 
@@ -565,6 +628,19 @@ export default function Suppliers() {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [showDeskProductDropdown]);
 
+  // F2 hotkey → focus barcode scanner input (when PO modal is open)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'F2' && showAddPoModal) {
+        e.preventDefault();
+        setBarcodeMode(true);
+        setTimeout(() => barcodeInputRef.current?.focus(), 80);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showAddPoModal]);
+
   // Load profile data and stats
   const loadProfileData = async (supplierId) => {
     setProfileLoading(true);
@@ -733,6 +809,11 @@ export default function Suppliers() {
       received_date: ''
     });
     setShowAddPoModal(true);
+    // Reset barcode scanner for fresh session
+    setBarcodeMode(false);
+    setBarcodeInput('');
+    setBarcodeStatus(null);
+    setBarcodeLastScanned(null);
   };
 
 
@@ -5453,6 +5534,106 @@ export default function Suppliers() {
           </div>
 
           <form className="mt-4 space-y-4 overflow-y-auto pr-1 flex-1">
+
+            {/* ── BARCODE SCANNER STRIP ─────────────────────────── */}
+            <div className={`rounded-xl border-2 transition-all duration-200 ${
+              barcodeMode
+                ? 'border-indigo-400 bg-indigo-50/60 shadow-sm'
+                : 'border-dashed border-slate-300 bg-slate-50/50'
+            } p-3`}>
+              <div className="flex items-center gap-3">
+                {/* Barcode icon */}
+                <div className={`flex-shrink-0 p-2 rounded-lg ${
+                  barcodeMode ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
+                }`}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m0 14v1M4.93 4.93l.7.7m12.74 12.74l.7.7M1 12h1m20 0h1M4.93 19.07l.7-.7M18.36 5.64l.7-.7" />
+                    <rect x="7" y="8" width="2" height="8" rx="0.5" fill="currentColor" stroke="none" />
+                    <rect x="11" y="8" width="1" height="8" rx="0.5" fill="currentColor" stroke="none" />
+                    <rect x="14" y="8" width="3" height="8" rx="0.5" fill="currentColor" stroke="none" />
+                  </svg>
+                </div>
+
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                      {barcodeMode ? '🟢 Scanner Active — Scan or Type SKU + Enter' : 'Barcode Scanner'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400">Shortcut: F2</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !barcodeMode;
+                          setBarcodeMode(next);
+                          setBarcodeStatus(null);
+                          if (next) setTimeout(() => barcodeInputRef.current?.focus(), 80);
+                        }}
+                        className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-colors ${
+                          barcodeMode
+                            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                        }`}
+                      >
+                        {barcodeMode ? 'Disable' : 'Enable Scanner'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {barcodeMode && (
+                    <div className="flex gap-2">
+                      <input
+                        ref={barcodeInputRef}
+                        type="text"
+                        value={barcodeInput}
+                        onChange={(e) => setBarcodeInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleBarcodeScan(barcodeInput);
+                          }
+                        }}
+                        placeholder="Scan barcode or type SKU and press Enter..."
+                        autoComplete="off"
+                        autoFocus
+                        className="flex-1 border-2 border-indigo-300 focus:border-indigo-500 rounded-lg p-2 text-sm font-mono outline-none bg-white placeholder:text-slate-400 focus:ring-1 focus:ring-indigo-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleBarcodeScan(barcodeInput)}
+                        className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
+                        </svg>
+                        <span>Lookup</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Scan feedback status */}
+                  {barcodeStatus && (
+                    <div className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 ${
+                      barcodeStatus.type === 'success'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : barcodeStatus.type === 'warn'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : 'bg-rose-100 text-rose-800 border border-rose-200'
+                    }`}>
+                      {barcodeStatus.msg}
+                    </div>
+                  )}
+
+                  {!barcodeMode && (
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Enable scanner to quickly add products by scanning their barcode/SKU. Press <kbd className="bg-slate-200 px-1 rounded text-[10px]">F2</kbd> to activate.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* ── END BARCODE SCANNER STRIP ────────────────────── */}
+
             <div className={`grid grid-cols-1 ${isEditPoMode ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4`}>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Order Date</label>
