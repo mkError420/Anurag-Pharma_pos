@@ -2107,8 +2107,8 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               <div className="w-full py-4 flex justify-center items-start min-h-0 overflow-y-auto">
                 {previewMode === 'thermal' ? (
                   /* Thermal Receipt Mockup */
-                  <div className="w-[320px] bg-white text-black shadow-lg p-6 font-mono text-[12px] font-black leading-relaxed border-t-8 border-indigo-600 rounded-b-md">
-                    <div className="text-center mb-4 text-black">
+                  <div className="w-[320px] bg-white text-black shadow-lg pt-0 mt-0 px-6 pb-6 font-mono text-[12px] font-black leading-relaxed border-t-0 border-indigo-600 rounded-b-md">
+                    <div className="text-center mb-4 mt-0 text-black">
                       <h2 className="text-base font-black tracking-tight uppercase text-black">{receipt.shop_name}</h2>
                       {receipt.shop_address && <p className="text-[11px] font-black text-black mt-0.5">{receipt.shop_address}</p>}
                       {receipt.shop_phone && <p className="text-[11px] font-black text-black">Tel: {receipt.shop_phone}</p>}

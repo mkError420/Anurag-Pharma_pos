@@ -903,6 +903,10 @@ export default function Suppliers() {
         previous_total: previousTotal
       });
 
+      // Reset editing state
+      setEditingCartItemIndex(null);
+      setProductSearch('');
+
       setPoCart(poDetails.items.map(item => ({
         product_id: item.product_id,
         is_new: false,
@@ -5851,10 +5855,11 @@ export default function Suppliers() {
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">SKU / Code (Optional)</label>
                 <input
                   type="text"
-                  value={poFormData.sku}
+                  value={poFormData.sku || ''}
                   onChange={(e) => setPoFormData({ ...poFormData, sku: e.target.value })}
+                  disabled={!poFormData.is_new && editingCartItemIndex === null}
                   placeholder="Auto-generated if empty"
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold font-mono"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white disabled:bg-slate-50 font-semibold font-mono"
                 />
               </div>
 

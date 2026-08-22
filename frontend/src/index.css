@@ -52,6 +52,7 @@
 @media print {
   @page {
     margin: 0 !important;
+    margin-top: 0 !important;
     size: auto;
   }
 
@@ -89,6 +90,11 @@
     opacity: 1 !important;
   }
 
+  #receipt-print-area > *,
+  #history-print-area > * {
+    margin-top: 0 !important;
+  }
+
   #receipt-print-area *,
   #history-print-area * {
     visibility: visible !important;
@@ -99,7 +105,7 @@
     width: 80mm !important;
     margin: 0 !important;
     padding: 0 !important;
-    background: white !important;
+    background: #ffffff !important;
     color: #000000 !important;
   }
   
@@ -108,10 +114,11 @@
     width: 80mm !important;
     margin: 0 !important;
     padding: 0mm 2mm 2mm 2mm !important;
+    padding-top: 0 !important;
     font-family: 'Courier New', Courier, monospace !important;
-    font-size: 12px !important;
-    font-weight: 800 !important;
-    line-height: 1.3 !important;
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    line-height: 1.4 !important;
     color: #000000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -120,7 +127,7 @@
   body.print-mode-thermal #receipt-print-area *,
   body.print-mode-thermal #history-print-area * {
     color: #000000 !important;
-    font-weight: 800 !important;
+    font-weight: 900 !important;
     border-color: #000000 !important;
   }
 
