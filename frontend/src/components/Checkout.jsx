@@ -1678,7 +1678,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-hidden min-h-0">
 
         {/* Left Side: Product Grid (2 columns on Desktop) */}
-        <div className="lg:col-span-5 flex flex-col overflow-hidden">
+        <div className="lg:col-span-4 flex flex-col overflow-hidden">
           {/* Search & Barcode Scan Console */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             {/* Search Input */}
@@ -1686,7 +1686,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search by product name... (F2)"
+                placeholder="Search by product name, category, or SKU... (F2)"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setSearchFocusedIndex(-1); }}
                 onKeyDown={(e) => {
@@ -1788,11 +1788,10 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 z-10 bg-slate-50/50">
                       <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                        <th className="p-3 pl-4">Product Name</th>
-                        <th className="p-3 text-right">Price</th>
-                        <th className="p-3 text-center">Expiry</th>
-                        <th className="p-3 text-center">Stock</th>
-                        <th className="p-3 text-center">Actions</th>
+                        <th className="p-3 pl-4 w-1/2">Product Name</th>
+                        <th className="p-3 text-right w-24">Price</th>
+                        <th className="p-3 text-center w-28">Expiry</th>
+                        <th className="p-3 text-center w-28">Stock</th>
                       </tr>
                     </thead>
                     <tbody ref={productTableBodyRef} className="divide-y divide-slate-100 text-sm">
@@ -1883,11 +1882,18 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                                   {product.name}
                                   {isExpired && <span className="ml-2 text-xs text-rose-600 font-bold">(Expired)</span>}
                                 </div>
-                                {product.supplier_name && (
-                                  <div className="text-xs text-slate-500 font-normal mt-0.5">
-                                    {product.supplier_name}
-                                  </div>
-                                )}
+                                <div className="text-xs text-slate-500 font-normal mt-0.5">
+                                  {product.category && (
+                                    <span className="text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded mr-2">
+                                      {product.category}
+                                    </span>
+                                  )}
+                                  {product.supplier_name && (
+                                    <span>
+                                      {product.supplier_name}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="p-3 text-right font-extrabold text-slate-700">৳{parseFloat(product.price).toFixed(3)}</td>
                               <td className="p-3 text-center">{expiryBadge}</td>
@@ -1901,52 +1907,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                                   {isExpired ? 'Expired' : `${remainingQty} ${product.unit || 'pcs'} left`}
                                 </span>
                               </td>
-                              <td className="p-3 text-center">
-                                {qtyForRow > 0 && inCartItem ? (
-                                  <div className="flex items-center justify-center space-x-2">
-                                    <button
-                                      onClick={() => updateQuantity(inCartItem.id, -1)}
-                                      className="w-7 h-7 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-lg flex items-center justify-center transition-colors"
-                                    >
-                                      -
-                                    </button>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="0.001"
-                                      max={product.stock_quantity}
-                                      value={qtyForRow}
-                                      onChange={(e) => {
-                                        let val = parseFloat(e.target.value) || 0;
-                                        if (val > product.stock_quantity) val = product.stock_quantity;
-                                        const newTotal = (inCartItem.quantity - qtyForRow) + val;
-                                        handleQuantityInput(inCartItem.id, newTotal.toString());
-                                      }}
-                                      onBlur={(e) => {
-                                        let val = parseFloat(e.target.value) || 0;
-                                        if (val > product.stock_quantity) val = product.stock_quantity;
-                                        const newTotal = (inCartItem.quantity - qtyForRow) + val;
-                                        handleQuantityBlur(inCartItem.id, newTotal);
-                                      }}
-                                      className="w-12 text-center text-xs font-extrabold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded-md border border-indigo-100 focus:ring-1 focus:ring-indigo-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    />
-                                    <button
-                                      onClick={() => updateQuantity(inCartItem.id, 1)}
-                                      className="w-7 h-7 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded-lg flex items-center justify-center transition-colors"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => addToCart(product)}
-                                    disabled={isDisabled}
-                                    className="bg-slate-600 hover:bg-indigo-700 text-white disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-xs"
-                                  >
-                                    Add
-                                  </button>
-                                )}
-                              </td>
+
                             </tr>
                           );
                         })
@@ -1960,7 +1921,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         </div>
 
         {/* Right Side / Cart Side Panel (Always visible on Desktop) */}
-        <div className={`hidden lg:flex lg:col-span-7 bg-white border border-slate-200 rounded-2xl flex-col overflow-hidden shadow-sm`}>
+        <div className={`hidden lg:flex lg:col-span-8 bg-white border border-slate-200 rounded-2xl flex-col overflow-hidden shadow-sm`}>
           {renderCartPanelContent()}
         </div>
 

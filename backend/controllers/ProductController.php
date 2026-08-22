@@ -28,7 +28,8 @@ class ProductController {
             $params = $hasShop ? [$shopId] : [];
 
             if (!empty($search)) {
-                $sql .= " AND (p.name LIKE ? OR p.sku LIKE ?)";
+                $sql .= " AND (p.name LIKE ? OR p.sku LIKE ? OR p.category LIKE ?)";
+                $params[] = "%$search%";
                 $params[] = "%$search%";
                 $params[] = "%$search%";
             }
