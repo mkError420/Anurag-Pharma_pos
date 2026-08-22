@@ -266,9 +266,10 @@ export default function Suppliers() {
       return;
     }
 
-    // Auto-generate SKU if left empty
+    // Auto-generate SKU only for new products, not when editing existing items
     let finalSku = poFormData.sku ? poFormData.sku.trim() : '';
-    if (!finalSku) {
+    if (!finalSku && editingCartItemIndex === null) {
+      // Only auto-generate for new items, not when editing
       finalSku = 'SKU-' + poFormData.name.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + Math.floor(100 + Math.random() * 900);
     }
 
@@ -929,6 +930,13 @@ export default function Suppliers() {
   // SUBMIT PURCHASE ORDER
   const handlePoSubmit = async (e, poStatus = 'draft') => {
     e.preventDefault();
+    
+    // Check if there's a pending edit that hasn't been saved to cart
+    if (editingCartItemIndex !== null) {
+      triggerAlert('error', 'Please click "Update Product in Cart" to save your changes before submitting the order.');
+      return;
+    }
+    
     if (!poFormData.supplier_id) {
       triggerAlert('error', 'Supplier selection is required.');
       return;
