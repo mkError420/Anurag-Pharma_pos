@@ -71,7 +71,15 @@ class ProductController {
             }
 
             header('Content-Type: application/json');
-            echo json_encode($products);
+            $jsonOutput = json_encode($products, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding product data: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
 
         } catch (\Exception $e) {
             error_log('Fetch products error: ' . $e->getMessage());
@@ -115,7 +123,15 @@ class ProductController {
             $product['supplier_id'] = $product['supplier_id'] !== null ? (int)$product['supplier_id'] : null;
 
             header('Content-Type: application/json');
-            echo json_encode($product);
+            $jsonOutput = json_encode($product, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding product data: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
 
         } catch (\Exception $e) {
             error_log('Fetch product by ID error: ' . $e->getMessage());
@@ -158,7 +174,15 @@ class ProductController {
             }
 
             header('Content-Type: application/json');
-            echo json_encode($batches);
+            $jsonOutput = json_encode($batches, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding batch data: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
 
         } catch (\Exception $e) {
             error_log('Fetch product batches error: ' . $e->getMessage());
@@ -192,7 +216,15 @@ class ProductController {
             $batch['cost_price'] = (float)$batch['cost_price'];
 
             header('Content-Type: application/json');
-            echo json_encode($batch);
+            $jsonOutput = json_encode($batch, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding batch data: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
         } catch (\Exception $e) {
             error_log('Get product batch error: ' . $e->getMessage());
             Auth::jsonError('Server error retrieving batch.', 500);
@@ -276,11 +308,19 @@ class ProductController {
 
             header('Content-Type: application/json');
             http_response_code(201);
-            echo json_encode([
+            $jsonOutput = json_encode([
                 'message' => 'Batch created successfully. Stock quantity updated.',
                 'batch_id' => (int)$newBatchId,
                 'batch_number' => $batchNumber
-            ]);
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding batch data: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -363,7 +403,15 @@ class ProductController {
             DB::commit();
 
             header('Content-Type: application/json');
-            echo json_encode(['message' => 'Batch updated successfully.']);
+            $jsonOutput = json_encode(['message' => 'Batch updated successfully.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding response: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -423,7 +471,15 @@ class ProductController {
             DB::commit();
 
             header('Content-Type: application/json');
-            echo json_encode(['message' => 'Batch deleted successfully. Stock quantity adjusted.']);
+            $jsonOutput = json_encode(['message' => 'Batch deleted successfully. Stock quantity adjusted.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding response: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -482,10 +538,18 @@ class ProductController {
 
             header('Content-Type: application/json');
             http_response_code(201);
-            echo json_encode([
+            $jsonOutput = json_encode([
                 'message' => 'Product created successfully.',
                 'productId' => (int)$newProductId
-            ]);
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding product data: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
 
         } catch (\Exception $e) {
             error_log('Create product error: ' . $e->getMessage());
@@ -668,7 +732,15 @@ class ProductController {
             DB::commit();
 
             header('Content-Type: application/json');
-            echo json_encode(['message' => 'Product updated successfully.']);
+            $jsonOutput = json_encode(['message' => 'Product updated successfully.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding response: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -713,7 +785,15 @@ class ProductController {
             DB::query('DELETE FROM products WHERE id = ? AND shop_id = ?', [$productId, $shopId]);
 
             header('Content-Type: application/json');
-            echo json_encode(['message' => 'Product deleted successfully.']);
+            $jsonOutput = json_encode(['message' => 'Product deleted successfully.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding response: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
 
         } catch (\PDOException $e) {
             error_log('Delete product database error: ' . $e->getMessage());
@@ -765,11 +845,19 @@ class ProductController {
         }
 
         header('Content-Type: application/json');
-        echo json_encode([
+        $jsonOutput = json_encode([
             'message' => "Bulk delete complete.",
             'success_count' => $successCount,
             'failure_count' => $failureCount
-        ]);
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        
+        if ($jsonOutput === false) {
+            $jsonError = json_last_error_msg();
+            error_log('JSON encoding error: ' . $jsonError);
+            Auth::jsonError('Server error encoding response: ' . $jsonError, 500);
+        }
+        
+        echo $jsonOutput;
     }
 
     public static function bulkUploadProducts() {
@@ -1092,12 +1180,20 @@ class ProductController {
 
             header('Content-Type: application/json');
             http_response_code(200);
-            echo json_encode([
+            $jsonOutput = json_encode([
                 'message' => "Bulk upload completed. $successCount products imported successfully, $errorCount failed.",
                 'success_count' => $successCount,
                 'error_count' => $errorCount,
                 'errors' => array_slice($errors, 0, 10) // Return first 10 errors
-            ]);
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding response: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
 
         } catch (\Exception $e) {
             DB::rollBack();

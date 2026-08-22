@@ -116,7 +116,13 @@ class Auth {
     public static function jsonError($message, $code = 400) {
         http_response_code($code);
         header('Content-Type: application/json');
-        echo json_encode(['error' => $message]);
+        $jsonOutput = json_encode(['error' => $message], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        
+        if ($jsonOutput === false) {
+            $jsonOutput = json_encode(['error' => 'Server error occurred']);
+        }
+        
+        echo $jsonOutput;
         exit;
     }
 }

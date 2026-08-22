@@ -27,7 +27,15 @@ class SupplierController {
             }
 
             header('Content-Type: application/json');
-            echo json_encode($suppliers);
+            $jsonOutput = json_encode($suppliers, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            if ($jsonOutput === false) {
+                $jsonError = json_last_error_msg();
+                error_log('JSON encoding error: ' . $jsonError);
+                Auth::jsonError('Server error encoding supplier data: ' . $jsonError, 500);
+            }
+            
+            echo $jsonOutput;
 
         } catch (\Exception $e) {
             error_log('Fetch suppliers error: ' . $e->getMessage());

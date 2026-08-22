@@ -3,6 +3,24 @@
  * Database Connection & Migrations
  */
 
+// Set global error handler to return JSON for all errors
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    if (error_reporting() === 0) {
+        return false;
+    }
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Server error: ' . $errstr]);
+    exit;
+});
+
+set_exception_handler(function($exception) {
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Server error: ' . $exception->getMessage()]);
+    exit;
+});
+
 class DB {
     private static $pdo = null;
 

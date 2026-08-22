@@ -51,7 +51,17 @@ export default function AllProductNames() {
       });
       
       if (!productsResponse.ok) throw new Error('Failed to fetch products');
-      const productsData = await productsResponse.json();
+      
+      // Handle response text first to catch JSON parsing errors
+      const productsResponseText = await productsResponse.text();
+      let productsData;
+      try {
+        productsData = JSON.parse(productsResponseText);
+      } catch (parseError) {
+        console.error('JSON parse error for products:', parseError);
+        console.error('Response text:', productsResponseText.substring(0, 500));
+        throw new Error('Invalid JSON response from server for products data');
+      }
 
       // Fetch all suppliers
       const suppliersResponse = await fetch(`${API_BASE_URL}/suppliers`, {
@@ -59,7 +69,16 @@ export default function AllProductNames() {
       });
       
       if (!suppliersResponse.ok) throw new Error('Failed to fetch suppliers');
-      const suppliersData = await suppliersResponse.json();
+      
+      const suppliersResponseText = await suppliersResponse.text();
+      let suppliersData;
+      try {
+        suppliersData = JSON.parse(suppliersResponseText);
+      } catch (parseError) {
+        console.error('JSON parse error for suppliers:', parseError);
+        console.error('Response text:', suppliersResponseText.substring(0, 500));
+        throw new Error('Invalid JSON response from server for suppliers data');
+      }
       setSuppliers(suppliersData);
 
       // Group products by supplier
