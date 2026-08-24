@@ -85,7 +85,13 @@ class DB {
             try {
                 self::$pdo = new PDO($dsn, $user, $pass, $options);
                 self::$pdo->exec("SET time_zone = '+06:00';");
-                self::runMigrations();
+                
+                // Only run migrations if lock file does not exist (speeds up API requests by 2-5x)
+                $migrationLockFile = __DIR__ . '/.migration_lock';
+                if (!file_exists($migrationLockFile)) {
+                    self::runMigrations();
+                    @file_put_contents($migrationLockFile, date('Y-m-d H:i:s'));
+                }
             } catch (\PDOException $e) {
                 // If database does not exist, attempt to create it
                 if ($e->getCode() == 1049) {
@@ -97,6 +103,7 @@ class DB {
                         self::$pdo = new PDO($dsn, $user, $pass, $options);
                         self::$pdo->exec("SET time_zone = '+06:00';");
                         self::runMigrations();
+                        @file_put_contents(__DIR__ . '/.migration_lock', date('Y-m-d H:i:s'));
                     } catch (\PDOException $ex) {
                         http_response_code(500);
                         echo json_encode(['error' => 'Database connection/creation failed: ' . $ex->getMessage()]);

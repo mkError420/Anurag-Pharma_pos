@@ -53,6 +53,7 @@ class JWT {
 class Auth {
     public static $user = null;
     public static $shopId = null;
+    public static $role = null;
 
     public static function authenticate() {
         $authHeader = null;
@@ -83,6 +84,7 @@ class Auth {
         }
 
         self::$user = $decoded;
+        self::$role = $decoded['role'] ?? null;
 
         // Enforce Tenant Isolation:
         // If super_admin, they can query across all shops. They can supply shop_id via query/body parameters.

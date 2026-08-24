@@ -131,8 +131,8 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     try {
       const token = localStorage.getItem('token');
       const url = searchTerm
-        ? `${API_BASE_URL}/products?search=${encodeURIComponent(searchTerm)}`
-        : `${API_BASE_URL}/products?latest=10`;
+        ? `${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(searchTerm)}`
+        : `${API_BASE_URL}/products?purchased_only=true&latest=10`;
 
       const response = await fetch(url, {
         headers: {
@@ -140,7 +140,14 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         }
       });
 
-      if (!response.ok) throw new Error('Failed to fetch products.');
+      if (!response.ok) {
+        let errMsg = 'Failed to fetch products.';
+        try {
+          const errData = await response.json();
+          errMsg = errData.error || errMsg;
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
       const data = await response.json();
 
       const today = new Date();
@@ -395,7 +402,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/products?search=${encodeURIComponent(trimmedBarcode)}`, {
+      const response = await fetch(`${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(trimmedBarcode)}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

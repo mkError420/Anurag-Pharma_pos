@@ -53,6 +53,18 @@ export default function SalesHistory() {
   const isAdmin = user.role === 'shop_admin';
   const [selectedSaleIds, setSelectedSaleIds] = useState([]);
 
+  // Sale Delete & Progress state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [saleToDelete, setSaleToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState({
+    active: false,
+    current: 0,
+    total: 0,
+    percent: 0,
+    currentName: ''
+  });
+
   // Profit breakdown modal state
   const [profitModal, setProfitModal] = useState(null); // { sale, details } | null
   const [profitLoading, setProfitLoading] = useState(false);
@@ -621,38 +633,110 @@ export default function SalesHistory() {
     }
   };
 
-  const handleDeleteSale = async (saleId) => {
+  const promptSingleDelete = (sale) => {
     if (!isAdmin) {
       triggerAlert('error', 'Only shop admin can delete sales history.');
       return;
     }
-    if (!window.confirm(`Are you sure you want to delete Sale #${saleId}?\n\nThis will:\n• Restore all product stock quantities\n• Reverse any customer due balance\n• Remove this transaction from all reports\n\nThis action cannot be undone.`)) {
+    setSaleToDelete(sale);
+    setShowDeleteModal(true);
+  };
+
+  const promptBulkDelete = () => {
+    if (!isAdmin) {
+      triggerAlert('error', 'Only shop admin can delete sales history.');
       return;
     }
+    if (selectedSaleIds.length === 0) return;
+    setSaleToDelete(null);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    const ids = saleToDelete ? [saleToDelete.id] : [...selectedSaleIds];
+    if (ids.length === 0) return;
+
+    setDeleting(true);
+    const totalItems = ids.length;
+    setDeleteProgress({
+      active: true,
+      current: 0,
+      total: totalItems,
+      percent: 0,
+      currentName: saleToDelete ? `Invoice #${saleToDelete.id}` : `Starting deletion of ${totalItems} transaction(s)...`
+    });
+
+    const chunkSize = 20;
+    let successCount = 0;
+    let failureCount = 0;
+    const token = localStorage.getItem('token');
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/sales/${saleId}?i=1`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        setDeleteProgress({
+          active: true,
+          current: i,
+          total: totalItems,
+          percent: Math.round((i / totalItems) * 100),
+          currentName: `Deleting Invoice #${chunk[0]}...`
+        });
+
+        const response = await fetch(`${API_BASE_URL}/sales/bulk-delete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ ids: chunk })
+        });
+
+        if (response.ok) {
+          const resData = await response.json();
+          successCount += resData.deleted_count || chunk.length;
+        } else {
+          failureCount += chunk.length;
+        }
+
+        const processed = Math.min(i + chunkSize, totalItems);
+        setDeleteProgress({
+          active: true,
+          current: processed,
+          total: totalItems,
+          percent: Math.round((processed / totalItems) * 100),
+          currentName: `Processed ${processed} of ${totalItems} transactions`
+        });
+      }
+
+      setDeleteProgress({
+        active: true,
+        current: totalItems,
+        total: totalItems,
+        percent: 100,
+        currentName: 'Completed!'
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to delete sale.');
+      triggerAlert('success', `Successfully deleted ${successCount || totalItems} transaction(s)!`);
 
-      triggerAlert('success', data.message);
+      setSelectedSaleIds(prev => prev.filter(id => !ids.includes(id)));
 
-      // Close receipt modal if this sale was being viewed
-      if (selectedSale && selectedSale.id === saleId) {
+      if (selectedSale && ids.includes(selectedSale.id)) {
         setSelectedSale(null);
         setSaleDetails(null);
       }
 
-      // Refresh sales list (totals auto-adjust)
-      fetchSales();
-      fetchHeldBills();
+      setTimeout(() => {
+        setShowDeleteModal(false);
+        setSaleToDelete(null);
+        setDeleteProgress({ active: false, current: 0, total: 0, percent: 0, currentName: '' });
+        fetchSales();
+        fetchHeldBills();
+      }, 600);
+
     } catch (err) {
-      triggerAlert('error', err.message);
+      triggerAlert('error', err.message || 'Error deleting transactions.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -675,46 +759,6 @@ export default function SalesHistory() {
         ? prev.filter(id => id !== saleId)
         : [...prev, saleId]
     );
-  };
-
-  const handleBulkDelete = async () => {
-    if (!isAdmin) {
-      triggerAlert('error', 'Only shop admin can delete sales history.');
-      return;
-    }
-    if (selectedSaleIds.length === 0) return;
-
-    if (!window.confirm(`Are you sure you want to delete the ${selectedSaleIds.length} selected sales?\n\nThis will:\n• Restore all product stock quantities for these transactions\n• Reverse any customer due balances associated with them\n• Remove these transactions from all reports\n\nThis action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/sales/bulk-delete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ ids: selectedSaleIds })
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to delete selected sales.');
-
-      triggerAlert('success', data.message);
-      setSelectedSaleIds([]);
-
-      if (selectedSale && selectedSaleIds.includes(selectedSale.id)) {
-        setSelectedSale(null);
-        setSaleDetails(null);
-      }
-
-      fetchSales();
-      fetchHeldBills();
-    } catch (err) {
-      triggerAlert('error', err.message);
-    }
   };
 
   const exportToCSV = () => {
@@ -1542,7 +1586,7 @@ export default function SalesHistory() {
               Cancel
             </button>
             <button
-              onClick={handleBulkDelete}
+              onClick={promptBulkDelete}
               className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-md transition-colors flex items-center space-x-1.5"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1785,7 +1829,7 @@ export default function SalesHistory() {
                         )}
                         {isAdmin && (
                           <button
-                            onClick={() => handleDeleteSale(sale.id)}
+                            onClick={() => promptSingleDelete(sale)}
                             className="text-rose-500 hover:text-rose-800 border border-rose-100 hover:bg-rose-50 p-1 rounded-lg transition-colors"
                             title="Delete this sale (Admin Only)"
                           >
@@ -2797,6 +2841,101 @@ export default function SalesHistory() {
               })() : (
                 <div className="py-16 text-center text-slate-400 text-sm">No data available.</div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal (Single or Bulk) */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fadeIn">
+            <div className="p-6 text-center">
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors ${
+                deleting ? 'bg-rose-50 text-rose-600' : 'bg-rose-100 text-rose-600'
+              }`}>
+                {deleting ? (
+                  <div className="w-8 h-8 border-3 border-rose-200 border-t-rose-600 rounded-full animate-spin"></div>
+                ) : (
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                )}
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">
+                {saleToDelete ? 'Delete Transaction' : 'Delete Selected Transactions'}
+              </h3>
+
+              {!deleting ? (
+                <p className="text-sm text-slate-500 mb-6">
+                  {saleToDelete ? (
+                    <>
+                      Are you sure you want to delete <span className="font-semibold text-slate-800">Invoice #{saleToDelete.id}</span>?
+                      This will restore stock quantities and reverse customer due balances. This action cannot be undone.
+                    </>
+                  ) : (
+                    <>
+                      Are you sure you want to permanently delete <span className="font-semibold text-rose-600">{selectedSaleIds.length}</span> selected transaction(s)?
+                      This will restore all stock quantities and reverse customer due balances. This action cannot be undone.
+                    </>
+                  )}
+                </p>
+              ) : (
+                <div className="my-5 p-4 bg-slate-50 border border-slate-200/90 rounded-2xl text-left space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                    <span className="flex items-center space-x-2">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                      </span>
+                      <span>Deleting transactions...</span>
+                    </span>
+                    <span className="font-mono text-rose-600 font-bold text-sm">{deleteProgress.percent}%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden p-0.5 shadow-inner">
+                    <div
+                      className="bg-gradient-to-r from-rose-500 to-rose-600 h-full rounded-full transition-all duration-300 ease-out shadow-xs relative overflow-hidden"
+                      style={{ width: `${deleteProgress.percent}%` }}
+                    >
+                      <div className="absolute inset-0 bg-white/25 animate-pulse"></div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-0.5">
+                    <span className="truncate max-w-[200px] font-medium text-slate-600" title={deleteProgress.currentName}>
+                      {deleteProgress.currentName}
+                    </span>
+                    <span className="font-mono font-bold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200/80">
+                      {deleteProgress.current} / {deleteProgress.total}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-center space-x-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => { setShowDeleteModal(false); setSaleToDelete(null); }}
+                  className="px-5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={deleting}
+                  className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center space-x-2 disabled:opacity-75 disabled:cursor-not-allowed"
+                >
+                  {deleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+                      <span>Deleting... ({deleteProgress.percent}%)</span>
+                    </>
+                  ) : (
+                    <span>{saleToDelete ? 'Delete' : 'Confirm Delete'}</span>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

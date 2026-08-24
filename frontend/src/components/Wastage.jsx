@@ -72,7 +72,7 @@ export default function Wastage() {
     if (isSuperAdmin) return;
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/products`, {
+      const response = await fetch(`${API_BASE_URL}/products?purchased_only=true`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Failed to fetch inventory products.');

@@ -505,6 +505,7 @@ $routes = [
         '/^products\/(\d+)\/batches$/' => function($args, $data) { ProductController::createProductBatch($args[0], $data); },
         // Customers
         '/^customers$/' => function($args, $data) { CustomerController::createCustomer($data); },
+        '/^customers\/bulk-delete$/' => function($args, $data) { CustomerController::bulkDeleteCustomers($data); },
         '/^customers\/bulk-upload$/' => function($args, $data) { CustomerController::bulkUpload(); },
         // Suppliers
         '/^suppliers$/' => function($args, $data) { SupplierController::createSupplier($data); },

@@ -12,14 +12,25 @@ class ProductController {
         Auth::authenticate();
         Auth::enforceTenant();
 
+        @ini_set('memory_limit', '512M');
+
         $search = $_GET['search'] ?? null;
         $low_stock = $_GET['low_stock'] ?? null;
         $expiring = $_GET['expiring'] ?? null;
+        $supplierIdParam = $_GET['supplier_id'] ?? null;
+        $categoryParam = $_GET['category'] ?? null;
+        $purchasedOnly = ($_GET['purchased_only'] ?? null) === 'true';
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : null;
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
         $shopId = Auth::$shopId;
+        $userRole = Auth::$role ?? (Auth::$user['role'] ?? null);
+        if ($userRole === 'super_admin' && !empty($_GET['shop_id'])) {
+            $shopId = (int)$_GET['shop_id'];
+        }
         $hasShop = $shopId !== null;
 
         try {
-            $sql = "SELECT p.*, s.name AS supplier_name, sh.name AS shop_name
+            $sql = "SELECT p.id, p.shop_id, p.name, p.sku, p.price, p.cost_price, p.stock_quantity, p.low_stock_threshold, p.unit, p.expiry_date, p.supplier_id, p.category, s.name AS supplier_name, sh.name AS shop_name
                     FROM products p
                     LEFT JOIN suppliers s ON p.supplier_id = s.id
                     LEFT JOIN shops sh ON p.shop_id = sh.id
@@ -27,11 +38,35 @@ class ProductController {
             
             $params = $hasShop ? [$shopId] : [];
 
+            if ($purchasedOnly) {
+                if ($hasShop) {
+                    $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id AND poi.shop_id = ?)";
+                    $params[] = $shopId;
+                } else {
+                    $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id)";
+                }
+            }
+
             if (!empty($search)) {
-                $sql .= " AND (p.name LIKE ? OR p.sku LIKE ? OR p.category LIKE ?)";
+                $sql .= " AND (p.name LIKE ? OR p.sku LIKE ? OR p.category LIKE ? OR s.name LIKE ?)";
                 $params[] = "%$search%";
                 $params[] = "%$search%";
                 $params[] = "%$search%";
+                $params[] = "%$search%";
+            }
+
+            if ($supplierIdParam !== null && $supplierIdParam !== '') {
+                if ($supplierIdParam === 'null' || $supplierIdParam === 'none' || $supplierIdParam === '0') {
+                    $sql .= " AND (p.supplier_id IS NULL OR p.supplier_id = 0)";
+                } else {
+                    $sql .= " AND p.supplier_id = ?";
+                    $params[] = (int)$supplierIdParam;
+                }
+            }
+
+            if (!empty($categoryParam)) {
+                $sql .= " AND p.category = ?";
+                $params[] = $categoryParam;
             }
 
             $alertConditions = [];
@@ -54,6 +89,9 @@ class ProductController {
             } else {
                 // Priority: Items expiring earliest come first, items with no expiry date come after
                 $sql .= " ORDER BY CASE WHEN p.expiry_date IS NOT NULL AND p.expiry_date != '' THEN 0 ELSE 1 END ASC, p.expiry_date ASC, p.name ASC";
+                if ($limit !== null && $limit > 0) {
+                    $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+                }
             }
 
             $stmt = DB::query($sql, $params);
@@ -83,7 +121,7 @@ class ProductController {
 
         } catch (\Exception $e) {
             error_log('Fetch products error: ' . $e->getMessage());
-            Auth::jsonError('Server error retrieving products.', 500);
+            Auth::jsonError('Server error retrieving products: ' . $e->getMessage(), 500);
         }
     }
 
@@ -752,7 +790,7 @@ class ProductController {
     public static function deleteProduct($id) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'super_admin']);
 
         $productId = (int)$id;
         $shopId = Auth::$shopId;
@@ -811,7 +849,7 @@ class ProductController {
     public static function bulkDeleteProducts($requestData) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'super_admin']);
 
         $productIds = $requestData['product_ids'] ?? [];
         $shopId = Auth::$shopId;

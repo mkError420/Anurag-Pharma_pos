@@ -153,6 +153,18 @@ export default function Suppliers() {
   const [filteredPOItemsData, setFilteredPOItemsData] = useState(null);
   const [filteredPOLoading, setFilteredPOLoading] = useState(false);
 
+  // PO Delete & Progress state
+  const [showPoDeleteModal, setShowPoDeleteModal] = useState(false);
+  const [poToDelete, setPoToDelete] = useState(null);
+  const [poDeleting, setPoDeleting] = useState(false);
+  const [poDeleteProgress, setPoDeleteProgress] = useState({
+    active: false,
+    current: 0,
+    total: 0,
+    percent: 0,
+    currentName: ''
+  });
+
   // Supplier basic form state
   const [formData, setFormData] = useState({
     name: '',
@@ -191,8 +203,57 @@ export default function Suppliers() {
   const [barcodeLastScanned, setBarcodeLastScanned] = useState(null);
   const barcodeInputRef = useRef(null);
 
+  // Auto create or get supplier by name on-the-fly
+  const createOrGetSupplier = async (supplierName) => {
+    const trimmed = supplierName ? supplierName.trim() : '';
+    if (!trimmed) return null;
+
+    // First check if already exists in suppliers state (case-insensitive)
+    const existing = suppliers.find(s => s.name && s.name.trim().toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      return existing;
+    }
+
+    // Otherwise create via API on-the-fly
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/suppliers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: trimmed })
+      });
+
+      const data = await response.json();
+      if (response.ok && (data.id || data.supplierId)) {
+        const newSup = {
+          id: data.id || data.supplierId,
+          name: data.name || trimmed,
+          contact_name: data.contact_name || '',
+          phone: data.phone || '',
+          email: data.email || '',
+          due_balance: data.due_balance || 0
+        };
+
+        // Update suppliers state
+        setSuppliers(prev => {
+          if (prev.some(s => String(s.id) === String(newSup.id))) return prev;
+          return [...prev, newSup];
+        });
+
+        triggerAlert('success', `Supplier "${newSup.name}" created automatically!`);
+        return newSup;
+      }
+    } catch (err) {
+      console.error('Error auto-creating supplier:', err);
+    }
+    return null;
+  };
+
   // Handle barcode scan / Enter press
-  const handleBarcodeScan = (rawCode) => {
+  const handleBarcodeScan = async (rawCode) => {
     const code = (rawCode || '').trim();
     if (!code) return;
     setBarcodeInput('');
@@ -207,6 +268,27 @@ export default function Suppliers() {
       setBarcodeLastScanned(code);
       setTimeout(() => setBarcodeStatus(null), 3000);
       return;
+    }
+
+    // Auto link or create supplier if none selected
+    if (!poFormData.supplier_id && !selectedSupplierId) {
+      const supName = matched.supplier_name ? matched.supplier_name.trim() : '';
+      if (matched.supplier_id || supName) {
+        let matchedSupplier = suppliers.find(s =>
+          (matched.supplier_id && String(s.id) === String(matched.supplier_id)) ||
+          (supName && s.name && s.name.trim().toLowerCase() === supName.toLowerCase())
+        );
+        if (matchedSupplier) {
+          setSupplierSearch(matchedSupplier.name);
+          setPoFormData(prev => ({ ...prev, supplier_id: String(matchedSupplier.id) }));
+        } else if (supName) {
+          const created = await createOrGetSupplier(supName);
+          if (created) {
+            setSupplierSearch(created.name);
+            setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
+          }
+        }
+      }
     }
 
     // Check if already in cart — increment qty instead
@@ -818,8 +900,7 @@ export default function Suppliers() {
   };
 
 
-
-  const handlePoProductChange = (productId) => {
+  const handlePoProductChange = async (productId) => {
     if (productId === 'new_product') {
       setPoFormData(prev => ({
         ...prev,
@@ -843,10 +924,33 @@ export default function Suppliers() {
           name: prod.name,
           sku: prod.sku,
           category: prod.category || '',
+          cost_price: prod.cost_price !== undefined && prod.cost_price !== null ? prod.cost_price : prev.cost_price,
           selling_price: prod.price,
           unit: prod.unit || 'piece',
           low_stock_threshold: prod.low_stock_threshold || '10'
         }));
+
+        // If product has a supplier (by ID or by name) and supplier is not already locked in URL
+        const supName = prod.supplier_name ? prod.supplier_name.trim() : '';
+        if ((prod.supplier_id || supName) && !selectedSupplierId) {
+          // Check if supplier already exists in suppliers list
+          let matchedSupplier = suppliers.find(s =>
+            (prod.supplier_id && String(s.id) === String(prod.supplier_id)) ||
+            (supName && s.name && s.name.trim().toLowerCase() === supName.toLowerCase())
+          );
+
+          if (matchedSupplier) {
+            setSupplierSearch(matchedSupplier.name);
+            setPoFormData(prev => ({ ...prev, supplier_id: String(matchedSupplier.id) }));
+          } else if (supName) {
+            // Auto create new supplier on-the-fly!
+            const created = await createOrGetSupplier(supName);
+            if (created) {
+              setSupplierSearch(created.name);
+              setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
+            }
+          }
+        }
       } else {
         setPoFormData(prev => ({
           ...prev,
@@ -937,7 +1041,16 @@ export default function Suppliers() {
       return;
     }
     
-    if (!poFormData.supplier_id) {
+    let finalSupplierId = poFormData.supplier_id;
+    if (!finalSupplierId && supplierSearch.trim()) {
+      const autoCreated = await createOrGetSupplier(supplierSearch.trim());
+      if (autoCreated) {
+        finalSupplierId = String(autoCreated.id);
+        setPoFormData(prev => ({ ...prev, supplier_id: finalSupplierId }));
+      }
+    }
+
+    if (!finalSupplierId) {
       triggerAlert('error', 'Supplier selection is required.');
       return;
     }
@@ -973,7 +1086,7 @@ export default function Suppliers() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          supplier_id: parseInt(poFormData.supplier_id),
+          supplier_id: parseInt(finalSupplierId),
           order_date: poFormData.order_date || null,
           received_date: poFormData.received_date || null,
           notes: poFormData.notes,
@@ -1117,6 +1230,111 @@ export default function Suppliers() {
     }
   };
 
+  const handleDeletePo = (po) => {
+    setPoToDelete(po);
+    setShowPoDeleteModal(true);
+  };
+
+  const handleBulkDeletePos = () => {
+    if (selectedPoIds.length === 0) return;
+    setPoToDelete(null);
+    setShowPoDeleteModal(true);
+  };
+
+  const handleConfirmDeletePo = async () => {
+    const ids = poToDelete ? [poToDelete.id] : [...selectedPoIds];
+    if (ids.length === 0) return;
+
+    setPoDeleting(true);
+    const totalItems = ids.length;
+    setPoDeleteProgress({
+      active: true,
+      current: 0,
+      total: totalItems,
+      percent: 0,
+      currentName: poToDelete ? `PO #${poToDelete.id}` : `Starting deletion of ${totalItems} purchase order(s)...`
+    });
+
+    const chunkSize = 20;
+    let successCount = 0;
+    let failureCount = 0;
+    const token = localStorage.getItem('token');
+
+    try {
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        setPoDeleteProgress({
+          active: true,
+          current: i,
+          total: totalItems,
+          percent: Math.round((i / totalItems) * 100),
+          currentName: `Deleting PO #${chunk[0]}...`
+        });
+
+        const response = await fetch(`${API_BASE_URL}/suppliers/purchase-orders/bulk-delete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ ids: chunk })
+        });
+
+        if (response.ok) {
+          const resData = await response.json();
+          successCount += resData.success_count || chunk.length;
+          failureCount += resData.failure_count || 0;
+        } else {
+          failureCount += chunk.length;
+        }
+
+        const processed = Math.min(i + chunkSize, totalItems);
+        setPoDeleteProgress({
+          active: true,
+          current: processed,
+          total: totalItems,
+          percent: Math.round((processed / totalItems) * 100),
+          currentName: `Processed ${processed} of ${totalItems} purchase orders`
+        });
+      }
+
+      setPoDeleteProgress({
+        active: true,
+        current: totalItems,
+        total: totalItems,
+        percent: 100,
+        currentName: 'Completed!'
+      });
+
+      if (failureCount > 0) {
+        triggerAlert(
+          'warning',
+          `Deleted ${successCount} purchase order(s). ${failureCount} order(s) could not be deleted.`
+        );
+      } else {
+        triggerAlert('success', `Successfully deleted ${successCount || totalItems} purchase order(s)!`);
+      }
+
+      setSelectedPoIds(prev => prev.filter(id => !ids.includes(id)));
+
+      setTimeout(() => {
+        setShowPoDeleteModal(false);
+        setPoToDelete(null);
+        setPoDeleteProgress({ active: false, current: 0, total: 0, percent: 0, currentName: '' });
+        fetchPurchaseOrders();
+        fetchProducts();
+        if (selectedSupplierId) {
+          loadProfileData(selectedSupplierId);
+        }
+      }, 600);
+
+    } catch (err) {
+      triggerAlert('error', err.message || 'Failed to delete purchase orders.');
+    } finally {
+      setPoDeleting(false);
+    }
+  };
+
   // OPEN RECEIVE MODAL
   const openReceiveModal = (po) => {
     setSelectedPo(po);
@@ -1219,68 +1437,6 @@ export default function Suppliers() {
     const updated = [...receiveItems];
     updated[idx].expiry_date = val || '';
     setReceiveItems(updated);
-  };
-
-  // DELETE PURCHASE ORDER
-  const handleDeletePo = async (po) => {
-    const isReceived = po.status === 'received';
-    const confirmMessage = isReceived
-      ? 'Are you sure you want to delete this RECEIVED purchase order? This will revert product stock quantities added by this order.'
-      : `Are you sure you want to delete this purchase order (${po.status})?`;
-
-    if (!window.confirm(confirmMessage)) return;
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/suppliers/purchase-orders/${po.id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const resData = await response.json();
-      if (!response.ok) throw new Error(resData.error || 'Failed to delete PO.');
-
-      triggerAlert('success', isReceived ? 'Received Purchase Order deleted and stock reverted!' : 'Purchase Order deleted successfully.');
-      fetchPurchaseOrders();
-      if (selectedSupplierId) {
-        loadProfileData(selectedSupplierId);
-      }
-    } catch (err) {
-      triggerAlert('error', err.message);
-    }
-  };
-
-  const handleBulkDeletePos = async () => {
-    if (selectedPoIds.length === 0) return;
-    
-    const selectedPOs = purchaseOrders.filter(po => selectedPoIds.includes(po.id));
-    const hasReceived = selectedPOs.some(po => po.status === 'received');
-    const confirmMessage = hasReceived
-      ? `Are you sure you want to delete ${selectedPoIds.length} purchase order(s)? Some are RECEIVED and this will revert product stock quantities. this action cannot be undone.`
-      : `Are you sure you want to delete ${selectedPoIds.length} purchase order(s)? This action cannot be undone.`;
-
-    if (!window.confirm(confirmMessage)) return;
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/suppliers/purchase-orders/bulk-delete`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ ids: selectedPoIds })
-      });
-      const resData = await response.json();
-      if (!response.ok) throw new Error(resData.error || 'Failed to delete purchase orders.');
-
-      triggerAlert('success', `${selectedPoIds.length} purchase order(s) deleted successfully.`);
-      setSelectedPoIds([]);
-      fetchPurchaseOrders();
-      if (selectedSupplierId) {
-        loadProfileData(selectedSupplierId);
-      }
-    } catch (err) {
-      triggerAlert('error', err.message);
-    }
   };
 
   // DELETE PRODUCT FROM PO
@@ -5052,8 +5208,113 @@ export default function Suppliers() {
         </div>
       )}
 
+      {renderPoDeleteModal()}
+
     </div>
   );
+
+  // PO DELETE CONFIRMATION MODAL WITH PROGRESS BAR
+  function renderPoDeleteModal() {
+    if (!showPoDeleteModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fadeIn">
+          <div className="p-6 text-center">
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors ${
+              poDeleting ? 'bg-rose-50 text-rose-600' : 'bg-rose-100 text-rose-600'
+            }`}>
+              {poDeleting ? (
+                <div className="w-8 h-8 border-3 border-rose-200 border-t-rose-600 rounded-full animate-spin"></div>
+              ) : (
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              )}
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-2">
+              {poToDelete ? 'Delete Purchase Order' : 'Delete Selected Purchase Orders'}
+            </h3>
+            
+            {!poDeleting ? (
+              <p className="text-sm text-slate-500 mb-6">
+                {poToDelete ? (
+                  <>
+                    Are you sure you want to delete <span className="font-semibold text-slate-800">PO #{poToDelete.id} ({poToDelete.supplier_name})</span>?
+                    This will revert received inventory and supplier ledger balances.
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to permanently delete <span className="font-semibold text-rose-600">{selectedPoIds.length}</span> selected purchase order(s)?
+                    This will revert received inventory and supplier ledger balances.
+                  </>
+                )}
+              </p>
+            ) : (
+              /* Dynamic Progress Bar Section during deletion */
+              <div className="my-5 p-4 bg-slate-50 border border-slate-200/90 rounded-2xl text-left space-y-2.5">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                  <span className="flex items-center space-x-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                    </span>
+                    <span>Deleting purchase orders...</span>
+                  </span>
+                  <span className="font-mono text-rose-600 font-bold text-sm">{poDeleteProgress.percent}%</span>
+                </div>
+
+                {/* Animated Progress Bar Track */}
+                <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden p-0.5 shadow-inner">
+                  <div 
+                    className="bg-gradient-to-r from-rose-500 to-rose-600 h-full rounded-full transition-all duration-300 ease-out shadow-xs relative overflow-hidden"
+                    style={{ width: `${poDeleteProgress.percent}%` }}
+                  >
+                    <div className="absolute inset-0 bg-white/25 animate-pulse"></div>
+                  </div>
+                </div>
+
+                {/* Progress info and item counter */}
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-0.5">
+                  <span className="truncate max-w-[200px] font-medium text-slate-600" title={poDeleteProgress.currentName}>
+                    {poDeleteProgress.currentName}
+                  </span>
+                  <span className="font-mono font-bold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200/80">
+                    {poDeleteProgress.current} / {poDeleteProgress.total}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-center space-x-3 mt-4">
+              <button
+                type="button"
+                onClick={() => { setShowPoDeleteModal(false); setPoToDelete(null); }}
+                className="px-5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={poDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeletePo}
+                disabled={poDeleting}
+                className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center space-x-2 disabled:opacity-75 disabled:cursor-not-allowed"
+              >
+                {poDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+                    <span>Deleting... ({poDeleteProgress.percent}%)</span>
+                  </>
+                ) : (
+                  <span>{poToDelete ? 'Delete' : 'Confirm Delete'}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // --- RENDER COMPONENT PIECES AS UTILITIES TO KEEP CODE READABLE ---
 
@@ -5694,63 +5955,109 @@ export default function Suppliers() {
                         }
                       }}
                       onFocus={() => { setShowSupplierSuggestions(true); setSupplierSearchFocusedIndex(-1); }}
-                      onBlur={() => setTimeout(() => setShowSupplierSuggestions(false), 200)}
-                      onKeyDown={(e) => {
+                      onBlur={() => setTimeout(() => setShowSupplierSuggestions(false), 250)}
+                      onKeyDown={async (e) => {
                         if (showSupplierSuggestions) {
-                          const query = supplierSearch.toLowerCase();
-                          const suggestions = suppliers.filter(s => s.name.toLowerCase().includes(query));
+                          const query = supplierSearch.toLowerCase().trim();
+                          const suggestions = suppliers.filter(s => s.name && s.name.toLowerCase().includes(query));
+                          const exactMatch = query !== '' && suppliers.some(s => s.name && s.name.trim().toLowerCase() === query);
+                          const hasCreateOption = query !== '' && !exactMatch;
+                          const totalOptions = suggestions.length + (hasCreateOption ? 1 : 0);
+
                           if (e.key === 'ArrowDown') {
                             e.preventDefault();
-                            setSupplierSearchFocusedIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : prev));
+                            setSupplierSearchFocusedIndex(prev => (prev < totalOptions - 1 ? prev + 1 : prev));
                           } else if (e.key === 'ArrowUp') {
                             e.preventDefault();
                             setSupplierSearchFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
                           } else if (e.key === 'Enter') {
                             e.preventDefault();
-                            if (supplierSearchFocusedIndex >= 0 && suggestions[supplierSearchFocusedIndex]) {
-                              setSupplierSearch(suggestions[supplierSearchFocusedIndex].name);
-                              setPoFormData(prev => ({ ...prev, supplier_id: String(suggestions[supplierSearchFocusedIndex].id) }));
-                              setShowSupplierSuggestions(false);
-                              setSupplierSearchFocusedIndex(-1);
+                            if (hasCreateOption && supplierSearchFocusedIndex === 0) {
+                              const created = await createOrGetSupplier(supplierSearch.trim());
+                              if (created) {
+                                setSupplierSearch(created.name);
+                                setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
+                                setShowSupplierSuggestions(false);
+                                setSupplierSearchFocusedIndex(-1);
+                              }
+                            } else {
+                              const actualIdx = hasCreateOption ? supplierSearchFocusedIndex - 1 : supplierSearchFocusedIndex;
+                              if (actualIdx >= 0 && suggestions[actualIdx]) {
+                                setSupplierSearch(suggestions[actualIdx].name);
+                                setPoFormData(prev => ({ ...prev, supplier_id: String(suggestions[actualIdx].id) }));
+                                setShowSupplierSuggestions(false);
+                                setSupplierSearchFocusedIndex(-1);
+                              } else if (supplierSearch.trim()) {
+                                // Auto-create on enter even if not navigating list
+                                const created = await createOrGetSupplier(supplierSearch.trim());
+                                if (created) {
+                                  setSupplierSearch(created.name);
+                                  setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
+                                  setShowSupplierSuggestions(false);
+                                }
+                              }
                             }
                           }
                         } else if (e.key === 'Enter') {
                           e.preventDefault();
+                          if (supplierSearch.trim()) {
+                            const created = await createOrGetSupplier(supplierSearch.trim());
+                            if (created) {
+                              setSupplierSearch(created.name);
+                              setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
+                            }
+                          }
                         }
                       }}
-                      placeholder="Search supplier name..."
+                      placeholder="Search or enter supplier name..."
                       className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-medium"
                     />
 
                     {showSupplierSuggestions && (() => {
-                      const query = supplierSearch.toLowerCase();
+                      const query = supplierSearch.toLowerCase().trim();
                       const suggestions = suppliers.filter(s =>
-                        s.name.toLowerCase().includes(query)
+                        s.name && s.name.toLowerCase().includes(query)
                       );
-                      if (suggestions.length === 0 && supplierSearch.trim() !== '') {
-                        return (
-                          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3 text-center text-slate-400 text-xs">
-                            No matching suppliers found
-                          </div>
-                        );
-                      }
-                      if (suggestions.length === 0) return null;
+                      const exactMatch = query !== '' && suppliers.some(s => s.name && s.name.trim().toLowerCase() === query);
+                      const showCreateOption = query !== '' && !exactMatch;
+
+                      if (suggestions.length === 0 && !showCreateOption) return null;
+
                       return (
-                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto divide-y divide-slate-100">
-                          {suggestions.map((s, idx) => (
+                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                          {showCreateOption && (
                             <div
-                              key={s.id}
-                              onClick={() => {
-                                setSupplierSearch(s.name);
-                                setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
-                                setShowSupplierSuggestions(false);
+                              onClick={async () => {
+                                const created = await createOrGetSupplier(supplierSearch.trim());
+                                if (created) {
+                                  setSupplierSearch(created.name);
+                                  setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
+                                  setShowSupplierSuggestions(false);
+                                }
                               }}
-                              className={`p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors ${supplierSearchFocusedIndex === idx ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
+                              className={`p-2.5 px-3 hover:bg-emerald-50 cursor-pointer text-left transition-colors text-emerald-700 font-bold text-xs flex items-center justify-between ${supplierSearchFocusedIndex === 0 ? 'bg-emerald-100 ring-1 ring-emerald-500' : ''}`}
                             >
-                              <div className="text-xs font-semibold text-slate-800">{s.name}</div>
-                              {s.contact_name && <div className="text-[10px] text-slate-400">Contact: {s.contact_name}</div>}
+                              <span>+ Create New Supplier "{supplierSearch.trim()}"</span>
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-normal">Auto-create</span>
                             </div>
-                          ))}
+                          )}
+                          {suggestions.map((s, idx) => {
+                            const optionIndex = showCreateOption ? idx + 1 : idx;
+                            return (
+                              <div
+                                key={s.id}
+                                onClick={() => {
+                                  setSupplierSearch(s.name);
+                                  setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
+                                  setShowSupplierSuggestions(false);
+                                }}
+                                className={`p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors ${supplierSearchFocusedIndex === optionIndex ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
+                              >
+                                <div className="text-xs font-semibold text-slate-800">{s.name}</div>
+                                {s.contact_name && <div className="text-[10px] text-slate-400">Contact: {s.contact_name}</div>}
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })()}
@@ -5769,7 +6076,7 @@ export default function Suppliers() {
                     setProductSearchFocusedIndex(-1);
                   }}
                   onFocus={() => { setShowProductSuggestions(true); setProductSearchFocusedIndex(-1); }}
-                  onBlur={() => setTimeout(() => setShowProductSuggestions(false), 200)}
+                  onBlur={() => setTimeout(() => setShowProductSuggestions(false), 250)}
                   onKeyDown={(e) => {
                     if (showProductSuggestions) {
                       const query = productSearch.toLowerCase();
@@ -5811,7 +6118,7 @@ export default function Suppliers() {
                   );
 
                   return (
-                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto divide-y divide-slate-100">
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
                       <div
                         onClick={() => {
                           setProductSearch('+ New Product (Create on-the-fly)');
@@ -5832,8 +6139,15 @@ export default function Suppliers() {
                           }}
                           className={`p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors ${productSearchFocusedIndex === idx + 1 ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
                         >
-                          <div className="text-xs font-semibold text-slate-800">{p.name}</div>
-                          <div className="text-[10px] text-slate-400 flex justify-between">
+                          <div className="text-xs font-semibold text-slate-800 flex items-center justify-between">
+                            <span>{p.name}</span>
+                            {p.supplier_name && (
+                              <span className="text-[10px] bg-indigo-50 text-indigo-700 font-medium px-1.5 py-0.5 rounded border border-indigo-100">
+                                🏢 {p.supplier_name}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-400 flex justify-between mt-0.5">
                             <span>SKU: {p.sku}</span>
                             <span>Stock: {p.stock_quantity} left</span>
                           </div>

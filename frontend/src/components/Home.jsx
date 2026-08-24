@@ -269,51 +269,58 @@ export default function Home({ onNavigate, onLoginSuccess, publicPage }) {
   };
 
   useEffect(() => {
+    let isMounted = true;
     const fetchData = async () => {
       try {
-        // Fetch logo
-        const logoResponse = await fetch(`${API_BASE_URL}/public/logo`);
-        if (logoResponse.ok) {
-          const data = await logoResponse.json();
-          if (data.logo) {
-            setLogo(data.logo);
+        const [logoRes, slidesRes, pricingRes, paymentRes, videosRes] = await Promise.allSettled([
+          fetch(`${API_BASE_URL}/public/logo`),
+          fetch(`${API_BASE_URL}/public/hero-slides`),
+          fetch(`${API_BASE_URL}/public/pricing-plans`),
+          fetch(`${API_BASE_URL}/public/payment-numbers`),
+          fetch(`${API_BASE_URL}/public/videos`)
+        ]);
+
+        if (!isMounted) return;
+
+        if (logoRes.status === 'fulfilled' && logoRes.value.ok) {
+          const data = await logoRes.value.json().catch(() => ({}));
+          if (data.logo && isMounted) setLogo(data.logo);
+        }
+
+        if (slidesRes.status === 'fulfilled' && slidesRes.value.ok) {
+          const data = await slidesRes.value.json().catch(() => []);
+          if (Array.isArray(data) && isMounted) {
+            setHeroSlides(data.sort((a, b) => (a.display_order || 0) - (b.display_order || 0)));
           }
         }
 
-        // Fetch hero slides
-        const slidesResponse = await fetch(`${API_BASE_URL}/public/hero-slides`);
-        if (slidesResponse.ok) {
-          const data = await slidesResponse.json();
-          setHeroSlides(data.sort((a, b) => a.display_order - b.display_order));
+        if (pricingRes.status === 'fulfilled' && pricingRes.value.ok) {
+          const data = await pricingRes.value.json().catch(() => []);
+          if (Array.isArray(data) && isMounted) setPricingPlans(data);
         }
 
-        // Fetch pricing plans
-        const pricingResponse = await fetch(`${API_BASE_URL}/public/pricing-plans`);
-        if (pricingResponse.ok) {
-          const data = await pricingResponse.json();
-          setPricingPlans(data);
+        if (paymentRes.status === 'fulfilled' && paymentRes.value.ok) {
+          const data = await paymentRes.value.json().catch(() => ({}));
+          if (data.payment_numbers && isMounted) setPaymentNumbers(data.payment_numbers);
         }
 
-        // Fetch payment numbers
-        const paymentRes = await fetch(`${API_BASE_URL}/public/payment-numbers`);
-        if (paymentRes.ok) {
-          const data = await paymentRes.json();
-          setPaymentNumbers(data.payment_numbers || []);
-        }
-
-        // Fetch videos
-        const videosRes = await fetch(`${API_BASE_URL}/public/videos`);
-        if (videosRes.ok) {
-          const data = await videosRes.json();
-          setVideos(data.sort((a, b) => a.display_order - b.display_order));
+        if (videosRes.status === 'fulfilled' && videosRes.value.ok) {
+          const data = await videosRes.value.json().catch(() => []);
+          if (Array.isArray(data) && isMounted) {
+            setVideos(data.sort((a, b) => (a.display_order || 0) - (b.display_order || 0)));
+          }
         }
       } catch (err) {
-        console.error('Failed to fetch data:', err);
+        console.error('Failed to fetch public homepage data:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
     fetchData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Auto-advance carousel

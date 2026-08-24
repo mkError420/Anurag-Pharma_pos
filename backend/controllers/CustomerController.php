@@ -120,7 +120,7 @@ class CustomerController {
     public static function deleteCustomer($id) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'super_admin']);
 
         $customerId = (int)$id;
         $shopId = Auth::$shopId;
@@ -147,6 +147,47 @@ class CustomerController {
             error_log('Delete customer error: ' . $e->getMessage());
             Auth::jsonError('Server error deleting customer.', 500);
         }
+    }
+
+    public static function bulkDeleteCustomers($requestData) {
+        Auth::authenticate();
+        Auth::enforceTenant();
+        Auth::authorize(['shop_admin', 'super_admin']);
+
+        $customerIds = $requestData['customer_ids'] ?? [];
+        $shopId = Auth::$shopId;
+
+        if (empty($customerIds) || !is_array($customerIds)) {
+            Auth::jsonError('No customers selected for deletion.', 400);
+        }
+
+        $successCount = 0;
+        $failureCount = 0;
+
+        foreach ($customerIds as $cid) {
+            $cid = (int)$cid;
+            try {
+                $stmt = DB::query('SELECT id FROM customers WHERE id = ? AND shop_id = ?', [$cid, $shopId]);
+                if (!$stmt->fetch()) {
+                    $failureCount++;
+                    continue;
+                }
+
+                DB::query('DELETE FROM customers WHERE id = ? AND shop_id = ?', [$cid, $shopId]);
+                $successCount++;
+            } catch (\PDOException $e) {
+                $failureCount++;
+            } catch (\Exception $e) {
+                $failureCount++;
+            }
+        }
+
+        header('Content-Type: application/json');
+        echo json_encode([
+            'message' => 'Bulk delete complete.',
+            'success_count' => $successCount,
+            'failure_count' => $failureCount
+        ]);
     }
 
     public static function bulkUpload() {

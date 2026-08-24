@@ -1449,10 +1449,10 @@ class SupplierController {
     public static function bulkDeletePurchaseOrders($requestData) {
         Auth::authenticate();
         Auth::enforceTenant();
-        Auth::authorize(['shop_admin']);
+        Auth::authorize(['shop_admin', 'super_admin']);
 
         $shopId = Auth::$shopId;
-        $ids = $requestData['ids'] ?? [];
+        $ids = $requestData['ids'] ?? $requestData['po_ids'] ?? [];
 
         if (!is_array($ids) || empty($ids)) {
             Auth::jsonError('No purchase orders selected for deletion.', 400);

@@ -186,95 +186,104 @@ export default function App() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Fetch low-stock alerts and shop name whenever user or path changes
+  // Fetch low-stock alerts, held bills, and session details concurrently
   useEffect(() => {
     if (!user) return;
     const token = localStorage.getItem('token');
     if (!token) return;
 
+    let isMounted = true;
+
     const loadSessionDetails = async () => {
       try {
-        // Only fetch shop details for non-super-admins
         if (user.role !== 'super_admin') {
-          const shopResponse = await fetch(`${API_BASE_URL}/shops/my-shop`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          // Fetch all required data concurrently in parallel
+          const [shopRes, stockRes, expiringRes, heldRes] = await Promise.allSettled([
+            fetch(`${API_BASE_URL}/shops/my-shop`, { headers: { Authorization: `Bearer ${token}` } }),
+            fetch(`${API_BASE_URL}/products?low_stock=true`, { headers: { Authorization: `Bearer ${token}` } }),
+            fetch(`${API_BASE_URL}/products?expiring=true`, { headers: { Authorization: `Bearer ${token}` } }),
+            fetch(`${API_BASE_URL}/held-bills`, { headers: { Authorization: `Bearer ${token}` } })
+          ]);
 
-          // If the shop is suspended, the server returns 403 — force logout
-          if (shopResponse.status === 403) {
-            const data = await shopResponse.json().catch(() => ({}));
-            const msg = data.error || 'This shop has been suspended.';
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            setUser(null);
-            setLowStockAlerts([]);
-            setExpiryAlerts([]);
-            setSuspendedMessage(msg);
-            return;
-          }
+          if (!isMounted) return;
 
-          if (shopResponse.ok) {
-            const shopData = await shopResponse.json();
-            setUser((prev) => {
-              const updated = {
-                ...prev,
-                shop_name: shopData.name,
-                shop_email: shopData.email,
-                shop_phone: shopData.phone,
-                shop_address: shopData.address,
-                logo: shopData.logo
-              };
-              localStorage.setItem('user', JSON.stringify(updated));
-              return updated;
-            });
+          // Process shop details
+          if (shopRes.status === 'fulfilled') {
+            const res = shopRes.value;
+            if (res.status === 403) {
+              const data = await res.json().catch(() => ({}));
+              const msg = data.error || 'This shop has been suspended.';
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              setUser(null);
+              setLowStockAlerts([]);
+              setExpiryAlerts([]);
+              setSuspendedMessage(msg);
+              return;
+            }
+            if (res.ok) {
+              const shopData = await res.json();
+              setUser((prev) => {
+                const updated = {
+                  ...prev,
+                  shop_name: shopData.name,
+                  shop_email: shopData.email,
+                  shop_phone: shopData.phone,
+                  shop_address: shopData.address,
+                  logo: shopData.logo
+                };
+                localStorage.setItem('user', JSON.stringify(updated));
+                return updated;
+              });
 
-            // Extract dominant color from logo
-            if (shopData.logo) {
-              const color = await extractDominantColor(shopData.logo);
-              setLogoColor(color);
+              if (shopData.logo && logoColor === '#C4A484') {
+                extractDominantColor(shopData.logo).then(c => {
+                  if (isMounted) setLogoColor(c);
+                });
+              }
             }
           }
 
-          // Fetch low stock warnings
-          const stockResponse = await fetch(`${API_BASE_URL}/products?low_stock=true`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (stockResponse.ok) {
-            setLowStockAlerts(await stockResponse.json());
+          // Process stock alerts
+          if (stockRes.status === 'fulfilled' && stockRes.value.ok) {
+            const data = await stockRes.value.json().catch(() => []);
+            if (isMounted) setLowStockAlerts(Array.isArray(data) ? data : []);
           }
 
-          // Fetch expiring alerts
-          const expiringResponse = await fetch(`${API_BASE_URL}/products?expiring=true`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (expiringResponse.ok) {
-            setExpiryAlerts(await expiringResponse.json());
+          // Process expiry alerts
+          if (expiringRes.status === 'fulfilled' && expiringRes.value.ok) {
+            const data = await expiringRes.value.json().catch(() => []);
+            if (isMounted) setExpiryAlerts(Array.isArray(data) ? data : []);
           }
 
-          // Fetch held bills count
-          const heldResponse = await fetch(`${API_BASE_URL}/held-bills`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (heldResponse.ok) {
-            const heldData = await heldResponse.json();
-            setHeldBillsCount(heldData.filter(bill => bill.status === 'held').length);
+          // Process held bills
+          if (heldRes.status === 'fulfilled' && heldRes.value.ok) {
+            const heldData = await heldRes.value.json().catch(() => []);
+            if (isMounted && Array.isArray(heldData)) {
+              setHeldBillsCount(heldData.filter(bill => bill.status === 'held').length);
+            }
           }
         } else {
-          // For super_admin, fetch new contact messages count and pending subscriptions count
-          const contactMessagesResponse = await fetch(`${API_BASE_URL}/contact-messages`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (contactMessagesResponse.ok) {
-            const messages = await contactMessagesResponse.json();
-            setNewContactMessagesCount(messages.filter(msg => msg.status === 'new').length);
+          // Super admin concurrent fetch
+          const [msgRes, subRes] = await Promise.allSettled([
+            fetch(`${API_BASE_URL}/contact-messages`, { headers: { Authorization: `Bearer ${token}` } }),
+            fetch(`${API_BASE_URL}/subscriptions`, { headers: { Authorization: `Bearer ${token}` } })
+          ]);
+
+          if (!isMounted) return;
+
+          if (msgRes.status === 'fulfilled' && msgRes.value.ok) {
+            const messages = await msgRes.value.json().catch(() => []);
+            if (isMounted && Array.isArray(messages)) {
+              setNewContactMessagesCount(messages.filter(msg => msg.status === 'new').length);
+            }
           }
 
-          const subscriptionsResponse = await fetch(`${API_BASE_URL}/subscriptions`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (subscriptionsResponse.ok) {
-            const subs = await subscriptionsResponse.json();
-            setPendingSubscriptionsCount(subs.filter(s => s.status === 'pending').length);
+          if (subRes.status === 'fulfilled' && subRes.value.ok) {
+            const subs = await subRes.value.json().catch(() => []);
+            if (isMounted && Array.isArray(subs)) {
+              setPendingSubscriptionsCount(subs.filter(s => s.status === 'pending').length);
+            }
           }
         }
       } catch (e) {
@@ -283,7 +292,11 @@ export default function App() {
     };
 
     loadSessionDetails();
-  }, [user?.role, currentPath]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.role]);
 
   // Called by Login component on successful authentication
   const handleLoginSuccess = (userObj) => {

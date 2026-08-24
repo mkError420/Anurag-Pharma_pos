@@ -24,6 +24,19 @@ export default function Customers() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentCustomer, setCurrentCustomer] = useState(null);
 
+  // Multiple selection & bulk delete state
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState({
+    active: false,
+    current: 0,
+    total: 0,
+    percent: 0,
+    currentName: ''
+  });
+
   // History state
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyCustomer, setHistoryCustomer] = useState(null);
@@ -716,21 +729,106 @@ export default function Customers() {
     }
   };
 
-  const handleDelete = async (customerId) => {
-    if (!window.confirm('Are you sure you want to delete this customer profile?')) return;
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/customers/${customerId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const resData = await response.json();
-      if (!response.ok) throw new Error(resData.error || 'Failed to delete customer.');
+  const promptSingleDelete = (customer) => {
+    setCustomerToDelete(customer);
+    setShowDeleteModal(true);
+  };
 
-      triggerAlert('success', 'Customer profile deleted successfully!');
-      fetchCustomers();
+  const promptBulkDelete = () => {
+    if (selectedCustomerIds.length === 0) return;
+    setCustomerToDelete(null);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    const ids = customerToDelete ? [customerToDelete.id] : [...selectedCustomerIds];
+    if (ids.length === 0) return;
+
+    setDeleting(true);
+    const totalItems = ids.length;
+    setDeleteProgress({
+      active: true,
+      current: 0,
+      total: totalItems,
+      percent: 0,
+      currentName: customerToDelete ? customerToDelete.name : `Starting deletion of ${totalItems} customer(s)...`
+    });
+
+    const chunkSize = 20;
+    let successCount = 0;
+    let failureCount = 0;
+    const token = localStorage.getItem('token');
+
+    try {
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        const firstCust = customers.find(c => c.id === chunk[0]);
+        setDeleteProgress({
+          active: true,
+          current: i,
+          total: totalItems,
+          percent: Math.round((i / totalItems) * 100),
+          currentName: firstCust ? firstCust.name : `Deleting batch (${i + 1}-${Math.min(i + chunkSize, totalItems)})...`
+        });
+
+        const response = await fetch(`${API_BASE_URL}/customers/bulk-delete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ customer_ids: chunk })
+        });
+
+        if (response.ok) {
+          const resData = await response.json();
+          successCount += resData.success_count || 0;
+          failureCount += resData.failure_count || 0;
+        } else {
+          failureCount += chunk.length;
+        }
+
+        const processed = Math.min(i + chunkSize, totalItems);
+        setDeleteProgress({
+          active: true,
+          current: processed,
+          total: totalItems,
+          percent: Math.round((processed / totalItems) * 100),
+          currentName: `Processed ${processed} of ${totalItems} customers`
+        });
+      }
+
+      setDeleteProgress({
+        active: true,
+        current: totalItems,
+        total: totalItems,
+        percent: 100,
+        currentName: 'Completed!'
+      });
+
+      if (failureCount > 0) {
+        triggerAlert(
+          'warning',
+          `Deleted ${successCount} customer(s). ${failureCount} customer(s) could not be deleted because they are referenced in transaction records.`
+        );
+      } else {
+        triggerAlert('success', `Successfully deleted ${successCount || totalItems} customer(s)!`);
+      }
+
+      setCustomers(prev => prev.filter(c => !ids.includes(c.id)));
+      setSelectedCustomerIds(prev => prev.filter(id => !ids.includes(id)));
+
+      setTimeout(() => {
+        setShowDeleteModal(false);
+        setCustomerToDelete(null);
+        setDeleteProgress({ active: false, current: 0, total: 0, percent: 0, currentName: '' });
+        fetchCustomers();
+      }, 600);
+
     } catch (err) {
-      triggerAlert('error', err.message);
+      triggerAlert('error', err.message || 'Failed to delete customers.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -979,11 +1077,59 @@ export default function Customers() {
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedCustomerIds.length > 0 && (
+        <div className="bg-indigo-900 text-white px-6 py-3.5 rounded-2xl shadow-lg border border-indigo-700 flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center space-x-3">
+            <span className="bg-indigo-700 text-indigo-100 px-3 py-1 rounded-full text-xs font-bold">
+              {selectedCustomerIds.length} selected
+            </span>
+            <span className="text-sm font-medium text-indigo-100">
+              {selectedCustomerIds.length === 1 ? '1 customer selected' : `${selectedCustomerIds.length} customers selected`}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+            <button
+              onClick={() => setSelectedCustomerIds([])}
+              className="px-3.5 py-1.5 text-xs font-semibold text-indigo-200 hover:text-white bg-indigo-800/80 hover:bg-indigo-800 rounded-xl transition-colors"
+            >
+              Clear Selection
+            </button>
+            <button
+              onClick={promptBulkDelete}
+              className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors flex items-center space-x-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>Delete Selected ({selectedCustomerIds.length})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                <th className="p-4 w-12">
+                  <input
+                    type="checkbox"
+                    checked={currentCustomers.length > 0 && currentCustomers.every(c => selectedCustomerIds.includes(c.id))}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        const allIds = currentCustomers.map(c => c.id);
+                        setSelectedCustomerIds(Array.from(new Set([...selectedCustomerIds, ...allIds])));
+                      } else {
+                        const currentIds = currentCustomers.map(c => c.id);
+                        setSelectedCustomerIds(selectedCustomerIds.filter(id => !currentIds.includes(id)));
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                </th>
                 <th className="p-4">Customer Name</th>
                 <th className="p-4">Date & Time</th>
                 <th className="p-4">Phone Number</th>
@@ -997,7 +1143,7 @@ export default function Customers() {
             <tbody className="divide-y divide-slate-100 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="p-12 text-center">
+                  <td colSpan="9" className="p-12 text-center">
                     <div className="flex justify-center items-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                     </div>
@@ -1005,13 +1151,27 @@ export default function Customers() {
                 </tr>
               ) : filteredCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="p-12 text-center text-slate-400">
+                  <td colSpan="9" className="p-12 text-center text-slate-400">
                     No matching customers found.
                   </td>
                 </tr>
               ) : (
                 currentCustomers.map((customer, index) => (
                   <tr key={customer.id} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''}`}>
+                    <td className="p-4 w-12">
+                      <input
+                        type="checkbox"
+                        checked={selectedCustomerIds.includes(customer.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedCustomerIds([...selectedCustomerIds, customer.id]);
+                          } else {
+                            setSelectedCustomerIds(selectedCustomerIds.filter(id => id !== customer.id));
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                    </td>
                     <td className="p-4 font-semibold text-slate-800">{customer.name}</td>
                     <td className="p-4 text-slate-500 text-xs font-medium">
                       {customer.created_at ? new Date(customer.created_at).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
@@ -1047,7 +1207,7 @@ export default function Customers() {
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(customer.id)}
+                        onClick={() => promptSingleDelete(customer)}
                         className="text-rose-600 hover:text-rose-900 font-semibold text-xs border border-rose-100 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition-colors"
                       >
                         Delete
@@ -2556,6 +2716,106 @@ export default function Customers() {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Delete Confirmation Modal (Single or Multiple) */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fadeIn">
+            <div className="p-6 text-center">
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors ${
+                deleting ? 'bg-rose-50 text-rose-600' : 'bg-rose-100 text-rose-600'
+              }`}>
+                {deleting ? (
+                  <div className="w-8 h-8 border-3 border-rose-200 border-t-rose-600 rounded-full animate-spin"></div>
+                ) : (
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                )}
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">
+                {customerToDelete ? 'Delete Customer Profile' : 'Delete Selected Customers'}
+              </h3>
+              
+              {!deleting ? (
+                <p className="text-sm text-slate-500 mb-6">
+                  {customerToDelete ? (
+                    <>
+                      Are you sure you want to delete <span className="font-semibold text-slate-800">"{customerToDelete.name}"</span>?
+                      This action cannot be undone.
+                    </>
+                  ) : (
+                    <>
+                      Are you sure you want to permanently delete <span className="font-semibold text-rose-600">{selectedCustomerIds.length}</span> selected customer(s)?
+                      This action cannot be undone.
+                    </>
+                  )}
+                </p>
+              ) : (
+                /* Dynamic Progress Bar Section during deletion */
+                <div className="my-5 p-4 bg-slate-50 border border-slate-200/90 rounded-2xl text-left space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                    <span className="flex items-center space-x-2">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                      </span>
+                      <span>Deleting customers...</span>
+                    </span>
+                    <span className="font-mono text-rose-600 font-bold text-sm">{deleteProgress.percent}%</span>
+                  </div>
+
+                  {/* Animated Progress Bar Track */}
+                  <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden p-0.5 shadow-inner">
+                    <div 
+                      className="bg-gradient-to-r from-rose-500 to-rose-600 h-full rounded-full transition-all duration-300 ease-out shadow-xs relative overflow-hidden"
+                      style={{ width: `${deleteProgress.percent}%` }}
+                    >
+                      <div className="absolute inset-0 bg-white/25 animate-pulse"></div>
+                    </div>
+                  </div>
+
+                  {/* Progress info and item counter */}
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-0.5">
+                    <span className="truncate max-w-[200px] font-medium text-slate-600" title={deleteProgress.currentName}>
+                      {deleteProgress.currentName}
+                    </span>
+                    <span className="font-mono font-bold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200/80">
+                      {deleteProgress.current} / {deleteProgress.total}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-center space-x-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => { setShowDeleteModal(false); setCustomerToDelete(null); }}
+                  className="px-5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={deleting}
+                  className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center space-x-2 disabled:opacity-75 disabled:cursor-not-allowed"
+                >
+                  {deleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
+                      <span>Deleting... ({deleteProgress.percent}%)</span>
+                    </>
+                  ) : (
+                    <span>{customerToDelete ? 'Delete' : 'Confirm Delete'}</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
