@@ -540,6 +540,7 @@ class ProductController {
         $low_stock_threshold = $requestData['low_stock_threshold'] ?? 10;
         $expiry_date = $requestData['expiry_date'] ?? null;
         $supplier_id = $requestData['supplier_id'] ?? null;
+        $supplier_name = trim($requestData['supplier_name'] ?? '');
         $unit = $requestData['unit'] ?? 'piece';
         $category = $requestData['category'] ?? null;
 
@@ -548,6 +549,17 @@ class ProductController {
         }
 
         try {
+            // Auto resolve or create supplier by supplier_name if supplier_id not provided
+            if (empty($supplier_id) && !empty($supplier_name)) {
+                $stmtSup = DB::query('SELECT id FROM suppliers WHERE shop_id = ? AND LOWER(name) = LOWER(?)', [$shopId, $supplier_name]);
+                $existingSup = $stmtSup->fetch();
+                if ($existingSup) {
+                    $supplier_id = (int)$existingSup['id'];
+                } else {
+                    DB::query('INSERT INTO suppliers (shop_id, name) VALUES (?, ?)', [$shopId, $supplier_name]);
+                    $supplier_id = (int)DB::lastInsertId();
+                }
+            }
             // Check SKU duplicate in the shop
             $stmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ?', [$shopId, $sku]);
             if ($stmt->fetch()) {
@@ -947,29 +959,25 @@ class ProductController {
             
             // Expected columns (case-insensitive) - matching user's CSV format
             $columnMap = [
-                'name' => self::findColumn(['product name', 'name'], $headers),
-                'sku' => self::findColumn(['sku'], $headers),
-                'price' => self::findColumn(['sale price', 'price'], $headers),
-                'cost_price' => self::findColumn(['cost price', 'cost_price'], $headers),
-                'stock_quantity' => self::findColumn(['stock quantity', 'quantity', 'stock'], $headers),
-                'low_stock_threshold' => self::findColumn(['low stock threshold', 'low_stock_threshold'], $headers),
-                'expiry_date' => self::findColumn(['expiry date', 'expiry_date'], $headers),
-                'supplier_id' => self::findColumn(['supplier id', 'supplier_id'], $headers),
-                'unit' => self::findColumn(['unit'], $headers),
-                'category' => self::findColumn(['category'], $headers)
+                'name' => self::findColumn(['product name', 'name', 'product_name', 'item_name', 'item name', 'product', 'title'], $headers),
+                'sku' => self::findColumn(['sku', 'barcode', 'item_code', 'code'], $headers),
+                'price' => self::findColumn(['sale price', 'sale_price', 'price', 'selling price', 'selling_price', 'mrp'], $headers),
+                'cost_price' => self::findColumn(['cost price', 'cost_price', 'buy price', 'purchase price', 'unit_cost', 'cost'], $headers),
+                'stock_quantity' => self::findColumn(['stock quantity', 'stock_quantity', 'quantity', 'stock', 'qty'], $headers),
+                'low_stock_threshold' => self::findColumn(['low stock threshold', 'low_stock_threshold', 'threshold', 'alert_quantity', 'min_stock'], $headers),
+                'expiry_date' => self::findColumn(['expiry date', 'expiry_date', 'expire_date', 'exp_date', 'expiry'], $headers),
+                'supplier_id' => self::findColumn(['supplier name', 'supplier_name', 'supplier', 'supplier id', 'supplier_id'], $headers),
+                'unit' => self::findColumn(['unit', 'uom'], $headers),
+                'category' => self::findColumn(['category', 'group'], $headers)
             ];
 
             // Debug: log found columns
             error_log('CSV Headers: ' . implode(', ', $headers));
             error_log('Column Map: ' . json_encode($columnMap));
 
-            // Validate required columns (Sale Price is optional, defaulting to Cost Price)
-            if ($columnMap['name'] === false || $columnMap['sku'] === false || $columnMap['cost_price'] === false) {
-                $missing = [];
-                if ($columnMap['name'] === false) $missing[] = 'name (or Product Name)';
-                if ($columnMap['sku'] === false) $missing[] = 'sku';
-                if ($columnMap['cost_price'] === false) $missing[] = 'cost_price (or Cost Price)';
-                throw new \Exception('CSV must contain columns: ' . implode(', ', $missing) . '. Found columns: ' . implode(', ', $headers));
+            // Validate required columns (Only product name or SKU is required)
+            if ($columnMap['name'] === false && $columnMap['sku'] === false) {
+                throw new \Exception('CSV must contain a "name" (or "product_name") column. Found columns: ' . implode(', ', $headers));
             }
 
             $successCount = 0;
@@ -977,29 +985,28 @@ class ProductController {
             $errors = [];
             $rowNumber = 1;
 
-            // Group products by supplier for PO creation
+            // Group products by supplier for PO creation (only if stock > 0)
             $productsBySupplier = [];
-            $newProductIds = []; // Track new product IDs for cost logs
+            $newProductIds = [];
 
             while (($row = fgetcsv($handle)) !== false) {
                 $rowNumber++;
                 
                 try {
-                    $name = trim($row[$columnMap['name']] ?? '');
-                    $sku = trim($row[$columnMap['sku']] ?? '');
-                    $costPrice = floatval($row[$columnMap['cost_price']] ?? 0);
-                    $price = $columnMap['price'] !== false && trim($row[$columnMap['price']] ?? '') !== '' ? floatval($row[$columnMap['price']]) : 0;
-                    if ($price <= 0) {
+                    $name = $columnMap['name'] !== false ? trim($row[$columnMap['name']] ?? '') : '';
+                    $sku = $columnMap['sku'] !== false ? trim($row[$columnMap['sku']] ?? '') : '';
+                    $costPrice = ($columnMap['cost_price'] !== false && trim($row[$columnMap['cost_price']] ?? '') !== '') ? floatval($row[$columnMap['cost_price']]) : 0.00;
+                    $price = ($columnMap['price'] !== false && trim($row[$columnMap['price']] ?? '') !== '') ? floatval($row[$columnMap['price']]) : 0.00;
+                    if ($price <= 0 && $costPrice > 0) {
                         $price = $costPrice;
                     }
-                    $stockQuantity = $columnMap['stock_quantity'] !== false ? floatval($row[$columnMap['stock_quantity']] ?? 0) : 0;
-                    $lowStockThreshold = $columnMap['low_stock_threshold'] !== false ? intval($row[$columnMap['low_stock_threshold']] ?? 10) : 10;
+                    $stockQuantity = ($columnMap['stock_quantity'] !== false && trim($row[$columnMap['stock_quantity']] ?? '') !== '') ? floatval($row[$columnMap['stock_quantity']]) : 0.00;
+                    $lowStockThreshold = ($columnMap['low_stock_threshold'] !== false && trim($row[$columnMap['low_stock_threshold']] ?? '') !== '') ? intval($row[$columnMap['low_stock_threshold']]) : 10;
                     $expiryDateRaw = $columnMap['expiry_date'] !== false ? trim($row[$columnMap['expiry_date']] ?? '') : '';
-                    $expiryDate = '';
+                    $expiryDate = null;
                     // Parse expiry date from various formats
                     if (!empty($expiryDateRaw)) {
-                        // Try common date formats
-                        $formats = ['Y-m-d', 'd/m/Y', 'm/d/Y', 'Y/m/d', 'd-m-Y', 'm-d-Y', 'Y-m-d', 'd M Y', 'M d Y'];
+                        $formats = ['Y-m-d', 'd/m/Y', 'm/d/Y', 'Y/m/d', 'd-m-Y', 'm-d-Y', 'd M Y', 'M d Y'];
                         foreach ($formats as $format) {
                             $date = \DateTime::createFromFormat($format, $expiryDateRaw);
                             if ($date !== false) {
@@ -1007,7 +1014,6 @@ class ProductController {
                                 break;
                             }
                         }
-                        // If still not parsed, try strtotime
                         if (empty($expiryDate)) {
                             $timestamp = strtotime($expiryDateRaw);
                             if ($timestamp !== false) {
@@ -1015,22 +1021,28 @@ class ProductController {
                             }
                         }
                     }
-                    $supplierId = $columnMap['supplier_id'] !== false ? trim($row[$columnMap['supplier_id']] ?? '') : '';
-                    $unit = $columnMap['unit'] !== false ? trim($row[$columnMap['unit']] ?? 'piece') : 'piece';
-                    $category = $columnMap['category'] !== false ? trim($row[$columnMap['category']] ?? '') : '';
-
-                    // Debug: log row data
-                    error_log("Row $rowNumber: name='$name', sku='$sku', price=$price, cost_price=$costPrice, category='$category'");
+                    $supplierInput = $columnMap['supplier_id'] !== false ? trim($row[$columnMap['supplier_id']] ?? '') : '';
+                    $unit = ($columnMap['unit'] !== false && trim($row[$columnMap['unit']] ?? '') !== '') ? trim($row[$columnMap['unit']]) : 'piece';
+                    $category = ($columnMap['category'] !== false && trim($row[$columnMap['category']] ?? '') !== '') ? trim($row[$columnMap['category']]) : null;
 
                     // Auto-fill missing name or sku
                     if (empty($name) && !empty($sku)) {
-                        $name = $sku; // Use SKU as Name if Name is missing
+                        $name = $sku;
                     } else if (!empty($name) && empty($sku)) {
-                        $sku = 'SKU-' . strtoupper(substr(md5(uniqid()), 0, 6)); // Generate random SKU if missing
+                        $cleanName = preg_replace('/[^A-Za-z0-9]/', '', $name);
+                        $prefix = strtoupper(substr($cleanName, 0, 3));
+                        if (empty($prefix)) {
+                            $prefix = 'PRD';
+                        }
+                        $sku = 'SKU-' . $prefix . '-' . rand(100, 999);
+                        $skuCheck = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ?', [$shopId, $sku]);
+                        if ($skuCheck->fetch()) {
+                            $sku = 'SKU-' . $prefix . '-' . rand(1000, 9999);
+                        }
                     }
 
                     if (empty($name) && empty($sku)) {
-                        $errors[] = "Row $rowNumber: Missing required fields (both Name and SKU are empty)";
+                        $errors[] = "Row $rowNumber: Missing required field (Product Name is empty)";
                         $errorCount++;
                         continue;
                     }
@@ -1041,17 +1053,24 @@ class ProductController {
                         continue;
                     }
 
-                    // Check SKU duplicate (or existing product for upsert)
-                    $stmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ?', [$shopId, $sku]);
-                    $existingProduct = $stmt->fetch();
+                    // Check if product already exists (by SKU first, then by Name)
+                    $existingProduct = null;
+                    if (!empty($sku)) {
+                        $stmt = DB::query('SELECT * FROM products WHERE shop_id = ? AND sku = ? LIMIT 1', [$shopId, $sku]);
+                        $existingProduct = $stmt->fetch();
+                    }
+                    if (!$existingProduct && !empty($name)) {
+                        $stmt = DB::query('SELECT * FROM products WHERE shop_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1', [$shopId, $name]);
+                        $existingProduct = $stmt->fetch();
+                    }
 
-                    // Resolve supplier ID by PO ID, Supplier ID, or Supplier Name
+                    // Resolve supplier ID by forced supplier, PO ID, Supplier ID, or Supplier Name
                     $resolvedSupplierId = null;
                     if ($forcedSupplierId !== null) {
                         $resolvedSupplierId = $forcedSupplierId;
-                    } else if (!empty($supplierId)) {
-                        // 1. Check if it's in the format PO-XXXX (Purchase Order ID)
-                        if (preg_match('/^PO[-_ ]?(\d+)$/i', $supplierId, $matches)) {
+                    } else if (!empty($supplierInput)) {
+                        // 1. Check if it's in the format PO-XXXX
+                        if (preg_match('/^PO[-_ ]?(\d+)$/i', $supplierInput, $matches)) {
                             $poId = intval($matches[1]);
                             $stmt = DB::query('SELECT supplier_id FROM purchase_orders WHERE shop_id = ? AND id = ?', [$shopId, $poId]);
                             $po = $stmt->fetch();
@@ -1060,56 +1079,82 @@ class ProductController {
                             }
                         }
 
-                        // 2. If not resolved yet, check if it's a numeric Supplier ID
-                        if ($resolvedSupplierId === null && is_numeric($supplierId)) {
-                            $stmt = DB::query('SELECT id FROM suppliers WHERE shop_id = ? AND id = ?', [$shopId, intval($supplierId)]);
+                        // 2. Check if it's a numeric Supplier ID
+                        if ($resolvedSupplierId === null && is_numeric($supplierInput)) {
+                            $stmt = DB::query('SELECT id FROM suppliers WHERE shop_id = ? AND id = ?', [$shopId, intval($supplierInput)]);
                             $sup = $stmt->fetch();
                             if ($sup) {
                                 $resolvedSupplierId = intval($sup['id']);
                             }
                         }
 
-                        // 3. If not resolved yet, try searching by supplier name
+                        // 3. Try finding existing supplier by name (case-insensitive)
                         if ($resolvedSupplierId === null) {
-                            $stmt = DB::query('SELECT id FROM suppliers WHERE shop_id = ? AND name = ?', [$shopId, $supplierId]);
+                            $stmt = DB::query('SELECT id FROM suppliers WHERE shop_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1', [$shopId, $supplierInput]);
                             $sup = $stmt->fetch();
                             if ($sup) {
                                 $resolvedSupplierId = intval($sup['id']);
                             }
                         }
 
-                        // 4. If still not found, automatically create the supplier if it doesn't exist
+                        // 4. If supplier not found, automatically create it
                         if ($resolvedSupplierId === null) {
                             DB::query(
                                 'INSERT INTO suppliers (shop_id, name) VALUES (?, ?)',
-                                [$shopId, $supplierId]
+                                [$shopId, $supplierInput]
                             );
                             $resolvedSupplierId = intval(DB::lastInsertId());
                         }
                     }
 
                     if ($existingProduct) {
-                        // Update existing product
+                        // Update existing product without overwriting omitted optional fields
+                        $existingId = intval($existingProduct['id']);
+                        $updateFields = ['name = ?'];
+                        $updateParams = [$name];
+
+                        if ($resolvedSupplierId !== null) {
+                            $updateFields[] = 'supplier_id = ?';
+                            $updateParams[] = $resolvedSupplierId;
+                        }
+                        if ($columnMap['price'] !== false && trim($row[$columnMap['price']] ?? '') !== '') {
+                            $updateFields[] = 'price = ?';
+                            $updateParams[] = $price;
+                        }
+                        if ($columnMap['cost_price'] !== false && trim($row[$columnMap['cost_price']] ?? '') !== '') {
+                            $updateFields[] = 'cost_price = ?';
+                            $updateParams[] = $costPrice;
+                        }
+                        if ($columnMap['stock_quantity'] !== false && trim($row[$columnMap['stock_quantity']] ?? '') !== '') {
+                            $updateFields[] = 'stock_quantity = ?';
+                            $updateParams[] = $stockQuantity;
+                        }
+                        if ($columnMap['low_stock_threshold'] !== false && trim($row[$columnMap['low_stock_threshold']] ?? '') !== '') {
+                            $updateFields[] = 'low_stock_threshold = ?';
+                            $updateParams[] = $lowStockThreshold;
+                        }
+                        if ($columnMap['unit'] !== false && trim($row[$columnMap['unit']] ?? '') !== '') {
+                            $updateFields[] = 'unit = ?';
+                            $updateParams[] = $unit;
+                        }
+                        if ($columnMap['category'] !== false && trim($row[$columnMap['category']] ?? '') !== '') {
+                            $updateFields[] = 'category = ?';
+                            $updateParams[] = $category;
+                        }
+                        if (!empty($expiryDate)) {
+                            $updateFields[] = 'expiry_date = ?';
+                            $updateParams[] = $expiryDate;
+                        }
+
+                        $updateParams[] = $existingId;
+                        $updateParams[] = $shopId;
+
                         DB::query(
-                            'UPDATE products 
-                             SET name = ?, price = ?, cost_price = ?, stock_quantity = ?, low_stock_threshold = ?, expiry_date = ?, supplier_id = ?, unit = ?, category = ?
-                             WHERE id = ? AND shop_id = ?',
-                            [
-                                $name,
-                                $price,
-                                $costPrice,
-                                $stockQuantity,
-                                $lowStockThreshold,
-                                !empty($expiryDate) ? $expiryDate : null,
-                                $resolvedSupplierId,
-                                $unit,
-                                !empty($category) ? $category : null,
-                                intval($existingProduct['id']),
-                                $shopId
-                            ]
+                            'UPDATE products SET ' . implode(', ', $updateFields) . ' WHERE id = ? AND shop_id = ?',
+                            $updateParams
                         );
                     } else {
-                        // Insert product
+                        // Insert new product
                         DB::query(
                             'INSERT INTO products (shop_id, name, sku, price, cost_price, stock_quantity, low_stock_threshold, expiry_date, supplier_id, unit, category) 
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -1130,8 +1175,8 @@ class ProductController {
 
                         $newProductId = DB::lastInsertId();
 
-                        // Track new product for PO creation and cost logs
-                        if ($resolvedSupplierId !== null) {
+                        // Track new product for PO creation if stock > 0
+                        if ($resolvedSupplierId !== null && $stockQuantity > 0) {
                             if (!isset($productsBySupplier[$resolvedSupplierId])) {
                                 $productsBySupplier[$resolvedSupplierId] = [];
                             }
@@ -1163,7 +1208,7 @@ class ProductController {
 
             fclose($handle);
 
-            // Create purchase orders for each supplier as draft for admin to confirm
+            // Create purchase orders for each supplier as draft if items have quantity > 0
             foreach ($productsBySupplier as $supplierId => $items) {
                 if (empty($items)) continue;
 
@@ -1173,7 +1218,7 @@ class ProductController {
                     $totalAmount += $item['quantity'] * $item['cost_price'];
                 }
 
-                // Create purchase order as draft with paid amount = cost_price * quantity
+                // Create purchase order as draft
                 DB::query(
                     'INSERT INTO purchase_orders (shop_id, supplier_id, status, total_amount, paid_amount, due_amount, payment_basis, notes, order_date) 
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)',
@@ -1182,9 +1227,9 @@ class ProductController {
                         $supplierId,
                         'draft',
                         $totalAmount,
-                        $totalAmount, // Paid = Cost Price * Stock Quantity
-                        0.00, // No due amount since fully paid
-                        'cash', // Cash payment basis since fully paid
+                        $totalAmount,
+                        0.00,
+                        'cash',
                         'Auto-generated from CSV bulk upload - pending confirmation',
                     ]
                 );
@@ -1201,7 +1246,7 @@ class ProductController {
                             $shopId,
                             $item['product_id'],
                             $item['quantity'],
-                            0, // quantity_received starts at 0 for draft PO
+                            0,
                             $item['cost_price'],
                             $item['selling_price'],
                             $subtotal,
@@ -1209,7 +1254,6 @@ class ProductController {
                         ]
                     );
                 }
-                // Note: total_spent will be updated when admin confirms/receives the PO
             }
 
             // Cost logs will be created when PO is received (to avoid duplicates)

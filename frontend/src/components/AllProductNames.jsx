@@ -40,7 +40,17 @@ export default function AllProductNames() {
   const [showCsvUploadModal, setShowCsvUploadModal] = useState(false);
   const [csvFile, setCsvFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({
+    active: false,
+    percent: 0,
+    stage: ''
+  });
   const [alert, setAlert] = useState(null);
+
+  // Add Product form supplier search states
+  const [addSupplierSearch, setAddSupplierSearch] = useState('');
+  const [showAddSupplierSuggestions, setShowAddSupplierSuggestions] = useState(false);
+  const [addSupplierFocusedIndex, setAddSupplierFocusedIndex] = useState(-1);
 
   const searchTimeoutRef = useRef(null);
 
@@ -57,6 +67,51 @@ export default function AllProductNames() {
     unit: 'piece',
     category: ''
   });
+
+  // Helper to auto-create or get supplier on-the-fly
+  const createOrGetSupplier = async (supplierName) => {
+    const trimmed = supplierName ? supplierName.trim() : '';
+    if (!trimmed) return null;
+
+    const existing = suppliers.find(s => s.name && s.name.trim().toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      return existing;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/suppliers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: trimmed })
+      });
+
+      const data = await response.json();
+      if (response.ok && (data.id || data.supplierId)) {
+        const newSup = {
+          id: data.id || data.supplierId,
+          name: data.name || trimmed,
+          contact_name: data.contact_name || '',
+          phone: data.phone || '',
+          email: data.email || '',
+          due_balance: data.due_balance || 0
+        };
+
+        setSuppliers(prev => {
+          if (prev.some(s => String(s.id) === String(newSup.id))) return prev;
+          return [...prev, newSup];
+        });
+
+        return newSup;
+      }
+    } catch (err) {
+      console.error('Error auto-creating supplier:', err);
+    }
+    return null;
+  };
 
   // Fetch suppliers and products
   useEffect(() => {
@@ -376,6 +431,9 @@ export default function AllProductNames() {
       unit: 'piece',
       category: ''
     });
+    setAddSupplierSearch('');
+    setShowAddSupplierSuggestions(false);
+    setAddSupplierFocusedIndex(-1);
   };
 
   // Multiple selection helpers
@@ -538,6 +596,22 @@ export default function AllProductNames() {
       return;
     }
 
+    let finalSupplierId = formData.supplier_id;
+    let finalSupplierName = addSupplierSearch.trim();
+
+    // If user typed a supplier name without selecting from dropdown, resolve or create it
+    if (finalSupplierName && !finalSupplierId) {
+      const matched = suppliers.find(s => s.name && s.name.trim().toLowerCase() === finalSupplierName.toLowerCase());
+      if (matched) {
+        finalSupplierId = String(matched.id);
+      } else {
+        const created = await createOrGetSupplier(finalSupplierName);
+        if (created) {
+          finalSupplierId = String(created.id);
+        }
+      }
+    }
+
     const price = parseFloat(formData.price) || 0;
     const cost_price = parseFloat(formData.cost_price) || 0;
     const sku = formData.sku && formData.sku.trim()
@@ -561,7 +635,8 @@ export default function AllProductNames() {
           stock_quantity: parseFloat(formData.stock_quantity || 0),
           low_stock_threshold: parseFloat(formData.low_stock_threshold || 10),
           expiry_date: formData.expiry_date || null,
-          supplier_id: formData.supplier_id ? parseInt(formData.supplier_id) : null
+          supplier_id: finalSupplierId ? parseInt(finalSupplierId) : null,
+          supplier_name: finalSupplierName || null
         })
       });
 
@@ -591,34 +666,97 @@ export default function AllProductNames() {
     }
 
     setUploading(true);
+    setUploadProgress({
+      active: true,
+      percent: 10,
+      stage: 'Reading and preparing CSV file...'
+    });
+
     try {
       const token = localStorage.getItem('token');
       const data = new FormData();
       data.append('csv_file', csvFile);
 
-      const response = await fetch(`${API_BASE_URL}/products/bulk-upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: data
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_BASE_URL}/products/bulk-upload`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+        let processingInterval = null;
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 60);
+            setUploadProgress({
+              active: true,
+              percent: Math.max(10, percentComplete),
+              stage: 'Uploading CSV file to server...'
+            });
+          }
+        };
+
+        xhr.upload.onload = () => {
+          setUploadProgress({
+            active: true,
+            percent: 70,
+            stage: 'Processing products & updating database...'
+          });
+
+          // Smoothly advance from 70% to 92% while backend is executing transactions
+          processingInterval = setInterval(() => {
+            setUploadProgress(prev => {
+              if (prev.percent < 92) {
+                return { ...prev, percent: prev.percent + 3 };
+              }
+              return prev;
+            });
+          }, 300);
+        };
+
+        xhr.onload = () => {
+          if (processingInterval) clearInterval(processingInterval);
+          setUploadProgress({
+            active: true,
+            percent: 100,
+            stage: 'Products processed successfully!'
+          });
+
+          try {
+            const resData = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300) {
+              if (resData.error_count > 0 && resData.errors && resData.errors.length > 0) {
+                const errorMsg = `${resData.message}\n\nErrors:\n${resData.errors.slice(0, 10).join('\n')}${resData.errors.length > 10 ? '\n...and ' + (resData.errors.length - 10) + ' more errors' : ''}`;
+                triggerAlert('warning', errorMsg);
+              } else {
+                triggerAlert('success', resData.message || 'Products uploaded successfully!');
+              }
+
+              setTimeout(() => {
+                setShowCsvUploadModal(false);
+                setCsvFile(null);
+                setUploadProgress({ active: false, percent: 0, stage: '' });
+                fetchInitialData();
+              }, 600);
+              resolve(resData);
+            } else {
+              reject(new Error(resData.error || resData.message || 'Failed to upload CSV.'));
+            }
+          } catch (jsonErr) {
+            reject(new Error('Invalid response from server.'));
+          }
+        };
+
+        xhr.onerror = () => {
+          if (processingInterval) clearInterval(processingInterval);
+          reject(new Error('Network error during upload.'));
+        };
+
+        xhr.send(data);
       });
 
-      const resData = await response.json();
-      if (!response.ok) throw new Error(resData.error || resData.message || 'Failed to upload CSV.');
-
-      if (resData.error_count > 0 && resData.errors && resData.errors.length > 0) {
-        const errorMsg = `${resData.message}\n\nErrors:\n${resData.errors.slice(0, 10).join('\n')}${resData.errors.length > 10 ? '\n...and ' + (resData.errors.length - 10) + ' more errors' : ''}`;
-        triggerAlert('warning', errorMsg);
-      } else {
-        triggerAlert('success', resData.message || 'Products uploaded successfully!');
-      }
-
-      setShowCsvUploadModal(false);
-      setCsvFile(null);
-      fetchInitialData();
     } catch (err) {
       triggerAlert('error', err.message);
+      setUploadProgress({ active: false, percent: 0, stage: '' });
     } finally {
       setUploading(false);
     }
@@ -1415,18 +1553,127 @@ export default function AllProductNames() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">{t('supplier', 'Supplier Name')}</label>
-                <select
-                  value={formData.supplier_id}
-                  onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
-                  className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-medium"
-                >
-                  <option value="">{t('select_supplier', 'None / General (No Supplier)')}</option>
-                  {suppliers.map(supplier => (
-                    <option key={supplier.id} value={supplier.id}>{supplier.name || supplier.company}</option>
-                  ))}
-                </select>
+              {/* Supplier Name (Search existing or create new on the fly) */}
+              <div className="relative">
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>{t('supplier', 'Supplier Name')}</span>
+                  {formData.supplier_id && (
+                    <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
+                      Linked Supplier
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search or type new supplier name..."
+                    value={addSupplierSearch}
+                    onFocus={() => setShowAddSupplierSuggestions(true)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAddSupplierSearch(val);
+                      setShowAddSupplierSuggestions(true);
+                      const matched = suppliers.find(s => s.name && s.name.trim().toLowerCase() === val.trim().toLowerCase());
+                      if (matched) {
+                        setFormData(prev => ({ ...prev, supplier_id: String(matched.id) }));
+                      } else {
+                        setFormData(prev => ({ ...prev, supplier_id: '' }));
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setShowAddSupplierSuggestions(false);
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-medium"
+                  />
+                  {addSupplierSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddSupplierSearch('');
+                        setFormData(prev => ({ ...prev, supplier_id: '' }));
+                        setShowAddSupplierSuggestions(false);
+                      }}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+
+                {/* Supplier Suggestions Dropdown */}
+                {showAddSupplierSuggestions && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setShowAddSupplierSuggestions(false)}
+                    />
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-52 overflow-y-auto z-20 divide-y divide-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddSupplierSearch('');
+                          setFormData(prev => ({ ...prev, supplier_id: '' }));
+                          setShowAddSupplierSuggestions(false);
+                        }}
+                        className="w-full text-left px-3.5 py-2 text-xs text-slate-500 hover:bg-slate-50 flex items-center space-x-2"
+                      >
+                        <span className="text-slate-400">🚫</span>
+                        <span>{t('select_supplier', 'None / General (No Supplier)')}</span>
+                      </button>
+
+                      {suppliers
+                        .filter(s => !addSupplierSearch.trim() || (s.name && s.name.toLowerCase().includes(addSupplierSearch.trim().toLowerCase())) || (s.company && s.company.toLowerCase().includes(addSupplierSearch.trim().toLowerCase())))
+                        .map(s => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              setAddSupplierSearch(s.name || s.company || '');
+                              setFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
+                              setShowAddSupplierSuggestions(false);
+                            }}
+                            className={`w-full text-left px-3.5 py-2.5 text-xs hover:bg-indigo-50/60 flex items-center justify-between transition-colors ${String(formData.supplier_id) === String(s.id) ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-slate-700'}`}
+                          >
+                            <div className="flex items-center space-x-2">
+                              <span className="text-indigo-500">🏢</span>
+                              <span>{s.name}</span>
+                              {s.company && s.company !== s.name && (
+                                <span className="text-slate-400 font-normal">({s.company})</span>
+                              )}
+                            </div>
+                            {s.phone && (
+                              <span className="text-[11px] text-slate-400 font-mono">{s.phone}</span>
+                            )}
+                          </button>
+                        ))}
+
+                      {addSupplierSearch.trim() && !suppliers.some(s => s.name && s.name.trim().toLowerCase() === addSupplierSearch.trim().toLowerCase()) && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const created = await createOrGetSupplier(addSupplierSearch.trim());
+                            if (created) {
+                              setAddSupplierSearch(created.name);
+                              setFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
+                              triggerAlert('success', `Created new supplier "${created.name}"`);
+                            }
+                            setShowAddSupplierSuggestions(false);
+                          }}
+                          className="w-full text-left px-3.5 py-2.5 text-xs bg-indigo-50/70 hover:bg-indigo-100/80 text-indigo-700 font-bold flex items-center space-x-2 transition-colors"
+                        >
+                          <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                          </svg>
+                          <span>Create New Supplier "{addSupplierSearch.trim()}"</span>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
 
               <div>
@@ -1515,10 +1762,59 @@ export default function AllProductNames() {
                   className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mt-3 text-xs text-slate-600 space-y-1">
-                  <div className="font-bold text-slate-700">Supported Columns:</div>
-                  <div className="font-mono text-[11px] text-indigo-700">name, supplier_name, sku, cost_price, price, category</div>
-                  <div className="text-[11px] text-slate-400">Only Product Name and Supplier Name are required. Other fields are optional.</div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-700">CSV Format:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const csvContent = "data:text/csv;charset=utf-8,name,supplier_name\nSample Product 1,Apex Suppliers\nSample Product 2,Beximco Pharma\n";
+                        const encodedUri = encodeURI(csvContent);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", encodedUri);
+                        link.setAttribute("download", "products_template.csv");
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold underline flex items-center gap-1"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download Sample CSV
+                    </button>
+                  </div>
+                  <div className="font-mono text-[11px] text-indigo-700">name, supplier_name</div>
+                  <div className="text-[11px] text-slate-500">Only "name" is required. All other columns are optional.</div>
                 </div>
+
+                {/* Animated Upload Progress Bar */}
+                {uploadProgress.active && (
+                  <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl text-left space-y-2.5 mt-3 animate-fadeIn">
+                    <div className="flex items-center justify-between text-xs font-semibold text-emerald-800">
+                      <span className="flex items-center space-x-2">
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
+                        </span>
+                        <span className="truncate max-w-[240px]">{uploadProgress.stage}</span>
+                      </span>
+                      <span className="font-mono text-emerald-700 font-bold text-sm bg-white px-2 py-0.5 rounded-md border border-emerald-200">
+                        {uploadProgress.percent}%
+                      </span>
+                    </div>
+
+                    {/* Progress Track */}
+                    <div className="w-full bg-emerald-200/70 rounded-full h-3 overflow-hidden p-0.5 shadow-inner">
+                      <div
+                        className="bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 h-full rounded-full transition-all duration-300 ease-out shadow-xs relative overflow-hidden"
+                        style={{ width: `${uploadProgress.percent}%` }}
+                      >
+                        <div className="absolute inset-0 bg-white/30 animate-pulse"></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
                 <button

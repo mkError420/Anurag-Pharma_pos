@@ -348,25 +348,39 @@ export default function Suppliers() {
       return;
     }
 
-    // Auto-generate SKU only for new products, not when editing existing items
-    let finalSku = poFormData.sku ? poFormData.sku.trim() : '';
+    const trimmedName = poFormData.name.trim();
+    const trimmedSku = poFormData.sku ? poFormData.sku.trim() : '';
+
+    // Check if matching product already exists in productsList (by ID, SKU, or Name)
+    let matchedProduct = null;
+    if (poFormData.product_id) {
+      matchedProduct = productsList.find(p => String(p.id) === String(poFormData.product_id));
+    }
+    if (!matchedProduct && trimmedSku) {
+      matchedProduct = productsList.find(p => p.sku && p.sku.trim().toLowerCase() === trimmedSku.toLowerCase());
+    }
+    if (!matchedProduct && trimmedName) {
+      matchedProduct = productsList.find(p => p.name && p.name.trim().toLowerCase() === trimmedName.toLowerCase());
+    }
+
+    // Auto-generate SKU only for new products, not when matching existing items or editing
+    let finalSku = trimmedSku || (matchedProduct ? matchedProduct.sku : '');
     if (!finalSku && editingCartItemIndex === null) {
-      // Only auto-generate for new items, not when editing
-      finalSku = 'SKU-' + poFormData.name.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + Math.floor(100 + Math.random() * 900);
+      finalSku = 'SKU-' + trimmedName.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + Math.floor(100 + Math.random() * 900);
     }
 
     const newItem = {
-      product_id: poFormData.product_id ? parseInt(poFormData.product_id) : null,
-      is_new: poFormData.is_new || !poFormData.product_id,
-      name: poFormData.name.trim(),
+      product_id: matchedProduct ? matchedProduct.id : (poFormData.product_id ? parseInt(poFormData.product_id) : null),
+      is_new: !matchedProduct && (!poFormData.product_id || poFormData.is_new),
+      name: matchedProduct ? matchedProduct.name : trimmedName,
       sku: finalSku,
-      category: poFormData.category || '',
+      category: poFormData.category || (matchedProduct ? (matchedProduct.category || '') : ''),
       cost_price: parseFloat(poFormData.cost_price),
-      selling_price: parseFloat(poFormData.selling_price || 0),
+      selling_price: parseFloat(poFormData.selling_price || (matchedProduct ? matchedProduct.price : 0) || 0),
       quantity_ordered: qty,
       expiry_date: poFormData.expiry_date || null,
-      unit: poFormData.unit || 'piece',
-      low_stock_threshold: parseInt(poFormData.low_stock_threshold || 10)
+      unit: poFormData.unit || (matchedProduct ? matchedProduct.unit : 'piece') || 'piece',
+      low_stock_threshold: parseInt(poFormData.low_stock_threshold || (matchedProduct ? matchedProduct.low_stock_threshold : 10) || 10)
     };
 
     if (editingCartItemIndex !== null) {
@@ -2148,8 +2162,20 @@ export default function Suppliers() {
             continue;
           }
 
-          // Auto-generate SKU if not provided
-          const finalSku = sku ? sku : `SKU-${productName.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X')}-${Math.floor(100 + Math.random() * 900)}`;
+          // Check if product already exists in system (by SKU or by Name)
+          const trimmedProdName = productName.trim();
+          const trimmedSkuVal = sku ? sku.trim() : '';
+
+          let matchedProduct = null;
+          if (trimmedSkuVal) {
+            matchedProduct = productsList.find(p => p.sku && p.sku.trim().toLowerCase() === trimmedSkuVal.toLowerCase());
+          }
+          if (!matchedProduct && trimmedProdName) {
+            matchedProduct = productsList.find(p => p.name && p.name.trim().toLowerCase() === trimmedProdName.toLowerCase());
+          }
+
+          // Auto-generate SKU if not provided and not matched
+          const finalSku = trimmedSkuVal || (matchedProduct ? matchedProduct.sku : `SKU-${trimmedProdName.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X')}-${Math.floor(100 + Math.random() * 900)}`);
 
           // Find supplier by name (more flexible matching)
           if (!supplierName || supplierName === '') {
@@ -2216,17 +2242,17 @@ export default function Suppliers() {
           }
 
           newItems.push({
-            product_id: null,
-            is_new: true,
-            name: productName,
+            product_id: matchedProduct ? matchedProduct.id : null,
+            is_new: !matchedProduct,
+            name: matchedProduct ? matchedProduct.name : trimmedProdName,
             sku: finalSku,
-            category: category || '',
+            category: category || (matchedProduct ? (matchedProduct.category || '') : ''),
             cost_price: costPrice,
-            selling_price: sellingPrice || 0,
+            selling_price: sellingPrice || (matchedProduct ? matchedProduct.price : 0) || 0,
             quantity_ordered: quantity,
             expiry_date: expiryDate || null,
-            unit: unit || 'piece',
-            low_stock_threshold: 10,
+            unit: unit || (matchedProduct ? matchedProduct.unit : 'piece') || 'piece',
+            low_stock_threshold: matchedProduct ? matchedProduct.low_stock_threshold : 10,
             supplier_id: supplier.id,
             supplier_name: supplierName
           });
