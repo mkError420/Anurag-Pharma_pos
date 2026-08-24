@@ -545,8 +545,10 @@ export default function Suppliers() {
   };
 
   useEffect(() => {
-    fetchPurchaseOrders();
-  }, [poStartDate, poEndDate]);
+    if (activeTab === 'pos') {
+      fetchPurchaseOrders();
+    }
+  }, [poStartDate, poEndDate, activeTab]);
 
   const fetchFilteredPOItems = async () => {
     if (!poStartDate || !poEndDate) return;
@@ -683,20 +685,28 @@ export default function Suppliers() {
     }
   };
 
-  // Initialize data on mount
+  // Initialize data on mount with lazy loading based on active tab
   useEffect(() => {
     const initData = async () => {
       setLoading(true);
-      await Promise.all([
-        fetchSuppliers(),
-        fetchProducts(),
-        fetchPurchaseOrders(),
-        fetchCostLogs()
-      ]);
+      
+      // Always fetch suppliers first (needed for all tabs)
+      await fetchSuppliers();
+      
+      // Then fetch additional data based on active tab
+      if (activeTab === 'pos') {
+        await Promise.all([
+          fetchProducts(),
+          fetchPurchaseOrders()
+        ]);
+      } else if (activeTab === 'logs') {
+        await fetchCostLogs();
+      }
+      
       setLoading(false);
     };
     initData();
-  }, []);
+  }, [activeTab]);
 
   // Sync profile when selected supplier ID changes
   useEffect(() => {
@@ -711,6 +721,14 @@ export default function Suppliers() {
       setProfileData(null);
     }
   }, [selectedSupplierId]);
+
+  // Reset product search when supplier changes in PO form
+  useEffect(() => {
+    if (poFormData.supplier_id) {
+      setProductSearch('');
+      setShowProductSuggestions(false);
+    }
+  }, [poFormData.supplier_id]);
 
   // Close desk-product dropdown when clicking outside
   useEffect(() => {
@@ -6106,7 +6124,11 @@ export default function Suppliers() {
                   onKeyDown={(e) => {
                     if (showProductSuggestions) {
                       const query = productSearch.toLowerCase();
-                      const suggestions = productsList.filter(p => p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query));
+                      const suggestions = productsList.filter(p => {
+                        const matchesSearch = p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query);
+                        const matchesSupplier = !poFormData.supplier_id || String(p.supplier_id) === String(poFormData.supplier_id);
+                        return matchesSearch && matchesSupplier;
+                      });
                       const totalOptions = suggestions.length + 1; // +1 for the "Create New" option
                       if (e.key === 'ArrowDown') {
                         e.preventDefault();
@@ -6139,9 +6161,11 @@ export default function Suppliers() {
 
                 {showProductSuggestions && (() => {
                   const query = productSearch.toLowerCase();
-                  const suggestions = productsList.filter(p =>
-                    p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query)
-                  );
+                  const suggestions = productsList.filter(p => {
+                    const matchesSearch = p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query);
+                    const matchesSupplier = !poFormData.supplier_id || String(p.supplier_id) === String(poFormData.supplier_id);
+                    return matchesSearch && matchesSupplier;
+                  });
 
                   return (
                     <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
