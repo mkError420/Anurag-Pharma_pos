@@ -375,7 +375,7 @@ export default function Inventory() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      let url = `${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(search)}${lowStockFilter ? '&low_stock=true' : ''
+      let url = `${API_BASE_URL}/products?purchased_only=true&batch_level=true&search=${encodeURIComponent(search)}${lowStockFilter ? '&low_stock=true' : ''
         }${expiryFilter ? '&expiring=true' : ''
         }`;
       if (isSuperAdmin && selectedShopId) {
@@ -1084,7 +1084,7 @@ export default function Inventory() {
             <div className="flex items-center space-x-3 w-full sm:w-auto">
               {!isSuperAdmin && selectedProducts.length > 0 && (
                 <button
-                  onClick={handleBulkDelete}
+                  onClick={promptBulkDelete}
                   className="bg-rose-100 hover:bg-rose-200 text-rose-800 font-semibold py-2.5 px-5 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1534,27 +1534,44 @@ export default function Inventory() {
                         expiryBadge = <span className="text-slate-400 text-xs">N/A</span>;
                       }
 
+                      // Use combination of product.id and batch_id as unique key
+                      const itemKey = product.is_batch ? `${product.id}-${product.batch_id}` : product.id;
+
                       return (
-                        <tr key={product.id} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''}`}>
+                        <tr key={itemKey} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''}`}>
                           {!isSuperAdmin && (
                             <td className="p-4 w-12">
                               <input
                                 type="checkbox"
                                 onChange={(e) => {
                                   if (e.target.checked) {
-                                    setSelectedProducts([...selectedProducts, product.id]);
+                                    setSelectedProducts([...selectedProducts, itemKey]);
                                   } else {
-                                    setSelectedProducts(selectedProducts.filter(id => id !== product.id));
+                                    setSelectedProducts(selectedProducts.filter(id => id !== itemKey));
                                   }
                                 }}
-                                checked={selectedProducts.includes(product.id)}
+                                checked={selectedProducts.includes(itemKey)}
                                 className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                               />
                             </td>
                           )}
-                          <td className="p-4 font-mono text-xs font-bold text-slate-500">{product.sku}</td>
+                          <td className="p-4 font-mono text-xs font-bold text-slate-500">
+                            {product.sku}
+                            {product.is_batch && (
+                              <span className="block text-[10px] text-indigo-600 font-semibold mt-0.5">
+                                Batch: {product.batch_number}
+                              </span>
+                            )}
+                          </td>
                           {isSuperAdmin && <td className="p-4 font-semibold text-slate-800">{product.shop_name}</td>}
-                          <td className="p-4 font-semibold text-slate-800">{product.name}</td>
+                          <td className="p-4 font-semibold text-slate-800">
+                            {product.name}
+                            {product.is_batch && (
+                              <span className="ml-2 text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-semibold">
+                                Separate Expiry
+                              </span>
+                            )}
+                          </td>
                           <td className="p-4">
                             {product.category ? (
                               <span className="bg-indigo-50 text-indigo-750 font-bold px-2 py-0.5 rounded border border-indigo-100 text-xs">
@@ -1586,7 +1603,7 @@ export default function Inventory() {
                             >
                               History
                             </button>
-                            {!isSuperAdmin && (
+                            {!isSuperAdmin && !product.is_batch && (
                               <>
                                 <button
                                   onClick={() => openEdit(product)}
@@ -1601,6 +1618,14 @@ export default function Inventory() {
                                   Delete
                                 </button>
                               </>
+                            )}
+                            {product.is_batch && (
+                              <button
+                                onClick={() => handleViewBatches(product)}
+                                className="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-100 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition-colors"
+                              >
+                                View Batches
+                              </button>
                             )}
                           </td>
                         </tr>

@@ -20,6 +20,7 @@ class ProductController {
         $supplierIdParam = $_GET['supplier_id'] ?? null;
         $categoryParam = $_GET['category'] ?? null;
         $purchasedOnly = ($_GET['purchased_only'] ?? null) === 'true';
+        $batchLevel = ($_GET['batch_level'] ?? null) === 'true';
         $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : null;
         $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
         $shopId = Auth::$shopId;
@@ -30,82 +31,199 @@ class ProductController {
         $hasShop = $shopId !== null;
 
         try {
-            $sql = "SELECT p.id, p.shop_id, p.name, p.sku, p.price, p.cost_price, p.stock_quantity, p.low_stock_threshold, p.unit, p.expiry_date, p.supplier_id, p.category, s.name AS supplier_name, sh.name AS shop_name
-                    FROM products p
-                    LEFT JOIN suppliers s ON p.supplier_id = s.id
-                    LEFT JOIN shops sh ON p.shop_id = sh.id
-                    WHERE " . ($hasShop ? "p.shop_id = ?" : "1=1");
-            
-            $params = $hasShop ? [$shopId] : [];
+            if ($batchLevel) {
+                // Return SKU-level data with separate expiry dates from batches
+                // Each SKU with different expiry dates appears as separate items
+                $sql = "SELECT 
+                            p.id,
+                            p.shop_id,
+                            p.name,
+                            p.sku,
+                            p.price,
+                            p.cost_price,
+                            p.low_stock_threshold,
+                            p.unit,
+                            p.supplier_id,
+                            p.category,
+                            s.name AS supplier_name,
+                            sh.name AS shop_name,
+                            ib.id as batch_id,
+                            ib.batch_number,
+                            ib.quantity as stock_quantity,
+                            ib.expiry_date,
+                            ib.received_date,
+                            ib.status as batch_status
+                        FROM products p
+                        LEFT JOIN inventory_batches ib ON p.id = ib.product_id AND ib.status = 'active'
+                        LEFT JOIN suppliers s ON p.supplier_id = s.id
+                        LEFT JOIN shops sh ON p.shop_id = sh.id
+                        WHERE " . ($hasShop ? "p.shop_id = ?" : "1=1");
+                
+                $params = $hasShop ? [$shopId] : [];
 
-            if ($purchasedOnly) {
-                if ($hasShop) {
-                    $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id AND poi.shop_id = ?)";
-                    $params[] = $shopId;
-                } else {
-                    $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id)";
+                if ($purchasedOnly) {
+                    if ($hasShop) {
+                        $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id AND poi.shop_id = ?)";
+                        $params[] = $shopId;
+                    } else {
+                        $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id)";
+                    }
                 }
-            }
 
-            if (!empty($search)) {
-                $sql .= " AND (p.name LIKE ? OR p.sku LIKE ? OR p.category LIKE ? OR s.name LIKE ?)";
-                $params[] = "%$search%";
-                $params[] = "%$search%";
-                $params[] = "%$search%";
-                $params[] = "%$search%";
-            }
-
-            if ($supplierIdParam !== null && $supplierIdParam !== '') {
-                if ($supplierIdParam === 'null' || $supplierIdParam === 'none' || $supplierIdParam === '0') {
-                    $sql .= " AND (p.supplier_id IS NULL OR p.supplier_id = 0)";
-                } else {
-                    $sql .= " AND p.supplier_id = ?";
-                    $params[] = (int)$supplierIdParam;
+                if (!empty($search)) {
+                    $sql .= " AND (p.name LIKE ? OR p.sku LIKE ? OR p.category LIKE ? OR s.name LIKE ?)";
+                    $params[] = "%$search%";
+                    $params[] = "%$search%";
+                    $params[] = "%$search%";
+                    $params[] = "%$search%";
                 }
-            }
 
-            if (!empty($categoryParam)) {
-                $sql .= " AND p.category = ?";
-                $params[] = $categoryParam;
-            }
+                if ($supplierIdParam !== null && $supplierIdParam !== '') {
+                    if ($supplierIdParam === 'null' || $supplierIdParam === 'none' || $supplierIdParam === '0') {
+                        $sql .= " AND (p.supplier_id IS NULL OR p.supplier_id = 0)";
+                    } else {
+                        $sql .= " AND p.supplier_id = ?";
+                        $params[] = (int)$supplierIdParam;
+                    }
+                }
 
-            $alertConditions = [];
+                if (!empty($categoryParam)) {
+                    $sql .= " AND p.category = ?";
+                    $params[] = $categoryParam;
+                }
 
-            if ($low_stock === 'true') {
-                $alertConditions[] = "(p.stock_quantity <= p.low_stock_threshold AND p.stock_quantity > 0)";
-            }
+                $alertConditions = [];
 
-            if ($expiring === 'true') {
-                $alertConditions[] = "(p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0)";
-            }
+                if ($low_stock === 'true') {
+                    // For products without batches, use product stock. For products with batches, use batch stock
+                    $alertConditions[] = "((ib.id IS NULL AND p.stock_quantity <= p.low_stock_threshold AND p.stock_quantity > 0) OR (ib.id IS NOT NULL AND ib.quantity <= p.low_stock_threshold AND ib.quantity > 0))";
+                }
 
-            if (!empty($alertConditions)) {
-                $sql .= " AND (" . implode(" OR ", $alertConditions) . ")";
-            }
+                if ($expiring === 'true') {
+                    // For products without batches, use product expiry. For products with batches, use batch expiry
+                    $alertConditions[] = "((ib.id IS NULL AND p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0) OR (ib.id IS NOT NULL AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '' AND ib.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND ib.quantity > 0))";
+                }
 
-            $latest = $_GET['latest'] ?? null;
-            if ($latest !== null) {
-                $sql .= " ORDER BY p.created_at DESC, p.id DESC LIMIT " . (int)$latest;
+                if (!empty($alertConditions)) {
+                    $sql .= " AND (" . implode(" OR ", $alertConditions) . ")";
+                }
+
+                $latest = $_GET['latest'] ?? null;
+                if ($latest !== null) {
+                    $sql .= " ORDER BY COALESCE(ib.created_at, p.created_at) DESC, COALESCE(ib.id, p.id) DESC LIMIT " . (int)$latest;
+                } else {
+                    // Priority: Items expiring earliest come first, items with no expiry date come after
+                    $sql .= " ORDER BY CASE WHEN COALESCE(ib.expiry_date, p.expiry_date) IS NOT NULL AND COALESCE(ib.expiry_date, p.expiry_date) != '' THEN 0 ELSE 1 END ASC, COALESCE(ib.expiry_date, p.expiry_date) ASC, p.sku ASC, p.name ASC";
+                    if ($limit !== null && $limit > 0) {
+                        $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+                    }
+                }
+
+                $stmt = DB::query($sql, $params);
+                $products = $stmt->fetchAll();
+
+                // Cast numeric fields appropriately and handle null batches
+                foreach ($products as &$p) {
+                    $p['id'] = (int)$p['id'];
+                    $p['batch_id'] = $p['batch_id'] !== null ? (int)$p['batch_id'] : null;
+                    $p['shop_id'] = (int)$p['shop_id'];
+                    $p['price'] = (float)$p['price'];
+                    $p['cost_price'] = (float)$p['cost_price'];
+                    
+                    // Use batch quantity if available, otherwise use product stock
+                    if ($p['batch_id'] !== null) {
+                        $p['stock_quantity'] = (int)$p['stock_quantity'];
+                        $p['expiry_date'] = $p['expiry_date'];
+                        $p['is_batch'] = true;
+                    } else {
+                        $p['stock_quantity'] = (int)$p['stock_quantity'];
+                        // Keep product expiry_date as is
+                        $p['is_batch'] = false;
+                    }
+                    
+                    $p['low_stock_threshold'] = (int)$p['low_stock_threshold'];
+                    $p['supplier_id'] = $p['supplier_id'] !== null ? (int)$p['supplier_id'] : null;
+                }
             } else {
-                // Priority: Items expiring earliest come first, items with no expiry date come after
-                $sql .= " ORDER BY CASE WHEN p.expiry_date IS NOT NULL AND p.expiry_date != '' THEN 0 ELSE 1 END ASC, p.expiry_date ASC, p.name ASC";
-                if ($limit !== null && $limit > 0) {
-                    $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+                // Original product-level query
+                $sql = "SELECT p.id, p.shop_id, p.name, p.sku, p.price, p.cost_price, p.stock_quantity, p.low_stock_threshold, p.unit, p.expiry_date, p.supplier_id, p.category, s.name AS supplier_name, sh.name AS shop_name
+                        FROM products p
+                        LEFT JOIN suppliers s ON p.supplier_id = s.id
+                        LEFT JOIN shops sh ON p.shop_id = sh.id
+                        WHERE " . ($hasShop ? "p.shop_id = ?" : "1=1");
+                
+                $params = $hasShop ? [$shopId] : [];
+
+                if ($purchasedOnly) {
+                    if ($hasShop) {
+                        $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id AND poi.shop_id = ?)";
+                        $params[] = $shopId;
+                    } else {
+                        $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id)";
+                    }
                 }
-            }
 
-            $stmt = DB::query($sql, $params);
-            $products = $stmt->fetchAll();
+                if (!empty($search)) {
+                    $sql .= " AND (p.name LIKE ? OR p.sku LIKE ? OR p.category LIKE ? OR s.name LIKE ?)";
+                    $params[] = "%$search%";
+                    $params[] = "%$search%";
+                    $params[] = "%$search%";
+                    $params[] = "%$search%";
+                }
 
-            // Cast numeric fields appropriately
-            foreach ($products as &$p) {
-                $p['id'] = (int)$p['id'];
-                $p['shop_id'] = (int)$p['shop_id'];
-                $p['price'] = (float)$p['price'];
-                $p['cost_price'] = (float)$p['cost_price'];
-                $p['stock_quantity'] = (float)$p['stock_quantity'];
-                $p['low_stock_threshold'] = (int)$p['low_stock_threshold'];
-                $p['supplier_id'] = $p['supplier_id'] !== null ? (int)$p['supplier_id'] : null;
+                if ($supplierIdParam !== null && $supplierIdParam !== '') {
+                    if ($supplierIdParam === 'null' || $supplierIdParam === 'none' || $supplierIdParam === '0') {
+                        $sql .= " AND (p.supplier_id IS NULL OR p.supplier_id = 0)";
+                    } else {
+                        $sql .= " AND p.supplier_id = ?";
+                        $params[] = (int)$supplierIdParam;
+                    }
+                }
+
+                if (!empty($categoryParam)) {
+                    $sql .= " AND p.category = ?";
+                    $params[] = $categoryParam;
+                }
+
+                $alertConditions = [];
+
+                if ($low_stock === 'true') {
+                    $alertConditions[] = "(p.stock_quantity <= p.low_stock_threshold AND p.stock_quantity > 0)";
+                }
+
+                if ($expiring === 'true') {
+                    $alertConditions[] = "(p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0)";
+                }
+
+                if (!empty($alertConditions)) {
+                    $sql .= " AND (" . implode(" OR ", $alertConditions) . ")";
+                }
+
+                $latest = $_GET['latest'] ?? null;
+                if ($latest !== null) {
+                    $sql .= " ORDER BY p.created_at DESC, p.id DESC LIMIT " . (int)$latest;
+                } else {
+                    // Priority: Items expiring earliest come first, items with no expiry date come after
+                    $sql .= " ORDER BY CASE WHEN p.expiry_date IS NOT NULL AND p.expiry_date != '' THEN 0 ELSE 1 END ASC, p.expiry_date ASC, p.name ASC";
+                    if ($limit !== null && $limit > 0) {
+                        $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+                    }
+                }
+
+                $stmt = DB::query($sql, $params);
+                $products = $stmt->fetchAll();
+
+                // Cast numeric fields appropriately
+                foreach ($products as &$p) {
+                    $p['id'] = (int)$p['id'];
+                    $p['shop_id'] = (int)$p['shop_id'];
+                    $p['price'] = (float)$p['price'];
+                    $p['cost_price'] = (float)$p['cost_price'];
+                    $p['stock_quantity'] = (float)$p['stock_quantity'];
+                    $p['low_stock_threshold'] = (int)$p['low_stock_threshold'];
+                    $p['supplier_id'] = $p['supplier_id'] !== null ? (int)$p['supplier_id'] : null;
+                    $p['is_batch'] = false; // Flag to indicate this is product-level data
+                }
             }
 
             header('Content-Type: application/json');

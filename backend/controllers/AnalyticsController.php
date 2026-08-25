@@ -499,9 +499,40 @@ class AnalyticsController {
                 $tenantOtherSales = (float)($stmt->fetchColumn() ?: 0);
                 $tenantTotalRevenue = (float)($salesStats['revenue'] ?? 0) + $tenantOtherSales;
 
-                $stmt = DB::query('SELECT COUNT(*) as total_products, SUM(CASE WHEN stock_quantity <= low_stock_threshold THEN 1 ELSE 0 END) as low_stock_count
+                // Calculate low stock alerts based on SKU-level data
+                $stmt = DB::query('SELECT COUNT(*) as total_products
                                    FROM products WHERE shop_id = ?', [$shopId]);
                 $productStats = $stmt->fetch();
+                
+                // Count unique SKUs with low stock (either from product stock or batch stock)
+                $stmt = DB::query('SELECT COUNT(DISTINCT p.id) as low_stock_count
+                                   FROM products p
+                                   LEFT JOIN inventory_batches ib ON p.id = ib.product_id AND ib.status = "active"
+                                   WHERE p.shop_id = ? 
+                                   AND (
+                                       -- Products without batches: check product stock
+                                       (ib.id IS NULL AND p.stock_quantity > 0 AND p.stock_quantity <= p.low_stock_threshold)
+                                       OR
+                                       -- Products with batches: check if any batch is low stock
+                                       (ib.id IS NOT NULL AND ib.quantity > 0 AND ib.quantity <= p.low_stock_threshold)
+                                   )', [$shopId]);
+                $lowStockStats = $stmt->fetch();
+                $productStats['low_stock_count'] = $lowStockStats['low_stock_count'] ?? 0;
+                
+                // Count unique SKUs with expiry alerts (either from product expiry or batch expiry)
+                $stmt = DB::query('SELECT COUNT(DISTINCT p.id) as expiry_count
+                                   FROM products p
+                                   LEFT JOIN inventory_batches ib ON p.id = ib.product_id AND ib.status = "active"
+                                   WHERE p.shop_id = ? 
+                                   AND (
+                                       -- Products without batches: check product expiry
+                                       (ib.id IS NULL AND p.stock_quantity > 0 AND p.expiry_date IS NOT NULL AND p.expiry_date != "" AND p.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY))
+                                       OR
+                                       -- Products with batches: check if any batch is expiring
+                                       (ib.id IS NOT NULL AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != "" AND ib.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY))
+                                   )', [$shopId]);
+                $expiryStats = $stmt->fetch();
+                $productStats['expiry_count'] = $expiryStats['expiry_count'] ?? 0;
 
                 $stmt = DB::query('SELECT COUNT(*) as total_customers FROM customers WHERE shop_id = ?', [$shopId]);
                 $customerStats = $stmt->fetch();
@@ -615,6 +646,7 @@ class AnalyticsController {
                         'revenue' => number_format($tenantTotalRevenue, 2, '.', ''),
                         'total_products' => (int)($productStats['total_products'] ?? 0),
                         'low_stock_alerts' => (int)($productStats['low_stock_count'] ?? 0),
+                        'expiry_alerts' => (int)($productStats['expiry_count'] ?? 0),
                         'total_customers' => (int)($customerStats['total_customers'] ?? 0)
                     ],
                     'recent_sales' => $recentSales,
