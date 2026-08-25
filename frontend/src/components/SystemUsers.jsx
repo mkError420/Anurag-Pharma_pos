@@ -207,6 +207,10 @@ export default function SystemUsers() {
       }
       if (!payload.password) {
         delete payload.password; // Don't send empty password
+      } else if (payload.password.length < 6) {
+        triggerAlert('error', 'Password must be at least 6 characters long.');
+        setSubmitting(false);
+        return;
       }
 
       const res = await fetch(`${API_BASE_URL}/users/${selectedUser.id}`, {
@@ -534,7 +538,7 @@ export default function SystemUsers() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 bg-slate-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl text-sm font-semibold transition-colors shadow"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl text-sm font-semibold transition-colors shadow"
                 >
                   {submitting ? 'Creating...' : 'Register User'}
                 </button>
@@ -669,7 +673,7 @@ export default function SystemUsers() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 bg-slate-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl text-sm font-semibold transition-colors shadow"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl text-sm font-semibold transition-colors shadow"
                 >
                   {submitting ? 'Saving...' : 'Save Changes'}
                 </button>

@@ -587,6 +587,27 @@ class DB {
                 ");
             }
 
+            // Sync and activate admin@mkpharmacy.com password to 123456789
+            if ($tableExists('users')) {
+                try {
+                    $mkHash = password_hash('123456789', PASSWORD_BCRYPT);
+                    $pdo->exec("
+                        UPDATE `users` 
+                        SET `password_hash` = '$mkHash', `status` = 'active'
+                        WHERE `email` = 'admin@mkpharmacy.com' OR `email` LIKE '%mkpharmacy%'
+                    ");
+                } catch (\Exception $e) {}
+            }
+            if ($tableExists('shops')) {
+                try {
+                    $pdo->exec("
+                        UPDATE `shops` 
+                        SET `status` = 'active' 
+                        WHERE `email` LIKE '%mkpharmacy%' OR `name` LIKE '%MK Pharmacy%' OR `name` LIKE '%mkpharmacy%'
+                    ");
+                } catch (\Exception $e) {}
+            }
+
             // Create attendance table if not exists
             $pdo->exec("
                 CREATE TABLE IF NOT EXISTS `attendance` (

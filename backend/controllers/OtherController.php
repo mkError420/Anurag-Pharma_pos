@@ -1280,10 +1280,11 @@ class OtherController {
 
         $userId = (int)$id;
         $shopId = $requestData['shop_id'] ?? null;
-        $name = $requestData['name'] ?? '';
-        $email = $requestData['email'] ?? '';
+        $name = trim($requestData['name'] ?? '');
+        $email = trim($requestData['email'] ?? '');
         $role = $requestData['role'] ?? null;
         $status = $requestData['status'] ?? 'active';
+        $password = $requestData['password'] ?? '';
 
         if (empty($name) || empty($email) || empty($role)) {
             Auth::jsonError('Please provide name, email, and role.', 400);
@@ -1300,9 +1301,22 @@ class OtherController {
                 Auth::jsonError('Email already registered by another account.', 400);
             }
 
+            $updateFields = ['shop_id = ?', 'name = ?', 'email = ?', 'role = ?', 'status = ?'];
+            $params = [$role === 'super_admin' ? null : $shopId, $name, $email, $role, $status];
+
+            if (!empty($password)) {
+                if (strlen($password) < 6) {
+                    Auth::jsonError('Password must be at least 6 characters long.', 400);
+                }
+                $updateFields[] = 'password_hash = ?';
+                $params[] = password_hash($password, PASSWORD_BCRYPT);
+            }
+
+            $params[] = $userId;
+
             DB::query(
-                'UPDATE users SET shop_id = ?, name = ?, email = ?, role = ?, status = ? WHERE id = ?',
-                [$role === 'super_admin' ? null : $shopId, $name, $email, $role, $status, $userId]
+                'UPDATE users SET ' . implode(', ', $updateFields) . ' WHERE id = ?',
+                $params
             );
 
             header('Content-Type: application/json');

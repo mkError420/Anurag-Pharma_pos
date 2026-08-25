@@ -387,104 +387,104 @@ export default function Login({
             <div>
               <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* Error Message */}
-            {error && (
-              <div className="flex items-start gap-3 bg-rose-500/10 border border-rose-500/30 rounded-xl p-4">
-                <svg className="w-5 h-5 text-rose-400 dark:text-rose-300 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-rose-300 dark:text-rose-200 text-sm">{error}</p>
-              </div>
-            )}
+                {/* Error Message */}
+                {error && (
+                  <div className="flex items-start gap-3 bg-rose-500/10 border border-rose-500/30 rounded-xl p-4">
+                    <svg className="w-5 h-5 text-rose-400 dark:text-rose-300 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-rose-300 dark:text-rose-200 text-sm">{error}</p>
+                  </div>
+                )}
 
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 dark:text-slate-400 mb-2">
-                Email address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="w-5 h-5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                  </svg>
+                {/* Email */}
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-slate-300 dark:text-slate-400 mb-2">
+                    Email address
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg className="w-5 h-5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                      </svg>
+                    </div>
+                    <input
+                      id="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="admin@example.com"
+                      className="w-full bg-slate-800/60 dark:bg-slate-700/60 border border-slate-600/60 dark:border-slate-600 text-white dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    />
+                  </div>
                 </div>
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@example.com"
-                  className="w-full bg-slate-800/60 dark:bg-slate-700/60 border border-slate-600/60 dark:border-slate-600 text-white dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                />
-              </div>
-            </div>
 
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300 dark:text-slate-400 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="w-5 h-5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
+                {/* Password */}
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-slate-300 dark:text-slate-400 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg className="w-5 h-5 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </div>
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-slate-800/60 dark:bg-slate-700/60 border border-slate-600/60 dark:border-slate-600 text-white dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-300 dark:hover:text-slate-200 transition-colors"
+                    >
+                      {showPassword ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-800/60 dark:bg-slate-700/60 border border-slate-600/60 dark:border-slate-600 text-white dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-400 rounded-xl pl-10 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                />
+
+                {/* Submit Button */}
                 <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 dark:text-slate-400 hover:text-slate-300 dark:hover:text-slate-200 transition-colors"
+                  id="login-submit-btn"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 bg-gray-500 hover:bg-gray-500 disabled:bg-gray-500/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3 text-sm transition-all duration-200 shadow-lg shadow-indigo-600/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0"
                 >
-                  {showPassword ? (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Signing in...
+                    </>
                   ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
+                    <>
+                      Sign In
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                    </>
                   )}
                 </button>
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              id="login-submit-btn"
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-gray-500 hover:bg-gray-500 disabled:bg-gray-500/50 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3 text-sm transition-all duration-200 shadow-lg shadow-indigo-600/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
-                </>
-              )}
-            </button>
               </form>
             </div>
 
@@ -492,56 +492,56 @@ export default function Login({
             <div className="border-t lg:border-t-0 lg:border-l border-slate-700/60 lg:pl-8 pt-6 lg:pt-0">
               <p className="text-xs text-slate-500 text-center mb-3 font-medium uppercase tracking-wider">Demo Credentials</p>
               <div className="grid grid-cols-1 gap-2">
-              <button
-                type="button"
-                onClick={() => { setEmail('restricted'); setPassword('******'); }}
-                className="flex items-center gap-3 w-full text-left bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl px-3 py-2.5 transition-colors group"
-              >
-                <span className="text-xs font-bold bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full shrink-0">SUPER ADMIN</span>
-                <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">Restricted!!!</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEmail('admin@mkpharmacy.com'); setPassword('mkpharmacy123'); }}
-                className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
-              >
-                <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP ADMIN</span>
-                <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">admin@mkpharmacy.com · mkpharmacy123</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEmail('staff1@mkpharmacy.com'); setPassword('staff123'); }}
-                className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
-              >
-                <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP STAFF</span>
-                <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">staff1@mkpharmacy.com · staff123</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEmail('alice@boutique.com'); setPassword('alice123'); }}
-                className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
-              >
-                <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP ADMIN</span>
-                <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">alice@boutique.com · alice123</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEmail('admin@mkfashion.com'); setPassword('mkfashion123'); }}
-                className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
-              >
-                <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP ADMIN</span>
-                <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">admin@mkfashion.com · mkfashion123</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => { setEmail('restricted'); setPassword('******'); }}
+                  className="flex items-center gap-3 w-full text-left bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl px-3 py-2.5 transition-colors group"
+                >
+                  <span className="text-xs font-bold bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-full shrink-0">SUPER ADMIN</span>
+                  <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">Restricted!!!</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setEmail('admin@mkpharmacy.com'); setPassword('123456789'); }}
+                  className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
+                >
+                  <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP ADMIN</span>
+                  <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">admin@mkpharmacy.com · mkpharmacy123</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setEmail('staff1@mkpharmacy.com'); setPassword('staff123'); }}
+                  className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
+                >
+                  <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP STAFF</span>
+                  <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">staff1@mkpharmacy.com · staff123</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setEmail('alice@boutique.com'); setPassword('alice123'); }}
+                  className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
+                >
+                  <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP ADMIN</span>
+                  <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">alice@boutique.com · alice123</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setEmail('admin@mkfashion.com'); setPassword('mkfashion123'); }}
+                  className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
+                >
+                  <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP ADMIN</span>
+                  <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">admin@mkfashion.com · mkfashion123</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => { setEmail('staff1@mkfashion.com'); setPassword('staff123'); }}
-                className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
-              >
-                <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP STAFF</span>
-                <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">staff1@mkfashion.com · staff123</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => { setEmail('staff1@mkfashion.com'); setPassword('staff123'); }}
+                  className="flex items-center gap-3 w-full text-left bg-gray-500/10 hover:bg-gray-500/20 border border-gray-500/20 rounded-xl px-3 py-2.5 transition-colors group"
+                >
+                  <span className="text-xs font-bold bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full shrink-0">SHOP STAFF</span>
+                  <span className="text-xs text-slate-400 group-hover:text-slate-300 transition-colors truncate">staff1@mkfashion.com · staff123</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
