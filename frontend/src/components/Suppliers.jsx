@@ -931,6 +931,23 @@ export default function Suppliers() {
   const [masterProductNameInput, setMasterProductNameInput] = useState('');
   const [showMasterProductSuggestions, setShowMasterProductSuggestions] = useState(false);
 
+  // Distinct supplier names from super admin Supplier Products Catalog
+  const [masterSupplierNames, setMasterSupplierNames] = useState([]);
+
+  // Fetch all distinct supplier names from the master catalog (super admin)
+  const fetchMasterSupplierNames = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/master-supplier-products/suppliers`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (Array.isArray(data)) setMasterSupplierNames(data);
+    } catch (e) {
+      // silently fail — supplier names are optional hint
+    }
+  };
+
   // Fetch master catalog products filtered by the current supplier name (when is_new mode)
   const fetchMasterCatalogForSupplier = async (supplierName) => {
     if (!supplierName || !supplierName.trim()) { setMasterCatalogProducts([]); return; }
@@ -954,6 +971,8 @@ export default function Suppliers() {
     setProductSearch('');
     setShowSupplierSuggestions(false);
     setShowProductSuggestions(false);
+    // Load master catalog supplier names so they appear in the Supplier * dropdown
+    fetchMasterSupplierNames();
     setIsEditPoMode(false);
     setPoCart([]);
     setEditingCartItemIndex(null);
@@ -6041,7 +6060,12 @@ export default function Suppliers() {
                           setPoFormData(prev => ({ ...prev, supplier_id: '' }));
                         }
                       }}
-                      onFocus={() => { setShowSupplierSuggestions(true); setSupplierSearchFocusedIndex(-1); }}
+                      onFocus={() => {
+                        setShowSupplierSuggestions(true);
+                        setSupplierSearchFocusedIndex(-1);
+                        // Refresh catalog names in case they weren't loaded yet
+                        if (masterSupplierNames.length === 0) fetchMasterSupplierNames();
+                      }}
                       onBlur={() => setTimeout(() => setShowSupplierSuggestions(false), 250)}
                       onKeyDown={async (e) => {
                         if (showSupplierSuggestions) {
@@ -6105,13 +6129,35 @@ export default function Suppliers() {
                       const suggestions = suppliers.filter(s =>
                         s.name && s.name.toLowerCase().includes(query)
                       );
-                      const exactMatch = query !== '' && suppliers.some(s => s.name && s.name.trim().toLowerCase() === query);
+                      // Master catalog supplier names that are NOT already in local suppliers list
+                      const localNames = new Set(suppliers.map(s => s.name && s.name.trim().toLowerCase()).filter(Boolean));
+                      const catalogOnlySuggestions = masterSupplierNames.filter(name =>
+                        name && name.toLowerCase().includes(query) && !localNames.has(name.trim().toLowerCase())
+                      );
+                      const exactMatch = query !== '' && (
+                        suppliers.some(s => s.name && s.name.trim().toLowerCase() === query) ||
+                        masterSupplierNames.some(n => n && n.trim().toLowerCase() === query)
+                      );
                       const showCreateOption = query !== '' && !exactMatch;
 
-                      if (suggestions.length === 0 && !showCreateOption) return null;
+                      // Always show dropdown when focused — even if no results yet (loading state)
+                      if (suggestions.length === 0 && catalogOnlySuggestions.length === 0 && !showCreateOption) {
+                        // Show a loading/empty hint
+                        return (
+                          <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 divide-y divide-slate-100">
+                            <div className="p-3 text-xs text-slate-400 text-center">
+                              {masterSupplierNames.length === 0 && suppliers.length === 0
+                                ? 'Loading suppliers...'
+                                : query
+                                  ? 'No matching suppliers found'
+                                  : 'Type to search or scroll below'}
+                            </div>
+                          </div>
+                        );
+                      }
 
                       return (
-                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-56 overflow-y-auto divide-y divide-slate-100">
                           {showCreateOption && (
                             <div
                               onClick={async () => {
@@ -6132,29 +6178,73 @@ export default function Suppliers() {
                               <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-normal">Auto-create</span>
                             </div>
                           )}
-                          {suggestions.map((s, idx) => {
-                            const optionIndex = showCreateOption ? idx + 1 : idx;
-                            return (
-                              <div
-                                key={s.id}
-                                onClick={() => {
-                                  setSupplierSearch(s.name);
-                                  setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
-                                  setShowSupplierSuggestions(false);
-                                  // Refresh master catalog for newly selected supplier
-                                  if (poFormData.is_new) {
-                                    fetchMasterCatalogForSupplier(s.name);
-                                  } else {
-                                    setMasterCatalogProducts([]);
-                                  }
-                                }}
-                                className={`p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors ${supplierSearchFocusedIndex === optionIndex ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
-                              >
-                                <div className="text-xs font-semibold text-slate-800">{s.name}</div>
-                                {s.contact_name && <div className="text-[10px] text-slate-400">Contact: {s.contact_name}</div>}
+                          {/* Local directory suppliers */}
+                          {suggestions.length > 0 && (
+                            <>
+                              <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50">Your Suppliers</div>
+                              {suggestions.map((s, idx) => {
+                                const optionIndex = showCreateOption ? idx + 1 : idx;
+                                return (
+                                  <div
+                                    key={s.id}
+                                    onClick={() => {
+                                      setSupplierSearch(s.name);
+                                      setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
+                                      setShowSupplierSuggestions(false);
+                                      // Refresh master catalog for newly selected supplier
+                                      if (poFormData.is_new) {
+                                        fetchMasterCatalogForSupplier(s.name);
+                                      } else {
+                                        setMasterCatalogProducts([]);
+                                      }
+                                    }}
+                                    className={`p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors ${supplierSearchFocusedIndex === optionIndex ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
+                                  >
+                                    <div className="text-xs font-semibold text-slate-800">{s.name}</div>
+                                    {s.contact_name && <div className="text-[10px] text-slate-400">Contact: {s.contact_name}</div>}
+                                  </div>
+                                );
+                              })}
+                            </>
+                          )}
+                          {/* Master Catalog supplier names (from super admin) not yet in local directory */}
+                          {catalogOnlySuggestions.length > 0 && (
+                            <>
+                              <div className="px-3 py-1.5 text-[10px] font-bold text-violet-500 uppercase tracking-wider bg-violet-50 flex items-center gap-1.5">
+                                <span>🏢</span> Super Admin Catalog
                               </div>
-                            );
-                          })}
+                              {catalogOnlySuggestions.map((name, idx) => {
+                                const optionIndex = showCreateOption
+                                  ? suggestions.length + idx + 1
+                                  : suggestions.length + idx;
+                                return (
+                                  <div
+                                    key={`catalog-${name}`}
+                                    onClick={async () => {
+                                      // Auto-create this supplier locally so we can store supplier_id
+                                      const created = await createOrGetSupplier(name);
+                                      if (created) {
+                                        setSupplierSearch(created.name);
+                                        setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
+                                        setShowSupplierSuggestions(false);
+                                        if (poFormData.is_new) {
+                                          fetchMasterCatalogForSupplier(created.name);
+                                        } else {
+                                          setMasterCatalogProducts([]);
+                                        }
+                                      }
+                                    }}
+                                    className={`p-2 px-3 hover:bg-violet-50 cursor-pointer text-left transition-colors ${supplierSearchFocusedIndex === optionIndex ? 'bg-violet-100 ring-1 ring-violet-500' : ''}`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs font-semibold text-slate-800">{name}</span>
+                                      <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-semibold ml-2 shrink-0">Catalog</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </>
+                          )}
                         </div>
                       );
                     })()}
