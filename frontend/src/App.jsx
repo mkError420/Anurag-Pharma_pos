@@ -31,7 +31,6 @@ import Returns from './components/Returns';
 import ManualOrders from './components/ManualOrders';
 import AllTransactions from './components/AllTransactions';
 import Attendance from './components/Attendance';
-import AllProductNames from './components/AllProductNames';
 import { extractDominantColor } from './utils/colorExtractor';
 import TopInfoBar from './components/TopInfoBar';
 
@@ -369,7 +368,6 @@ export default function App() {
       case '/held-bills': return <HeldBills onResume={(bill) => { setResumedHeldBill(bill); setCurrentPath('/checkout'); }} onHeldBillsChange={(count) => setHeldBillsCount(count)} />;
       case '/products': return <Inventory />;
       case '/suppliers': return <Suppliers />;
-      case '/all-product-names': return <AllProductNames />;
       case '/customers': return <Customers />;
       case '/sales': return <SalesHistory />;
       case '/manual-orders': return <ManualOrders />;

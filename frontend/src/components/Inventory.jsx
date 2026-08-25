@@ -488,6 +488,13 @@ export default function Inventory() {
       return;
     }
 
+    // Check if SKU already exists (allow same name with different SKU)
+    const skuExists = products.some(p => p.sku && p.sku.trim().toLowerCase() === formData.sku.trim().toLowerCase());
+    if (skuExists) {
+      triggerAlert('error', 'A product with this SKU already exists. Please use a different SKU.');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/products`, {
@@ -540,6 +547,18 @@ export default function Inventory() {
   // 3. UPDATE PRODUCT
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+
+    // Check if SKU already exists on another product (allow same name with different SKU)
+    const skuExists = products.some(p => 
+      p.sku && 
+      p.sku.trim().toLowerCase() === formData.sku.trim().toLowerCase() && 
+      String(p.id) !== String(currentProduct.id)
+    );
+    if (skuExists) {
+      triggerAlert('error', 'A product with this SKU already exists. Please use a different SKU.');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/products/${currentProduct.id}`, {

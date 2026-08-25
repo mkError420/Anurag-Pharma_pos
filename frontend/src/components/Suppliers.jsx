@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import API_BASE_URL from '../config';
@@ -196,6 +196,34 @@ export default function Suppliers() {
   // PO cart for multiple products
   const [poCart, setPoCart] = useState([]);
 
+  // Grouped product names for PO form (like All Product Names page - groups by name, ignores SKU)
+  const groupedProductNames = useMemo(() => {
+    const nameGroups = new Map();
+    productsList.forEach(product => {
+      const normalizedName = product.name ? product.name.trim().toLowerCase() : '';
+      if (!normalizedName) return;
+
+      if (!nameGroups.has(normalizedName)) {
+        nameGroups.set(normalizedName, {
+          name: product.name,
+          allSkus: [product.sku],
+          allIds: [product.id],
+          // Store first product's details as default
+          defaultProduct: product
+        });
+      } else {
+        const group = nameGroups.get(normalizedName);
+        if (product.sku && !group.allSkus.includes(product.sku)) {
+          group.allSkus.push(product.sku);
+        }
+        if (!group.allIds.includes(product.id)) {
+          group.allIds.push(product.id);
+        }
+      }
+    });
+    return Array.from(nameGroups.values());
+  }, [productsList]);
+
   // ── BARCODE SCANNER states ─────────────────────────────────────────────
   const [barcodeInput, setBarcodeInput] = useState('');
   const [barcodeMode, setBarcodeMode] = useState(false); // scanner strip visible
@@ -352,6 +380,7 @@ export default function Suppliers() {
     const trimmedSku = poFormData.sku ? poFormData.sku.trim() : '';
 
     // Check if matching product already exists in productsList (by ID, SKU, or Name)
+    // When SKU is provided, match only by SKU to distinguish same-name products with different SKUs
     let matchedProduct = null;
     if (poFormData.product_id) {
       matchedProduct = productsList.find(p => String(p.id) === String(poFormData.product_id));
@@ -359,7 +388,8 @@ export default function Suppliers() {
     if (!matchedProduct && trimmedSku) {
       matchedProduct = productsList.find(p => p.sku && p.sku.trim().toLowerCase() === trimmedSku.toLowerCase());
     }
-    if (!matchedProduct && trimmedName) {
+    // Only match by name if no SKU is provided (allows same-name different-SKU products to be distinct)
+    if (!matchedProduct && !trimmedSku && trimmedName) {
       matchedProduct = productsList.find(p => p.name && p.name.trim().toLowerCase() === trimmedName.toLowerCase());
     }
 
@@ -544,10 +574,15 @@ export default function Suppliers() {
     }
   };
 
+  // Debounced PO fetch to prevent excessive API calls on date changes
   useEffect(() => {
-    if (activeTab === 'pos') {
+    if (activeTab !== 'pos') return;
+    
+    const timeoutId = setTimeout(() => {
       fetchPurchaseOrders();
-    }
+    }, 500); // 500ms debounce delay
+    
+    return () => clearTimeout(timeoutId);
   }, [poStartDate, poEndDate, activeTab]);
 
   const fetchFilteredPOItems = async () => {
@@ -1213,7 +1248,6 @@ export default function Suppliers() {
 
   // BULK PLACE ORDER FOR MULTIPLE DRAFT POs
   const handleBulkPlaceOrder = async () => {
-    const filteredPOs = getFilteredPOs(purchaseOrders);
     const draftPOs = filteredPOs.filter(po => selectedPoIds.includes(po.id) && po.status === 'draft');
     if (draftPOs.length === 0) {
       triggerAlert('error', 'Please select at least one draft purchase order to place.');
@@ -2394,9 +2428,9 @@ export default function Suppliers() {
     });
   };
 
-  // FILTERED PURCHASE ORDERS FOR LISTINGS
-  const getFilteredPOs = (ordersList) => {
-    let filtered = ordersList;
+  // FILTERED PURCHASE ORDERS FOR LISTINGS - memoized for performance
+  const filteredPOs = useMemo(() => {
+    let filtered = purchaseOrders;
     if (poFilterStatus !== 'all') {
       filtered = filtered.filter(o => o.status === poFilterStatus);
     }
@@ -2408,7 +2442,7 @@ export default function Suppliers() {
       );
     }
     return filtered;
-  };
+  }, [purchaseOrders, poFilterStatus, poSearchTerm]);
 
   const handleDownloadPOCSV = async () => {
     try {
@@ -2439,7 +2473,6 @@ export default function Suppliers() {
 
   const handleDownloadPOPDF = () => {
     try {
-      const filteredPOs = getFilteredPOs(purchaseOrders);
       if (filteredPOs.length === 0) {
         triggerAlert('error', 'No purchase orders to export.');
         return;
@@ -4492,7 +4525,6 @@ export default function Suppliers() {
 
       {/* --- TAB: PURCHASE ORDERS --- */}
       {activeTab === 'pos' && (() => {
-        const filteredPOs = getFilteredPOs(purchaseOrders);
         const totalPoPages = Math.ceil(filteredPOs.length / poItemsPerPage);
         const indexOfFirstPo = (poPage - 1) * poItemsPerPage;
         const indexOfLastPo = poPage * poItemsPerPage;
@@ -6124,10 +6156,10 @@ export default function Suppliers() {
                   onKeyDown={(e) => {
                     if (showProductSuggestions) {
                       const query = productSearch.toLowerCase();
-                      const suggestions = productsList.filter(p => {
-                        const matchesSearch = p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query);
-                        const matchesSupplier = !poFormData.supplier_id || String(p.supplier_id) === String(poFormData.supplier_id);
-                        return matchesSearch && matchesSupplier;
+                      const suggestions = groupedProductNames.filter(g => {
+                        const matchesSearch = g.name.toLowerCase().includes(query);
+                        // Show all products from All Product Names page regardless of supplier
+                        return matchesSearch;
                       });
                       const totalOptions = suggestions.length + 1; // +1 for the "Create New" option
                       if (e.key === 'ArrowDown') {
@@ -6144,9 +6176,10 @@ export default function Suppliers() {
                           setShowProductSuggestions(false);
                           setProductSearchFocusedIndex(-1);
                         } else if (productSearchFocusedIndex > 0 && suggestions[productSearchFocusedIndex - 1]) {
-                          const p = suggestions[productSearchFocusedIndex - 1];
-                          setProductSearch(p.name);
-                          handlePoProductChange(String(p.id));
+                          const g = suggestions[productSearchFocusedIndex - 1];
+                          setProductSearch(g.name);
+                          // Use the default product (first one) for the group
+                          handlePoProductChange(String(g.defaultProduct.id));
                           setShowProductSuggestions(false);
                           setProductSearchFocusedIndex(-1);
                         }
@@ -6161,10 +6194,11 @@ export default function Suppliers() {
 
                 {showProductSuggestions && (() => {
                   const query = productSearch.toLowerCase();
-                  const suggestions = productsList.filter(p => {
-                    const matchesSearch = p.name.toLowerCase().includes(query) || p.sku.toLowerCase().includes(query);
-                    const matchesSupplier = !poFormData.supplier_id || String(p.supplier_id) === String(poFormData.supplier_id);
-                    return matchesSearch && matchesSupplier;
+                  const suggestions = groupedProductNames.filter(g => {
+                    const matchesSearch = g.name.toLowerCase().includes(query);
+                    // Show all products from All Product Names page regardless of supplier
+                    // Supplier selection is for the PO itself, not for filtering products
+                    return matchesSearch;
                   });
 
                   return (
@@ -6179,27 +6213,33 @@ export default function Suppliers() {
                       >
                         + Create New Product On-The-Fly
                       </div>
-                      {suggestions.map((p, idx) => (
+                      {suggestions.map((g, idx) => (
                         <div
-                          key={p.id}
+                          key={g.name}
                           onClick={() => {
-                            setProductSearch(p.name);
-                            handlePoProductChange(String(p.id));
+                            setProductSearch(g.name);
+                            // Use the default product (first one) for the group
+                            handlePoProductChange(String(g.defaultProduct.id));
                             setShowProductSuggestions(false);
                           }}
                           className={`p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors ${productSearchFocusedIndex === idx + 1 ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
                         >
                           <div className="text-xs font-semibold text-slate-800 flex items-center justify-between">
-                            <span>{p.name}</span>
-                            {p.supplier_name && (
+                            <span>{g.name}</span>
+                            {g.allSkus.length > 1 && (
+                              <span className="text-[10px] bg-amber-50 text-amber-700 font-medium px-1.5 py-0.5 rounded border border-amber-100">
+                                {g.allSkus.length} variants
+                              </span>
+                            )}
+                            {g.defaultProduct.supplier_name && (
                               <span className="text-[10px] bg-indigo-50 text-indigo-700 font-medium px-1.5 py-0.5 rounded border border-indigo-100">
-                                🏢 {p.supplier_name}
+                                🏢 {g.defaultProduct.supplier_name}
                               </span>
                             )}
                           </div>
                           <div className="text-[10px] text-slate-400 flex justify-between mt-0.5">
-                            <span>SKU: {p.sku}</span>
-                            <span>Stock: {p.stock_quantity} left</span>
+                            <span>SKU: {g.defaultProduct.sku || 'Auto-generated'}</span>
+                            <span>Stock: {g.defaultProduct.stock_quantity} left</span>
                           </div>
                         </div>
                       ))}
@@ -6229,9 +6269,8 @@ export default function Suppliers() {
                   type="text"
                   value={poFormData.sku || ''}
                   onChange={(e) => setPoFormData({ ...poFormData, sku: e.target.value })}
-                  disabled={!poFormData.is_new && editingCartItemIndex === null}
                   placeholder="Auto-generated if empty"
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white disabled:bg-slate-50 font-semibold font-mono"
+                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold font-mono"
                 />
               </div>
 

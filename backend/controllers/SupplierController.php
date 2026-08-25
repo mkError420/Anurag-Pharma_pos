@@ -782,14 +782,35 @@ class SupplierController {
             $po['paid_amount'] = (float)$po['paid_amount'];
             $po['due_amount'] = (float)$po['due_amount'];
 
+            // Check if purchase_order_items has shop_id column
+            $pdo = DB::getConnection();
+            $columnExists = function($table, $column) use ($pdo) {
+                try {
+                    $stmt = $pdo->query("SHOW COLUMNS FROM `$table` LIKE '$column'");
+                    return $stmt->rowCount() > 0;
+                } catch (\PDOException $e) {
+                    return false;
+                }
+            };
+            
+            $hasShopId = $columnExists('purchase_order_items', 'shop_id');
+            
             // Fetch PO items
-            $stmt = DB::query(
-                'SELECT poi.*, p.name AS product_name, p.sku AS product_sku, p.category AS product_category, p.unit AS product_unit 
-                 FROM purchase_order_items poi 
-                 JOIN products p ON poi.product_id = p.id 
-                 WHERE poi.purchase_order_id = ? AND poi.shop_id = ?',
-                [$poId, $shopId]
-            );
+            if ($hasShopId) {
+                $sql = 'SELECT poi.*, p.name AS product_name, p.sku AS product_sku, p.category AS product_category, p.unit AS product_unit 
+                        FROM purchase_order_items poi 
+                        JOIN products p ON poi.product_id = p.id 
+                        WHERE poi.purchase_order_id = ? AND poi.shop_id = ?';
+                $params = [$poId, $shopId];
+            } else {
+                $sql = 'SELECT poi.*, p.name AS product_name, p.sku AS product_sku, p.category AS product_category, p.unit AS product_unit 
+                        FROM purchase_order_items poi 
+                        JOIN products p ON poi.product_id = p.id 
+                        WHERE poi.purchase_order_id = ?';
+                $params = [$poId];
+            }
+            
+            $stmt = DB::query($sql, $params);
             $items = $stmt->fetchAll();
 
             foreach ($items as &$item) {
