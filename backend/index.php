@@ -78,6 +78,7 @@ require_once __DIR__ . '/controllers/SalaryController.php';
 require_once __DIR__ . '/controllers/InvestmentController.php';
 require_once __DIR__ . '/controllers/WebsiteContentController.php';
 require_once __DIR__ . '/controllers/BackupController.php';
+require_once __DIR__ . '/controllers/MasterSupplierProductController.php';
 
 // Parse Request URI and Method
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -310,6 +311,10 @@ $routes = [
         '/^suppliers\/cost-price-logs$/' => function() { SupplierController::listCostPriceLogs(); },
         '/^suppliers\/cost-price-logs\/(\d+)$/' => function($args) { SupplierController::getCostPriceLog($args[0]); },
         '/^suppliers\/cost-price-logs\/export\/csv$/' => function() { SupplierController::exportCostPriceLogsCSV(); },
+        // Master Supplier Products (catalog)
+        '/^master-supplier-products$/' => function() { MasterSupplierProductController::list(); },
+        '/^master-supplier-products\/suppliers$/' => function() { MasterSupplierProductController::getDistinctSuppliers(); },
+        '/^master-supplier-products\/export$/' => function() { MasterSupplierProductController::exportCsv(); },
         '/^suppliers\/purchase-orders\/export\/csv$/' => function() { SupplierController::exportPurchaseOrdersCSV(); },
         '/^suppliers\/purchase-orders\/(\d+)$/' => function($args) { SupplierController::getPurchaseOrder($args[0]); },
         '/^suppliers\/(\d+)\/profile$/' => function($args) { SupplierController::getSupplierProfile($args[0]); },
@@ -509,6 +514,10 @@ $routes = [
         '/^customers\/bulk-upload$/' => function($args, $data) { CustomerController::bulkUpload(); },
         // Suppliers
         '/^suppliers$/' => function($args, $data) { SupplierController::createSupplier($data); },
+        // Master Supplier Products
+        '/^master-supplier-products$/' => function($args, $data) { MasterSupplierProductController::create($data); },
+        '/^master-supplier-products\/bulk-upload$/' => function($args, $data) { MasterSupplierProductController::bulkUpload($data); },
+        '/^master-supplier-products\/bulk-delete$/' => function($args, $data) { MasterSupplierProductController::bulkDelete($data); },
         '/^suppliers\/bulk-delete$/' => function($args, $data) { SupplierController::bulkDeleteSuppliers($data); },
         '/^suppliers\/purchase-orders$/' => function($args, $data) { SupplierController::createPurchaseOrder($data); },
         '/^suppliers\/purchase-orders\/bulk-delete$/' => function($args, $data) { SupplierController::bulkDeletePurchaseOrders($data); },
@@ -717,6 +726,8 @@ $routes = [
                 $controller->updateSubscription($args[0]);
             });
         },
+        // Master Supplier Products
+        '/^master-supplier-products\/(\d+)$/' => function($args, $data) { MasterSupplierProductController::update($args[0], $data); },
     ],
     'DELETE' => [
         // Products
@@ -730,6 +741,8 @@ $routes = [
         '/^suppliers\/cost-price-logs\/(\d+)$/' => function($args) { SupplierController::deleteCostPriceLog($args[0]); },
         '/^suppliers\/returns\/(\d+)$/' => function($args) { SupplierController::deleteSupplierReturn($args[0]); },
         '/^suppliers\/(\d+)$/' => function($args) { SupplierController::deleteSupplier($args[0]); },
+        // Master Supplier Products
+        '/^master-supplier-products\/(\d+)$/' => function($args) { MasterSupplierProductController::delete($args[0]); },
         // Sales
         '/^sales\/(\d+)$/' => function($args) { SaleController::deleteSale($args[0]); },
         // Held Bills

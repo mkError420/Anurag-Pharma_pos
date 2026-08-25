@@ -926,6 +926,28 @@ export default function Suppliers() {
   const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
 
+  // ── MASTER CATALOG (super admin supplier products) ──────────────────────
+  const [masterCatalogProducts, setMasterCatalogProducts] = useState([]);
+  const [masterProductNameInput, setMasterProductNameInput] = useState('');
+  const [showMasterProductSuggestions, setShowMasterProductSuggestions] = useState(false);
+
+  // Fetch master catalog products filtered by the current supplier name (when is_new mode)
+  const fetchMasterCatalogForSupplier = async (supplierName) => {
+    if (!supplierName || !supplierName.trim()) { setMasterCatalogProducts([]); return; }
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(
+        `${API_BASE_URL}/master-supplier-products?supplier_name=${encodeURIComponent(supplierName.trim())}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (data.data || []);
+      setMasterCatalogProducts(list);
+    } catch (e) {
+      setMasterCatalogProducts([]);
+    }
+  };
+
   const openAddPo = (supplierId = '') => {
     const existingSupplier = suppliers.find(s => String(s.id) === String(supplierId));
     setSupplierSearch(existingSupplier ? existingSupplier.name : '');
@@ -979,6 +1001,14 @@ export default function Suppliers() {
         unit: 'piece',
         low_stock_threshold: '10'
       }));
+      // Pre-fetch master catalog for the currently selected supplier
+      const supName = supplierSearch.trim();
+      if (supName) {
+        fetchMasterCatalogForSupplier(supName);
+      } else {
+        setMasterCatalogProducts([]);
+      }
+      setShowMasterProductSuggestions(true);
     } else {
       const prod = productsList.find(p => String(p.id) === String(productId));
       if (prod) {
@@ -6108,6 +6138,10 @@ export default function Suppliers() {
                                   setSupplierSearch(created.name);
                                   setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
                                   setShowSupplierSuggestions(false);
+                                  // Refresh master catalog for newly selected supplier
+                                  if (poFormData.is_new) {
+                                    fetchMasterCatalogForSupplier(created.name);
+                                  }
                                 }
                               }}
                               className={`p-2.5 px-3 hover:bg-emerald-50 cursor-pointer text-left transition-colors text-emerald-700 font-bold text-xs flex items-center justify-between ${supplierSearchFocusedIndex === 0 ? 'bg-emerald-100 ring-1 ring-emerald-500' : ''}`}
@@ -6125,6 +6159,12 @@ export default function Suppliers() {
                                   setSupplierSearch(s.name);
                                   setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
                                   setShowSupplierSuggestions(false);
+                                  // Refresh master catalog for newly selected supplier
+                                  if (poFormData.is_new) {
+                                    fetchMasterCatalogForSupplier(s.name);
+                                  } else {
+                                    setMasterCatalogProducts([]);
+                                  }
                                 }}
                                 className={`p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors ${supplierSearchFocusedIndex === optionIndex ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
                               >
@@ -6249,17 +6289,78 @@ export default function Suppliers() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Product Name *</label>
-                <input
-                  type="text"
-                  value={poFormData.name}
-                  onChange={(e) => setPoFormData({ ...poFormData, name: e.target.value })}
-                  disabled={!poFormData.is_new && editingCartItemIndex === null}
-                  required
-                  placeholder="Product Name"
-                  className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 disabled:bg-slate-50 font-semibold"
-                />
+              <div className="relative">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Product Name *
+                  {poFormData.is_new && masterCatalogProducts.length > 0 && (
+                    <span className="ml-2 text-[10px] font-normal bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100">
+                      {masterCatalogProducts.length} from catalog
+                    </span>
+                  )}
+                </label>
+                {poFormData.is_new || editingCartItemIndex !== null ? (
+                  <>
+                    <input
+                      type="text"
+                      value={poFormData.name}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPoFormData({ ...poFormData, name: val });
+                        setMasterProductNameInput(val);
+                        setShowMasterProductSuggestions(val.trim().length >= 0);
+                      }}
+                      onFocus={() => {
+                        setShowMasterProductSuggestions(true);
+                        // Fetch master catalog if supplier is selected
+                        const supName = supplierSearch.trim();
+                        if (supName && masterCatalogProducts.length === 0) {
+                          fetchMasterCatalogForSupplier(supName);
+                        }
+                      }}
+                      onBlur={() => setTimeout(() => setShowMasterProductSuggestions(false), 220)}
+                      required
+                      placeholder="Type product name or pick from catalog..."
+                      className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold"
+                      autoComplete="off"
+                    />
+                    {showMasterProductSuggestions && (() => {
+                      const query = (poFormData.name || '').toLowerCase().trim();
+                      const filteredMaster = masterCatalogProducts.filter(p =>
+                        !query || p.product_name.toLowerCase().includes(query)
+                      );
+                      if (filteredMaster.length === 0) return null;
+                      return (
+                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-indigo-200 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto divide-y divide-slate-100">
+                          <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100">
+                            <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">📦 Supplier Catalog Suggestions</span>
+                          </div>
+                          {filteredMaster.map((p) => (
+                            <div
+                              key={p.id}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setPoFormData(prev => ({ ...prev, name: p.product_name }));
+                                setShowMasterProductSuggestions(false);
+                              }}
+                              className="px-3 py-2 hover:bg-indigo-50 cursor-pointer transition-colors"
+                            >
+                              <div className="text-xs font-semibold text-slate-800">{p.product_name}</div>
+                              <div className="text-[10px] text-indigo-500 font-medium mt-0.5">🏢 {p.supplier_name}</div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    value={poFormData.name}
+                    disabled
+                    placeholder="Product Name"
+                    className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none bg-slate-50 font-semibold cursor-not-allowed text-slate-500"
+                  />
+                )}
               </div>
 
               <div>

@@ -744,6 +744,20 @@ class DB {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
 
+            // Create master_supplier_products table if not exists
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `master_supplier_products` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `supplier_name` VARCHAR(255) NOT NULL,
+                    `product_name` VARCHAR(255) NOT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX `idx_supplier_name` (`supplier_name`),
+                    INDEX `idx_product_name` (`product_name`),
+                    UNIQUE KEY `unique_supplier_product` (`supplier_name`(191), `product_name`(191))
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
         } catch (\PDOException $e) {
             error_log("Migration error: " . $e->getMessage());
             file_put_contents(__DIR__ . '/migration_error.txt', "Migration error: " . $e->getMessage());

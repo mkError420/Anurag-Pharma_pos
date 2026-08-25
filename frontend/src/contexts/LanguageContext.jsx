@@ -45,6 +45,7 @@ const translations = {
     'manage_staff': 'Manage Staff',
     'inventory_catalog': 'Inventory Catalog',
     'wastage_logs': 'Wastage Logs',
+    'supplier_products': 'Supplier Products',
 
     // Section Titles
     'section_system_admin': 'System Administration',

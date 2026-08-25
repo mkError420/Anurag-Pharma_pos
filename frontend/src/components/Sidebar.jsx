@@ -53,6 +53,7 @@ export default function Sidebar({
               { label: t('manage_shops', 'Manage Shops'), path: '/shops', icon: <ShopsIcon /> },
               { label: t('system_users', 'System Users'), path: '/users', icon: <UsersIcon /> },
               { label: t('inventory_products', 'Inventory (Products)'), path: '/products', icon: <InventoryIcon /> },
+              { label: t('supplier_products', 'Supplier Products'), path: '/supplier-products', icon: <SuppliersIcon /> },
             ]
           },
           {

@@ -31,6 +31,7 @@ import Returns from './components/Returns';
 import ManualOrders from './components/ManualOrders';
 import AllTransactions from './components/AllTransactions';
 import Attendance from './components/Attendance';
+import MasterSupplierProducts from './components/MasterSupplierProducts';
 import { extractDominantColor } from './utils/colorExtractor';
 import TopInfoBar from './components/TopInfoBar';
 
@@ -333,6 +334,7 @@ export default function App() {
         case '/pricing-plans': return <PricingPlans />;
         case '/subscriptions': return <SubscriptionManagement />;
         case '/settings': return <Settings />;
+        case '/supplier-products': return <MasterSupplierProducts />;
         default: return <Dashboard />;
       }
     }
