@@ -379,17 +379,14 @@ export default function Suppliers() {
     const trimmedName = poFormData.name.trim();
     const trimmedSku = poFormData.sku ? poFormData.sku.trim() : '';
 
-    // Check if matching product already exists in productsList (by ID, SKU, or Name)
-    // When SKU is provided, match only by SKU to distinguish same-name products with different SKUs
+    // Check if matching product already exists in productsList (by SKU or ID/Name)
+    // When SKU is provided, match strictly by SKU so same-name products with different SKUs/expiry dates are distinct rows
     let matchedProduct = null;
-    if (poFormData.product_id) {
-      matchedProduct = productsList.find(p => String(p.id) === String(poFormData.product_id));
-    }
-    if (!matchedProduct && trimmedSku) {
+    if (trimmedSku) {
       matchedProduct = productsList.find(p => p.sku && p.sku.trim().toLowerCase() === trimmedSku.toLowerCase());
-    }
-    // Only match by name if no SKU is provided (allows same-name different-SKU products to be distinct)
-    if (!matchedProduct && !trimmedSku && trimmedName) {
+    } else if (poFormData.product_id && !poFormData.is_new) {
+      matchedProduct = productsList.find(p => String(p.id) === String(poFormData.product_id));
+    } else if (trimmedName && !poFormData.is_new) {
       matchedProduct = productsList.find(p => p.name && p.name.trim().toLowerCase() === trimmedName.toLowerCase());
     }
 
@@ -400,9 +397,9 @@ export default function Suppliers() {
     }
 
     const newItem = {
-      product_id: matchedProduct ? matchedProduct.id : (poFormData.product_id ? parseInt(poFormData.product_id) : null),
-      is_new: !matchedProduct && (!poFormData.product_id || poFormData.is_new),
-      name: matchedProduct ? matchedProduct.name : trimmedName,
+      product_id: matchedProduct ? matchedProduct.id : null,
+      is_new: !matchedProduct,
+      name: trimmedName,
       sku: finalSku,
       category: poFormData.category || (matchedProduct ? (matchedProduct.category || '') : ''),
       cost_price: parseFloat(poFormData.cost_price),
@@ -978,6 +975,7 @@ export default function Suppliers() {
         category: '',
         cost_price: '',
         selling_price: '',
+        expiry_date: '',
         unit: 'piece',
         low_stock_threshold: '10'
       }));
@@ -993,6 +991,7 @@ export default function Suppliers() {
           category: prod.category || '',
           cost_price: prod.cost_price !== undefined && prod.cost_price !== null ? prod.cost_price : prev.cost_price,
           selling_price: prod.price,
+          expiry_date: prod.expiry_date || '',
           unit: prod.unit || 'piece',
           low_stock_threshold: prod.low_stock_threshold || '10'
         }));
@@ -1028,6 +1027,7 @@ export default function Suppliers() {
           category: '',
           cost_price: '',
           selling_price: '',
+          expiry_date: '',
           unit: 'piece',
           low_stock_threshold: '10'
         }));
@@ -2214,15 +2214,14 @@ export default function Suppliers() {
             continue;
           }
 
-          // Check if product already exists in system (by SKU or by Name)
+          // Check if product already exists in system (by SKU if provided, otherwise by Name)
           const trimmedProdName = productName.trim();
           const trimmedSkuVal = sku ? sku.trim() : '';
 
           let matchedProduct = null;
           if (trimmedSkuVal) {
             matchedProduct = productsList.find(p => p.sku && p.sku.trim().toLowerCase() === trimmedSkuVal.toLowerCase());
-          }
-          if (!matchedProduct && trimmedProdName) {
+          } else if (trimmedProdName) {
             matchedProduct = productsList.find(p => p.name && p.name.trim().toLowerCase() === trimmedProdName.toLowerCase());
           }
 

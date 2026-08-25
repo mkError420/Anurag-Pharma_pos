@@ -375,7 +375,7 @@ export default function Inventory() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      let url = `${API_BASE_URL}/products?purchased_only=true&batch_level=true&search=${encodeURIComponent(search)}${lowStockFilter ? '&low_stock=true' : ''
+      let url = `${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(search)}${lowStockFilter ? '&low_stock=true' : ''
         }${expiryFilter ? '&expiring=true' : ''
         }`;
       if (isSuperAdmin && selectedShopId) {
@@ -1603,7 +1603,7 @@ export default function Inventory() {
                             >
                               History
                             </button>
-                            {!isSuperAdmin && !product.is_batch && (
+                            {!isSuperAdmin && (
                               <>
                                 <button
                                   onClick={() => openEdit(product)}
@@ -1619,14 +1619,12 @@ export default function Inventory() {
                                 </button>
                               </>
                             )}
-                            {product.is_batch && (
-                              <button
-                                onClick={() => handleViewBatches(product)}
-                                className="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-100 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition-colors"
-                              >
-                                View Batches
-                              </button>
-                            )}
+                            <button
+                              onClick={() => handleViewBatches(product)}
+                              className="text-indigo-600 hover:text-indigo-900 font-semibold text-xs border border-indigo-100 hover:bg-indigo-50 px-2.5 py-1 rounded-lg transition-colors"
+                            >
+                              View Batches
+                            </button>
                           </td>
                         </tr>
                       );

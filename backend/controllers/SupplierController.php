@@ -531,22 +531,40 @@ class SupplierController {
             if (!empty($productId)) {
                 $stmt = DB::query('SELECT * FROM products WHERE id = ? AND shop_id = ? LIMIT 1', [$productId, $shopId]);
                 $existingProd = $stmt->fetch();
+                // If item has a SKU specified and it's different from the existing product's SKU, don't blindly reuse this product ID
+                if ($existingProd && !empty($item['sku']) && strcasecmp(trim($item['sku']), trim($existingProd['sku'] ?? '')) !== 0) {
+                    // Check if another product with this new SKU exists
+                    $stmtSku = DB::query('SELECT * FROM products WHERE shop_id = ? AND sku = ? LIMIT 1', [$shopId, trim($item['sku'])]);
+                    $existingProd = $stmtSku->fetch();
+                    if (!$existingProd) {
+                        // Brand new product variant with new SKU!
+                        $productId = null;
+                    } else {
+                        $productId = (int)$existingProd['id'];
+                    }
+                }
             }
 
-            // 2. If not found by product_id, try finding by SKU (if provided)
+            // 2. If not found by product_id, try finding strictly by SKU (if provided)
             if (!$existingProd && !empty($item['sku'])) {
-                $stmt = DB::query('SELECT * FROM products WHERE shop_id = ? AND sku = ? LIMIT 1', [$shopId, $item['sku']]);
+                $stmt = DB::query('SELECT * FROM products WHERE shop_id = ? AND sku = ? LIMIT 1', [$shopId, trim($item['sku'])]);
                 $existingProd = $stmt->fetch();
+                if ($existingProd) {
+                    $productId = (int)$existingProd['id'];
+                }
             }
 
-            // 3. If not found by SKU, try finding by Name (case-insensitive and trimmed)
-            if (!$existingProd && !empty($item['name'])) {
+            // 3. Only if no SKU was provided AND is_new is false, try finding by Name (case-insensitive and trimmed)
+            if (!$existingProd && empty($item['sku']) && empty($item['is_new']) && !empty($item['name'])) {
                 $stmt = DB::query('SELECT * FROM products WHERE shop_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1', [$shopId, $item['name']]);
                 $existingProd = $stmt->fetch();
+                if ($existingProd) {
+                    $productId = (int)$existingProd['id'];
+                }
             }
 
             if ($existingProd) {
-                // Product already exists in All Product Names / products table! Reuse it.
+                // Product already exists in products table! Reuse it.
                 $productId = (int)$existingProd['id'];
 
                 $updateFields = [];
@@ -580,7 +598,7 @@ class SupplierController {
                 }
             } else {
                 // Completely new product not in database
-                $sku = !empty($item['sku']) ? $item['sku'] : ('SKU-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $item['name']), 0, 3)) . '-' . rand(100, 999));
+                $sku = !empty($item['sku']) ? trim($item['sku']) : ('SKU-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $item['name']), 0, 3)) . '-' . rand(100, 999));
                 
                 // Ensure generated SKU is unique in shop
                 $skuCheck = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ?', [$shopId, $sku]);
@@ -1259,6 +1277,7 @@ class SupplierController {
 
                     // Update target product stock and prices (and expiry date if provided)
                     $effectiveSellingPrice = ($sellingPrice > 0) ? $sellingPrice : (float)$baseProd['price'];
+                    $updateExpirySql = !empty($expiryDate) ? ', expiry_date = ?' : '';
                     $updateParams = [$qtyReceived, $costPrice, $effectiveSellingPrice];
                     if (!empty($expiryDate)) {
                         $updateParams[] = $expiryDate;

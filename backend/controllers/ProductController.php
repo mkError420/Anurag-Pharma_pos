@@ -1171,13 +1171,13 @@ class ProductController {
                         continue;
                     }
 
-                    // Check if product already exists (by SKU first, then by Name)
+                    // Check if product already exists (by SKU first, then by Name if no SKU is provided)
                     $existingProduct = null;
                     if (!empty($sku)) {
                         $stmt = DB::query('SELECT * FROM products WHERE shop_id = ? AND sku = ? LIMIT 1', [$shopId, $sku]);
                         $existingProduct = $stmt->fetch();
                     }
-                    if (!$existingProduct && !empty($name)) {
+                    if (!$existingProduct && empty($sku) && !empty($name)) {
                         $stmt = DB::query('SELECT * FROM products WHERE shop_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1', [$shopId, $name]);
                         $existingProduct = $stmt->fetch();
                     }
