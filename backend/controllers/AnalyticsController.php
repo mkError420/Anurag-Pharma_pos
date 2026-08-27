@@ -492,127 +492,192 @@ class AnalyticsController {
                 // 2. Tenant Specific Analytics
                 $shopId = Auth::$shopId;
 
-                $stmt = DB::query('SELECT COUNT(*) as sales_count, SUM(final_amount) as revenue FROM sales WHERE shop_id = ?', [$shopId]);
-                $salesStats = $stmt->fetch();
+                $salesStats = ['sales_count' => 0, 'revenue' => 0];
+                try {
+                    $stmt = DB::query('SELECT COUNT(*) as sales_count, SUM(final_amount) as revenue FROM sales WHERE shop_id = ?', [$shopId]);
+                    $salesStats = $stmt->fetch();
+                } catch (\Exception $e) {}
 
-                $stmt = DB::query('SELECT SUM(amount) as other_sales_revenue FROM other_sales WHERE shop_id = ?', [$shopId]);
-                $tenantOtherSales = (float)($stmt->fetchColumn() ?: 0);
+                $tenantOtherSales = 0.0;
+                try {
+                    $stmt = DB::query('SELECT SUM(amount) as other_sales_revenue FROM other_sales WHERE shop_id = ?', [$shopId]);
+                    $tenantOtherSales = (float)($stmt->fetchColumn() ?: 0);
+                } catch (\Exception $e) {}
                 $tenantTotalRevenue = (float)($salesStats['revenue'] ?? 0) + $tenantOtherSales;
 
                 // Calculate low stock alerts based on SKU-level data
-                $stmt = DB::query('SELECT COUNT(*) as total_products
-                                   FROM products WHERE shop_id = ?', [$shopId]);
-                $productStats = $stmt->fetch();
+                $productStats = ['total_products' => 0, 'low_stock_count' => 0, 'expiry_count' => 0];
+                try {
+                    $stmt = DB::query('SELECT COUNT(*) as total_products FROM products WHERE shop_id = ?', [$shopId]);
+                    $row = $stmt->fetch();
+                    $productStats['total_products'] = (int)($row['total_products'] ?? 0);
+                } catch (\Exception $e) {
+                    // ignore
+                }
                 
                 // Count unique SKUs with low stock (either from product stock or batch stock)
-                $stmt = DB::query('SELECT COUNT(DISTINCT p.id) as low_stock_count
-                                   FROM products p
-                                   LEFT JOIN inventory_batches ib ON p.id = ib.product_id AND ib.status = "active"
-                                   WHERE p.shop_id = ? 
-                                   AND (
-                                       -- Products without batches: check product stock
-                                       (ib.id IS NULL AND p.stock_quantity > 0 AND p.stock_quantity <= p.low_stock_threshold)
-                                       OR
-                                       -- Products with batches: check if any batch is low stock
-                                       (ib.id IS NOT NULL AND ib.quantity > 0 AND ib.quantity <= p.low_stock_threshold)
-                                   )', [$shopId]);
-                $lowStockStats = $stmt->fetch();
-                $productStats['low_stock_count'] = $lowStockStats['low_stock_count'] ?? 0;
-                
-                // Count unique SKUs with expiry alerts (either from product expiry or batch expiry)
-                $stmt = DB::query('SELECT COUNT(DISTINCT p.id) as expiry_count
-                                   FROM products p
-                                   LEFT JOIN inventory_batches ib ON p.id = ib.product_id AND ib.status = "active"
-                                   WHERE p.shop_id = ? 
-                                   AND (
-                                       -- Products without batches: check product expiry
-                                       (ib.id IS NULL AND p.stock_quantity > 0 AND p.expiry_date IS NOT NULL AND p.expiry_date != "" AND p.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY))
-                                       OR
-                                       -- Products with batches: check if any batch is expiring
-                                       (ib.id IS NOT NULL AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != "" AND ib.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY))
-                                   )', [$shopId]);
-                $expiryStats = $stmt->fetch();
-                $productStats['expiry_count'] = $expiryStats['expiry_count'] ?? 0;
+                $hasBatchesTable = false;
+                try {
+                    $chk = DB::query("SHOW TABLES LIKE 'inventory_batches'");
+                    $hasBatchesTable = $chk && $chk->rowCount() > 0;
+                } catch (\Exception $e) {
+                    $hasBatchesTable = false;
+                }
 
-                $stmt = DB::query('SELECT COUNT(*) as total_customers FROM customers WHERE shop_id = ?', [$shopId]);
-                $customerStats = $stmt->fetch();
+                if ($hasBatchesTable) {
+                    try {
+                        $stmt = DB::query('SELECT COUNT(DISTINCT p.id) as low_stock_count
+                                           FROM products p
+                                           LEFT JOIN inventory_batches ib ON p.id = ib.product_id AND ib.status = "active"
+                                           WHERE p.shop_id = ? 
+                                           AND (
+                                               (ib.id IS NULL AND p.stock_quantity > 0 AND p.stock_quantity <= COALESCE(p.low_stock_threshold, 10))
+                                               OR
+                                               (ib.id IS NOT NULL AND ib.quantity > 0 AND ib.quantity <= COALESCE(p.low_stock_threshold, 10))
+                                           )', [$shopId]);
+                        $lowStockStats = $stmt->fetch();
+                        $productStats['low_stock_count'] = (int)($lowStockStats['low_stock_count'] ?? 0);
+                    } catch (\Exception $e) {
+                        // Fallback without batches
+                        try {
+                            $stmt = DB::query('SELECT COUNT(*) as low_stock_count FROM products WHERE shop_id = ? AND stock_quantity > 0 AND stock_quantity <= 10', [$shopId]);
+                            $lowStockStats = $stmt->fetch();
+                            $productStats['low_stock_count'] = (int)($lowStockStats['low_stock_count'] ?? 0);
+                        } catch (\Exception $ex) {}
+                    }
+                    
+                    try {
+                        $stmt = DB::query('SELECT COUNT(DISTINCT p.id) as expiry_count
+                                           FROM products p
+                                           LEFT JOIN inventory_batches ib ON p.id = ib.product_id AND ib.status = "active"
+                                           WHERE p.shop_id = ? 
+                                           AND (
+                                               (ib.id IS NULL AND p.stock_quantity > 0 AND p.expiry_date IS NOT NULL AND p.expiry_date != "" AND p.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY))
+                                               OR
+                                               (ib.id IS NOT NULL AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != "" AND ib.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY))
+                                           )', [$shopId]);
+                        $expiryStats = $stmt->fetch();
+                        $productStats['expiry_count'] = (int)($expiryStats['expiry_count'] ?? 0);
+                    } catch (\Exception $e) {
+                        try {
+                            $stmt = DB::query('SELECT COUNT(*) as expiry_count FROM products WHERE shop_id = ? AND stock_quantity > 0 AND expiry_date IS NOT NULL AND expiry_date != "" AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)', [$shopId]);
+                            $expiryStats = $stmt->fetch();
+                            $productStats['expiry_count'] = (int)($expiryStats['expiry_count'] ?? 0);
+                        } catch (\Exception $ex) {}
+                    }
+                } else {
+                    try {
+                        $stmt = DB::query('SELECT COUNT(*) as low_stock_count FROM products WHERE shop_id = ? AND stock_quantity > 0 AND stock_quantity <= 10', [$shopId]);
+                        $lowStockStats = $stmt->fetch();
+                        $productStats['low_stock_count'] = (int)($lowStockStats['low_stock_count'] ?? 0);
+                    } catch (\Exception $e) {}
+
+                    try {
+                        $stmt = DB::query('SELECT COUNT(*) as expiry_count FROM products WHERE shop_id = ? AND stock_quantity > 0 AND expiry_date IS NOT NULL AND expiry_date != "" AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)', [$shopId]);
+                        $expiryStats = $stmt->fetch();
+                        $productStats['expiry_count'] = (int)($expiryStats['expiry_count'] ?? 0);
+                    } catch (\Exception $e) {}
+                }
+
+                $customerStats = ['total_customers' => 0];
+                try {
+                    $stmt = DB::query('SELECT COUNT(*) as total_customers FROM customers WHERE shop_id = ?', [$shopId]);
+                    $customerStats = $stmt->fetch();
+                } catch (\Exception $e) {}
 
                 // Recent sales
-                $stmt = DB::query('SELECT s.id, s.final_amount, s.payment_method, s.created_at, u.name as staff_name 
-                                   FROM sales s
-                                   JOIN users u ON s.user_id = u.id
-                                   WHERE s.shop_id = ? 
-                                   ORDER BY s.created_at DESC 
-                                   LIMIT 5', [$shopId]);
-                $recentSales = $stmt->fetchAll();
-                foreach ($recentSales as &$sale) {
-                    $sale['id'] = (int)$sale['id'];
-                    $sale['final_amount'] = (float)$sale['final_amount'];
-                }
+                $recentSales = [];
+                try {
+                    $stmt = DB::query('SELECT s.id, s.final_amount, s.payment_method, s.created_at, u.name as staff_name 
+                                       FROM sales s
+                                       JOIN users u ON s.user_id = u.id
+                                       WHERE s.shop_id = ? 
+                                       ORDER BY s.created_at DESC 
+                                       LIMIT 5', [$shopId]);
+                    $recentSales = $stmt->fetchAll();
+                    foreach ($recentSales as &$sale) {
+                        $sale['id'] = (int)$sale['id'];
+                        $sale['final_amount'] = (float)$sale['final_amount'];
+                    }
+                } catch (\Exception $e) {}
 
                 // 7-day trend (Combine Sales + Other Sales)
-                $stmt = DB::query("SELECT DATE_FORMAT(created_at, '%Y-%m-%d') as sale_date,
-                                          SUM(final_amount) as daily_revenue,
-                                          COUNT(id) as daily_sales
-                                   FROM sales
-                                   WHERE shop_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-                                   GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')
-                                   ORDER BY sale_date ASC", [$shopId]);
-                $trendRows = $stmt->fetchAll();
+                $trendRows = [];
+                try {
+                    $stmt = DB::query("SELECT DATE_FORMAT(created_at, '%Y-%m-%d') as sale_date,
+                                              SUM(final_amount) as daily_revenue,
+                                              COUNT(id) as daily_sales
+                                       FROM sales
+                                       WHERE shop_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+                                       GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')
+                                       ORDER BY sale_date ASC", [$shopId]);
+                    $trendRows = $stmt->fetchAll();
+                } catch (\Exception $e) {}
 
                 // Also get Other Sales 7-day trend for dashboard
-                $stmt = DB::query("SELECT DATE_FORMAT(sale_date, '%Y-%m-%d') as os_date,
-                                          SUM(amount) as daily_os_revenue
-                                   FROM other_sales
-                                   WHERE shop_id = ? AND sale_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-                                   GROUP BY DATE_FORMAT(sale_date, '%Y-%m-%d')", [$shopId]);
-                $osTrendRows = $stmt->fetchAll();
                 $osTrendMap = [];
-                foreach ($osTrendRows as $osr) {
-                    $osTrendMap[$osr['os_date']] = (float)$osr['daily_os_revenue'];
-                }
+                try {
+                    $stmt = DB::query("SELECT DATE_FORMAT(sale_date, '%Y-%m-%d') as os_date,
+                                              SUM(amount) as daily_os_revenue
+                                       FROM other_sales
+                                       WHERE shop_id = ? AND sale_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+                                       GROUP BY DATE_FORMAT(sale_date, '%Y-%m-%d')", [$shopId]);
+                    $osTrendRows = $stmt->fetchAll();
+                    foreach ($osTrendRows as $osr) {
+                        $osTrendMap[$osr['os_date']] = (float)$osr['daily_os_revenue'];
+                    }
+                } catch (\Exception $e) {}
 
                 // Payment breakdown
-                $stmt = DB::query('SELECT payment_method, COUNT(*) as count, SUM(final_amount) as total
-                                   FROM sales WHERE shop_id = ? GROUP BY payment_method', [$shopId]);
-                $paymentBreakdown = $stmt->fetchAll();
-                foreach ($paymentBreakdown as &$pb) {
-                    $pb['count'] = (int)$pb['count'];
-                    $pb['total'] = (float)$pb['total'];
-                }
+                $paymentBreakdown = [];
+                try {
+                    $stmt = DB::query('SELECT payment_method, COUNT(*) as count, SUM(final_amount) as total
+                                       FROM sales WHERE shop_id = ? GROUP BY payment_method', [$shopId]);
+                    $paymentBreakdown = $stmt->fetchAll();
+                    foreach ($paymentBreakdown as &$pb) {
+                        $pb['count'] = (int)$pb['count'];
+                        $pb['total'] = (float)$pb['total'];
+                    }
+                } catch (\Exception $e) {}
 
                 // Top Selling (5)
-                $stmt = DB::query('SELECT p.id, p.name, p.sku, p.stock_quantity, p.price, p.unit,
-                                          COALESCE(SUM(si.quantity), 0) as total_sold,
-                                          COALESCE(SUM(si.subtotal), 0) as total_revenue
-                                   FROM products p
-                                   JOIN sale_items si ON p.id = si.product_id
-                                   WHERE p.shop_id = ?
-                                   GROUP BY p.id, p.name, p.sku, p.stock_quantity, p.price, p.unit
-                                   ORDER BY total_sold DESC
-                                   LIMIT 5', [$shopId]);
-                $topSelling = $stmt->fetchAll();
-                foreach ($topSelling as &$ts) {
-                    $ts['id'] = (int)$ts['id'];
-                    $ts['stock_quantity'] = (int)$ts['stock_quantity'];
-                    $ts['price'] = (float)$ts['price'];
-                    $ts['total_sold'] = (int)$ts['total_sold'];
-                    $ts['total_revenue'] = (float)$ts['total_revenue'];
-                }
+                $topSelling = [];
+                try {
+                    $stmt = DB::query('SELECT p.id, p.name, p.sku, p.stock_quantity, p.price, p.unit,
+                                              COALESCE(SUM(si.quantity), 0) as total_sold,
+                                              COALESCE(SUM(si.subtotal), 0) as total_revenue
+                                       FROM products p
+                                       JOIN sale_items si ON p.id = si.product_id
+                                       WHERE p.shop_id = ?
+                                       GROUP BY p.id, p.name, p.sku, p.stock_quantity, p.price, p.unit
+                                       ORDER BY total_sold DESC
+                                       LIMIT 5', [$shopId]);
+                    $topSelling = $stmt->fetchAll();
+                    foreach ($topSelling as &$ts) {
+                        $ts['id'] = (int)$ts['id'];
+                        $ts['stock_quantity'] = (int)$ts['stock_quantity'];
+                        $ts['price'] = (float)$ts['price'];
+                        $ts['total_sold'] = (int)$ts['total_sold'];
+                        $ts['total_revenue'] = (float)$ts['total_revenue'];
+                    }
+                } catch (\Exception $e) {}
 
                 // Dead stock (5)
-                $stmt = DB::query('SELECT p.id, p.name, p.sku, p.stock_quantity, p.price, p.unit
-                                   FROM products p
-                                   LEFT JOIN sale_items si ON p.id = si.product_id
-                                   WHERE p.shop_id = ? AND p.stock_quantity > 0 AND si.id IS NULL
-                                   ORDER BY p.stock_quantity DESC
-                                   LIMIT 5', [$shopId]);
-                $deadStock = $stmt->fetchAll();
-                foreach ($deadStock as &$ds) {
-                    $ds['id'] = (int)$ds['id'];
-                    $ds['stock_quantity'] = (int)$ds['stock_quantity'];
-                    $ds['price'] = (float)$ds['price'];
-                }
+                $deadStock = [];
+                try {
+                    $stmt = DB::query('SELECT p.id, p.name, p.sku, p.stock_quantity, p.price, p.unit
+                                       FROM products p
+                                       LEFT JOIN sale_items si ON p.id = si.product_id
+                                       WHERE p.shop_id = ? AND p.stock_quantity > 0 AND si.id IS NULL
+                                       ORDER BY p.stock_quantity DESC
+                                       LIMIT 5', [$shopId]);
+                    $deadStock = $stmt->fetchAll();
+                    foreach ($deadStock as &$ds) {
+                        $ds['id'] = (int)$ds['id'];
+                        $ds['stock_quantity'] = (int)$ds['stock_quantity'];
+                        $ds['price'] = (float)$ds['price'];
+                    }
+                } catch (\Exception $e) {}
 
                 // Compile trend map with 7-days points
                 $trendMap = [];

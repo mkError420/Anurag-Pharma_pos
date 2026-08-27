@@ -757,6 +757,78 @@ class DB {
                     UNIQUE KEY `unique_supplier_product` (`supplier_name`(191), `product_name`(191))
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
+            // Create inventory_batches table if not exists
+            if (!$tableExists('inventory_batches')) {
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS `inventory_batches` (
+                        `id` INT AUTO_INCREMENT PRIMARY KEY,
+                        `shop_id` INT NOT NULL,
+                        `product_id` INT NOT NULL,
+                        `purchase_order_item_id` INT NULL,
+                        `batch_number` VARCHAR(50) NOT NULL,
+                        `quantity` INT NOT NULL DEFAULT 0,
+                        `cost_price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                        `expiry_date` DATE NULL,
+                        `received_date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        `status` ENUM('active', 'expired', 'depleted', 'returned') DEFAULT 'active',
+                        `supplier_id` INT NULL,
+                        `notes` TEXT NULL,
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX `idx_batches_shop_product` (`shop_id`, `product_id`),
+                        INDEX `idx_batches_expiry` (`expiry_date`),
+                        INDEX `idx_batches_status` (`status`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                ");
+            }
+
+            // Check if inventory_batch_id exists on sale_items table
+            if ($tableExists('sale_items') && !$columnExists('sale_items', 'inventory_batch_id')) {
+                $pdo->exec("ALTER TABLE `sale_items` ADD COLUMN `inventory_batch_id` INT NULL AFTER `product_id`");
+            }
+
+            // Check if expiry_date and low_stock_threshold exist on products table
+            if ($tableExists('products')) {
+                if (!$columnExists('products', 'expiry_date')) {
+                    $pdo->exec("ALTER TABLE `products` ADD COLUMN `expiry_date` DATE NULL");
+                }
+                if (!$columnExists('products', 'low_stock_threshold')) {
+                    $pdo->exec("ALTER TABLE `products` ADD COLUMN `low_stock_threshold` INT NOT NULL DEFAULT 10");
+                }
+            }
+
+            // Create staff_salaries table if not exists
+            if (!$tableExists('staff_salaries')) {
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS `staff_salaries` (
+                        `id` INT AUTO_INCREMENT PRIMARY KEY,
+                        `shop_id` INT NOT NULL,
+                        `user_id` INT NOT NULL,
+                        `month` VARCHAR(7) NOT NULL,
+                        `salary_date` DATE NOT NULL,
+                        `base_salary` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                        `working_days` INT NOT NULL DEFAULT 0,
+                        `present_days` INT NOT NULL DEFAULT 0,
+                        `absent_days` INT NOT NULL DEFAULT 0,
+                        `late_days` INT NOT NULL DEFAULT 0,
+                        `half_days` INT NOT NULL DEFAULT 0,
+                        `total_working_hours` DECIMAL(8,2) NOT NULL DEFAULT 0.00,
+                        `overtime_hours` DECIMAL(8,2) NOT NULL DEFAULT 0.00,
+                        `overtime_pay` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                        `attendance_deduction` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                        `bonus` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                        `net_salary` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                        `paid_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                        `payment_method` ENUM('cash', 'card', 'mobile_pay', 'bank_transfer', 'other') NOT NULL DEFAULT 'cash',
+                        `notes` TEXT NULL,
+                        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX `idx_staff_salaries_shop_month` (`shop_id`, `month`),
+                        INDEX `idx_staff_salaries_user` (`user_id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                ");
+            }
+
             // Ensure pos_user default account exists with credentials
             if ($tableExists('users')) {
                 $checkUser = $pdo->prepare("SELECT id FROM users WHERE email = ? OR email = ? OR name = ?");

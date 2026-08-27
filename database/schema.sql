@@ -410,6 +410,30 @@ CREATE TABLE IF NOT EXISTS `staff_salaries` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------
+-- Table `inventory_batches`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `inventory_batches` (
+  `id` INT AUTO_INCREMENT,
+  `shop_id` INT NOT NULL,
+  `product_id` INT NOT NULL,
+  `purchase_order_item_id` INT NULL,
+  `batch_number` VARCHAR(50) NOT NULL,
+  `quantity` INT NOT NULL DEFAULT 0,
+  `cost_price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `expiry_date` DATE NULL,
+  `received_date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `status` ENUM('active', 'expired', 'depleted', 'returned') DEFAULT 'active',
+  `supplier_id` INT NULL,
+  `notes` TEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_batches_shop_product` (`shop_id`, `product_id`),
+  INDEX `idx_batches_expiry` (`expiry_date`),
+  INDEX `idx_batches_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------
 -- Seed Initial Demo Data (Super Admin)
 -- -----------------------------------------------------
 -- Password for Super Admin is '123456789' (bcrypt hash used here)
