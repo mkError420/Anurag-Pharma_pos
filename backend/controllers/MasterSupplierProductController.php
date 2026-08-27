@@ -29,7 +29,12 @@ class MasterSupplierProductController {
             ");
             
             // Add category column if it doesn't exist (for existing tables)
-            $pdo->exec("ALTER TABLE `master_supplier_products` ADD COLUMN IF NOT EXISTS `category` VARCHAR(255) DEFAULT NULL AFTER `product_name`");
+            // Check if column exists first
+            $stmt = $pdo->query("SHOW COLUMNS FROM `master_supplier_products` LIKE 'category'");
+            if ($stmt->rowCount() == 0) {
+                $pdo->exec("ALTER TABLE `master_supplier_products` ADD COLUMN `category` VARCHAR(255) DEFAULT NULL AFTER `product_name`");
+                $pdo->exec("ALTER TABLE `master_supplier_products` ADD INDEX `idx_category` (`category`)");
+            }
         } catch (\Exception $e) {
             error_log("Failed to ensure master_supplier_products table: " . $e->getMessage());
         }

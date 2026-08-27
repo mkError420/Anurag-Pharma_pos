@@ -237,6 +237,17 @@ export default function MasterSupplierProducts() {
         headers,
         body: JSON.stringify({ items: csvParsed })
       });
+      
+      // Check if response is JSON
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error('Non-JSON response:', text);
+        triggerAlert('error', `Server error (${res.status}): ${text.substring(0, 200)}...`);
+        setCsvUploading(false);
+        return;
+      }
+      
       const data = await res.json();
       if (res.ok) {
         triggerAlert('success', data.message);
@@ -250,7 +261,8 @@ export default function MasterSupplierProducts() {
         triggerAlert('error', data.error || 'Upload failed.');
       }
     } catch (e) {
-      triggerAlert('error', 'Network error.');
+      console.error('CSV Upload Error:', e);
+      triggerAlert('error', 'Network error: ' + e.message);
     }
     setCsvUploading(false);
   };
