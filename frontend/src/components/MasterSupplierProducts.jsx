@@ -31,7 +31,7 @@ export default function MasterSupplierProducts() {
   // Add/Edit modal
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [form, setForm] = useState({ supplier_name: '', product_name: '' });
+  const [form, setForm] = useState({ supplier_name: '', product_name: '', category: '' });
   const [formLoading, setFormLoading] = useState(false);
   const [supplierSuggestions, setSupplierSuggestions] = useState([]);
   const [showSupSugg, setShowSupSugg] = useState(false);
@@ -103,13 +103,13 @@ export default function MasterSupplierProducts() {
   // ------ Open modal ------
   const openAdd = () => {
     setEditingItem(null);
-    setForm({ supplier_name: '', product_name: '' });
+    setForm({ supplier_name: '', product_name: '', category: '' });
     setShowModal(true);
   };
 
   const openEdit = (item) => {
     setEditingItem(item);
-    setForm({ supplier_name: item.supplier_name, product_name: item.product_name });
+    setForm({ supplier_name: item.supplier_name, product_name: item.product_name, category: item.category || '' });
     setShowModal(true);
   };
 
@@ -195,6 +195,7 @@ export default function MasterSupplierProducts() {
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z_]/g, ''));
     const supIdx = headers.findIndex(h => h.includes('supplier'));
     const prodIdx = headers.findIndex(h => h.includes('product'));
+    const catIdx = headers.findIndex(h => h.includes('category'));
     if (supIdx < 0 || prodIdx < 0) { setCsvErrors(['CSV headers must include "supplier_name" and "product_name"']); setCsvParsed([]); return; }
     const errors = [];
     const parsed = [];
@@ -202,8 +203,9 @@ export default function MasterSupplierProducts() {
       const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
       const sup = cols[supIdx] || '';
       const prod = cols[prodIdx] || '';
+      const cat = catIdx >= 0 ? (cols[catIdx] || '') : '';
       if (!sup || !prod) { errors.push(`Row ${i + 1}: supplier_name and product_name are required.`); continue; }
-      parsed.push({ supplier_name: sup, product_name: prod });
+      parsed.push({ supplier_name: sup, product_name: prod, category: cat || null });
     }
     setCsvParsed(parsed);
     setCsvErrors(errors);
@@ -260,7 +262,7 @@ export default function MasterSupplierProducts() {
 
   // ------ Download CSV template ------
   const downloadTemplate = () => {
-    const csv = 'supplier_name,product_name\nABC Supplier,Product A\nXYZ Supplier,Product B\n';
+    const csv = 'supplier_name,product_name,category\nABC Supplier,Product A,Medicine\nXYZ Supplier,Product B,Supplements\n';
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -384,6 +386,7 @@ export default function MasterSupplierProducts() {
                 </th>
                 <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Supplier Name</th>
                 <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Product Name</th>
+                <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Category</th>
                 <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Added On</th>
                 <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -400,6 +403,15 @@ export default function MasterSupplierProducts() {
                     </span>
                   </td>
                   <td className="p-4 font-semibold text-slate-800">{item.product_name}</td>
+                  <td className="p-4">
+                    {item.category ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold border border-emerald-100">
+                        🏷️ {item.category}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">-</span>
+                    )}
+                  </td>
                   <td className="p-4 text-slate-400 text-xs">{item.created_at ? item.created_at.split('T')[0] : '-'}</td>
                   <td className="p-4 text-center">
                     <div className="flex items-center justify-center gap-2">
@@ -475,6 +487,16 @@ export default function MasterSupplierProducts() {
                   className="w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Category (Optional)</label>
+                <input
+                  type="text"
+                  value={form.category}
+                  onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                  placeholder="e.g., Medicine, Supplements, Equipment..."
+                  className="w-full border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white font-medium"
+                />
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors">Cancel</button>
                 <button type="submit" disabled={formLoading} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-60">
@@ -501,7 +523,7 @@ export default function MasterSupplierProducts() {
             <div className="mb-4 p-3.5 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Required CSV Columns</p>
-                <p className="text-xs text-indigo-600 mt-0.5 font-mono">supplier_name, product_name</p>
+                <p className="text-xs text-indigo-600 mt-0.5 font-mono">supplier_name, product_name, category (optional)</p>
               </div>
               <button onClick={downloadTemplate} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors">Download Template</button>
             </div>
@@ -534,6 +556,7 @@ export default function MasterSupplierProducts() {
                       <tr>
                         <th className="p-2 text-left font-bold text-slate-500">Supplier Name</th>
                         <th className="p-2 text-left font-bold text-slate-500">Product Name</th>
+                        <th className="p-2 text-left font-bold text-slate-500">Category</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -541,6 +564,7 @@ export default function MasterSupplierProducts() {
                         <tr key={i} className="hover:bg-slate-50">
                           <td className="p-2 text-indigo-700 font-semibold">{row.supplier_name}</td>
                           <td className="p-2 text-slate-700">{row.product_name}</td>
+                          <td className="p-2 text-slate-500">{row.category || '-'}</td>
                         </tr>
                       ))}
                     </tbody>

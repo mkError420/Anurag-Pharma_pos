@@ -18,13 +18,18 @@ class MasterSupplierProductController {
                     `id` INT AUTO_INCREMENT PRIMARY KEY,
                     `supplier_name` VARCHAR(255) NOT NULL,
                     `product_name` VARCHAR(255) NOT NULL,
+                    `category` VARCHAR(255) DEFAULT NULL,
                     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX `idx_supplier_name` (`supplier_name`),
                     INDEX `idx_product_name` (`product_name`),
+                    INDEX `idx_category` (`category`),
                     UNIQUE KEY `unique_supplier_product` (`supplier_name`(191), `product_name`(191))
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
+            
+            // Add category column if it doesn't exist (for existing tables)
+            $pdo->exec("ALTER TABLE `master_supplier_products` ADD COLUMN IF NOT EXISTS `category` VARCHAR(255) DEFAULT NULL AFTER `product_name`");
         } catch (\Exception $e) {
             error_log("Failed to ensure master_supplier_products table: " . $e->getMessage());
         }
@@ -54,7 +59,8 @@ class MasterSupplierProductController {
             $params = [];
 
             if (!empty($search)) {
-                $whereClauses[] = '(supplier_name LIKE ? OR product_name LIKE ?)';
+                $whereClauses[] = '(supplier_name LIKE ? OR product_name LIKE ? OR category LIKE ?)';
+                $params[] = "%$search%";
                 $params[] = "%$search%";
                 $params[] = "%$search%";
             }
@@ -74,7 +80,7 @@ class MasterSupplierProductController {
                 $total = (int)$countStmt->fetchColumn();
 
                 $offset = ($page - 1) * $limit;
-                $sql = "SELECT id, supplier_name, product_name, created_at, updated_at 
+                $sql = "SELECT id, supplier_name, product_name, category, created_at, updated_at 
                         FROM master_supplier_products $whereSql 
                         ORDER BY supplier_name ASC, product_name ASC 
                         LIMIT $limit OFFSET $offset";
@@ -92,7 +98,7 @@ class MasterSupplierProductController {
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             } else {
                 // Return all matching
-                $sql = "SELECT id, supplier_name, product_name, created_at, updated_at 
+                $sql = "SELECT id, supplier_name, product_name, category, created_at, updated_at 
                         FROM master_supplier_products $whereSql 
                         ORDER BY supplier_name ASC, product_name ASC";
                 $stmt = $pdo->prepare($sql);
@@ -139,6 +145,7 @@ class MasterSupplierProductController {
 
         $supplierName = isset($requestData['supplier_name']) ? trim($requestData['supplier_name']) : '';
         $productName = isset($requestData['product_name']) ? trim($requestData['product_name']) : '';
+        $category = isset($requestData['category']) ? trim($requestData['category']) : null;
 
         if (empty($supplierName)) {
             Auth::jsonError('Supplier name is required.', 400);
@@ -165,8 +172,8 @@ class MasterSupplierProductController {
                 return;
             }
 
-            $insertStmt = $pdo->prepare("INSERT INTO master_supplier_products (supplier_name, product_name) VALUES (?, ?)");
-            $insertStmt->execute([$supplierName, $productName]);
+            $insertStmt = $pdo->prepare("INSERT INTO master_supplier_products (supplier_name, product_name, category) VALUES (?, ?, ?)");
+            $insertStmt->execute([$supplierName, $productName, $category]);
             $id = (int)$pdo->lastInsertId();
 
             http_response_code(201);
@@ -175,7 +182,8 @@ class MasterSupplierProductController {
                 'message' => 'Supplier product added successfully.',
                 'id' => $id,
                 'supplier_name' => $supplierName,
-                'product_name' => $productName
+                'product_name' => $productName,
+                'category' => $category
             ], JSON_UNESCAPED_UNICODE);
 
         } catch (\Exception $e) {
@@ -206,13 +214,14 @@ class MasterSupplierProductController {
             $errors = [];
 
             $insertStmt = $pdo->prepare("
-                INSERT IGNORE INTO master_supplier_products (supplier_name, product_name) 
-                VALUES (?, ?)
+                INSERT IGNORE INTO master_supplier_products (supplier_name, product_name, category) 
+                VALUES (?, ?, ?)
             ");
 
             foreach ($items as $idx => $item) {
                 $sup = isset($item['supplier_name']) ? trim($item['supplier_name']) : '';
                 $prod = isset($item['product_name']) ? trim($item['product_name']) : '';
+                $cat = isset($item['category']) ? trim($item['category']) : null;
 
                 if (empty($sup) || empty($prod)) {
                     $skippedCount++;
@@ -220,7 +229,7 @@ class MasterSupplierProductController {
                     continue;
                 }
 
-                $insertStmt->execute([$sup, $prod]);
+                $insertStmt->execute([$sup, $prod, $cat]);
                 if ($insertStmt->rowCount() > 0) {
                     $insertedCount++;
                 } else {
@@ -258,6 +267,7 @@ class MasterSupplierProductController {
 
         $supplierName = isset($requestData['supplier_name']) ? trim($requestData['supplier_name']) : '';
         $productName = isset($requestData['product_name']) ? trim($requestData['product_name']) : '';
+        $category = isset($requestData['category']) ? trim($requestData['category']) : null;
 
         if (empty($supplierName)) {
             Auth::jsonError('Supplier name is required.', 400);
@@ -276,15 +286,16 @@ class MasterSupplierProductController {
                 Auth::jsonError('Another entry already exists with this supplier and product name.', 409);
             }
 
-            $stmt = $pdo->prepare("UPDATE master_supplier_products SET supplier_name = ?, product_name = ? WHERE id = ?");
-            $stmt->execute([$supplierName, $productName, (int)$id]);
+            $stmt = $pdo->prepare("UPDATE master_supplier_products SET supplier_name = ?, product_name = ?, category = ? WHERE id = ?");
+            $stmt->execute([$supplierName, $productName, $category, (int)$id]);
 
             header('Content-Type: application/json');
             echo json_encode([
                 'message' => 'Supplier product updated successfully.',
                 'id' => (int)$id,
                 'supplier_name' => $supplierName,
-                'product_name' => $productName
+                'product_name' => $productName,
+                'category' => $category
             ], JSON_UNESCAPED_UNICODE);
 
         } catch (\Exception $e) {
@@ -353,7 +364,7 @@ class MasterSupplierProductController {
 
         try {
             $pdo = DB::getConnection();
-            $stmt = $pdo->query("SELECT id, supplier_name, product_name, created_at FROM master_supplier_products ORDER BY supplier_name ASC, product_name ASC");
+            $stmt = $pdo->query("SELECT id, supplier_name, product_name, category, created_at FROM master_supplier_products ORDER BY supplier_name ASC, product_name ASC");
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             header('Content-Type: text/csv; charset=utf-8');
@@ -362,13 +373,14 @@ class MasterSupplierProductController {
             $output = fopen('php://output', 'w');
             // Add UTF-8 BOM for Excel compatibility
             fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($output, ['ID', 'Supplier Name', 'Product Name', 'Created At']);
+            fputcsv($output, ['ID', 'Supplier Name', 'Product Name', 'Category', 'Created At']);
 
             foreach ($rows as $row) {
                 fputcsv($output, [
                     $row['id'],
                     $row['supplier_name'],
                     $row['product_name'],
+                    $row['category'] ?? '',
                     $row['created_at']
                 ]);
             }
