@@ -516,7 +516,7 @@ $routes = [
         '/^suppliers$/' => function($args, $data) { SupplierController::createSupplier($data); },
         // Master Supplier Products
         '/^master-supplier-products$/' => function($args, $data) { MasterSupplierProductController::create($data); },
-        '/^master-supplier-products\/bulk-upload$/' => function($args, $data) { MasterSupplierProductController::bulkUpload($data); },
+        '/^master-supplier-products\/import$/' => function($args, $data) { MasterSupplierProductController::bulkUpload($data); },
         '/^master-supplier-products\/bulk-delete$/' => function($args, $data) { MasterSupplierProductController::bulkDelete($data); },
         '/^suppliers\/bulk-delete$/' => function($args, $data) { SupplierController::bulkDeleteSuppliers($data); },
         '/^suppliers\/purchase-orders$/' => function($args, $data) { SupplierController::createPurchaseOrder($data); },

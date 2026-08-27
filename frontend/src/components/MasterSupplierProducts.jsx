@@ -232,7 +232,7 @@ export default function MasterSupplierProducts() {
     if (csvParsed.length === 0) { triggerAlert('error', 'No valid rows to upload.'); return; }
     setCsvUploading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/master-supplier-products/bulk-upload`, {
+      const res = await fetch(`${API_BASE_URL}/master-supplier-products/import`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ items: csvParsed })
