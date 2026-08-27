@@ -1,3 +1,5 @@
+DirectoryIndex frontend/dist/index.html index.html index.php
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
@@ -5,16 +7,32 @@
   # 1. Backend API requests
   RewriteRule ^backend/(.*)$ backend/index.php [L,QSA]
 
-  # 2. Assets routing to frontend/dist/assets
+  # 2. Uploaded media files
+  RewriteRule ^uploads/(.*)$ uploads/$1 [L]
+
+  # 3. Static assets routing to frontend/dist/assets
   RewriteRule ^assets/(.*)$ frontend/dist/assets/$1 [L]
 
-  # 3. SPA Fallback - route all other requests to frontend/dist/index.html
+  # 4. If actual file exists in public directory, serve directly
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+
+  # 5. SPA Fallback - route all other web requests to frontend/dist/index.html
   RewriteCond %{REQUEST_URI} !^/backend/
-  RewriteCond %{REQUEST_URI} !^/frontend/
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_URI} !^/uploads/
   RewriteRule ^(.*)$ frontend/dist/index.html [L,QSA]
 </IfModule>
+
+# Protect sensitive configuration and database files
+<FilesMatch "(\.env|\.sql|\.log|\.lock|\.git|\.md)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+  </IfModule>
+</FilesMatch>
 
 # Enable GZIP Compression for all text/script/css assets
 <IfModule mod_deflate.c>

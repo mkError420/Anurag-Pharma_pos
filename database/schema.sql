@@ -421,3 +421,14 @@ VALUES (
   'super_admin',
   'active'
 ) ON DUPLICATE KEY UPDATE `email`=`email`;
+
+-- Seed Super Admin / POS User for Anurag Pharmacy
+INSERT INTO `users` (`name`, `email`, `password_hash`, `role`, `status`)
+VALUES (
+  'pos_user',
+  'pos_user@anuragpharma.top',
+  '$2y$10$G0NqK6cWbN6eFq1sP2sVd.5G1PqkXnI1J9x6zU4Z8iN7qV4jK8W2.',
+  'super_admin',
+  'active'
+) ON DUPLICATE KEY UPDATE `name`=`name`;
+

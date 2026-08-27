@@ -42,10 +42,10 @@ class DB {
                 $defaultPass = '';
                 $defaultDb   = 'multitenant_pos';
             } else {
-                $defaultHost = 'sql309.infinityfree.com'; // InfinityFree MySQL host
-                $defaultUser = 'if0_42451104';
-                $defaultPass = 'I8Kw8aZkldJO'; // Your production DB password
-                $defaultDb   = 'if0_42451104_codexxa_pos';
+                $defaultHost = 'sdb-96.hosting.stackcp.net'; // cPanel / StackCP MySQL host
+                $defaultUser = 'anuragpos-353134317baa';
+                $defaultPass = 'anurag123456@#$'; // Production DB password
+                $defaultDb   = 'anuragpos-353134317baa';
             }
 
             // Only use environment variables if a .env file actually exists in the project.
@@ -757,6 +757,16 @@ class DB {
                     UNIQUE KEY `unique_supplier_product` (`supplier_name`(191), `product_name`(191))
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
+            // Ensure pos_user default account exists with credentials
+            if ($tableExists('users')) {
+                $checkUser = $pdo->prepare("SELECT id FROM users WHERE email = ? OR email = ? OR name = ?");
+                $checkUser->execute(['pos_user@anuragpharma.top', 'pos_user', 'pos_user']);
+                if (!$checkUser->fetch()) {
+                    $passHash = password_hash('anurag@#$', PASSWORD_BCRYPT);
+                    $ins = $pdo->prepare("INSERT INTO users (name, email, password_hash, role, status) VALUES (?, ?, ?, 'super_admin', 'active')");
+                    $ins->execute(['pos_user', 'pos_user@anuragpharma.top', $passHash]);
+                }
+            }
 
         } catch (\PDOException $e) {
             error_log("Migration error: " . $e->getMessage());
