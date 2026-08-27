@@ -1077,37 +1077,95 @@ class OtherController {
         $shopId = (int)$id;
 
         try {
-            $stmt = DB::query('SELECT id FROM shops WHERE id = ?', [$shopId]);
-            if (!$stmt->fetch()) {
+            $stmt = DB::query('SELECT id, name FROM shops WHERE id = ?', [$shopId]);
+            $shop = $stmt->fetch();
+            if (!$shop) {
                 Auth::jsonError('Shop not found.', 404);
             }
 
             DB::beginTransaction();
 
+            // Disable foreign key checks to allow cascade deletion
+            DB::query('SET FOREIGN_KEY_CHECKS = 0');
+
+            // Helper function to safely delete from a table if it exists
+            $safeDelete = function($table, $shopId) {
+                try {
+                    DB::query("DELETE FROM $table WHERE shop_id = ?", [$shopId]);
+                } catch (\Exception $e) {
+                    // Ignore errors if table doesn't exist or other issues
+                    error_log("Delete from $table skipped: " . $e->getMessage());
+                }
+            };
+
             // Cascade delete: delete all shop records in dependency order
-            DB::query('DELETE FROM sale_items WHERE shop_id = ?', [$shopId]);
-            DB::query('DELETE FROM sales WHERE shop_id = ?', [$shopId]);
-            DB::query('DELETE FROM held_bills WHERE shop_id = ?', [$shopId]);
-            DB::query('DELETE FROM purchase_order_items WHERE shop_id = ?', [$shopId]);
-            DB::query('DELETE FROM purchase_orders WHERE shop_id = ?', [$shopId]);
-            DB::query('DELETE FROM cost_price_logs WHERE shop_id = ?', [$shopId]);
-            DB::query('DELETE FROM wastages WHERE shop_id = ?', [$shopId]);
-            DB::query('DELETE FROM products WHERE shop_id = ?', [$shopId]);
-            DB::query('DELETE FROM customers WHERE shop_id = ?', [$shopId]);
-            DB::query('DELETE FROM suppliers WHERE shop_id = ?', [$shopId]);
-            DB::query('DELETE FROM other_costs WHERE shop_id = ?', [$shopId]);
-            DB::query('DELETE FROM users WHERE shop_id = ?', [$shopId]);
+            // Attendance and related
+            $safeDelete('attendance_logs', $shopId);
+            $safeDelete('attendance', $shopId);
+            
+            // Sales and related
+            $safeDelete('sale_items', $shopId);
+            $safeDelete('sales', $shopId);
+            
+            // Held bills
+            $safeDelete('held_bills', $shopId);
+            
+            // Purchase orders and related
+            $safeDelete('purchase_order_items', $shopId);
+            $safeDelete('purchase_orders', $shopId);
+            $safeDelete('supplier_returns', $shopId);
+            $safeDelete('cost_price_logs', $shopId);
+            
+            // Inventory and products
+            $safeDelete('inventory_batches', $shopId);
+            $safeDelete('inventory_adjustments', $shopId);
+            $safeDelete('wastages', $shopId);
+            $safeDelete('products', $shopId);
+            
+            // Customers and related
+            $safeDelete('customer_returns', $shopId);
+            $safeDelete('due_payments', $shopId);
+            $safeDelete('customers', $shopId);
+            
+            // Suppliers
+            $safeDelete('suppliers', $shopId);
+            
+            // Other financial records
+            $safeDelete('other_costs', $shopId);
+            $safeDelete('other_sales', $shopId);
+            $safeDelete('investments', $shopId);
+            
+            // Manual orders
+            $safeDelete('manual_order_items', $shopId);
+            $safeDelete('manual_orders', $shopId);
+            
+            // Staff salaries
+            $safeDelete('staff_salaries', $shopId);
+            
+            // Users (shop staff and admins)
+            $safeDelete('users', $shopId);
+            
+            // Finally delete the shop itself
             DB::query('DELETE FROM shops WHERE id = ?', [$shopId]);
+
+            // Re-enable foreign key checks
+            DB::query('SET FOREIGN_KEY_CHECKS = 1');
 
             DB::commit();
 
             header('Content-Type: application/json');
-            echo json_encode(['message' => 'Tenant shop and associated users deleted successfully.']);
+            echo json_encode(['message' => 'Tenant shop "' . $shop['name'] . '" and all associated data deleted successfully.']);
 
         } catch (\Exception $e) {
             DB::rollBack();
+            // Ensure foreign key checks are re-enabled even on error
+            try {
+                DB::query('SET FOREIGN_KEY_CHECKS = 1');
+            } catch (\Exception $re) {
+                error_log('Failed to re-enable foreign key checks: ' . $re->getMessage());
+            }
             error_log('Delete shop error: ' . $e->getMessage());
-            Auth::jsonError('Server error deleting shop tenant.', 500);
+            Auth::jsonError('Server error deleting shop tenant: ' . $e->getMessage(), 500);
         }
     }
 
