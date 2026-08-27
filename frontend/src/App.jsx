@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
-import Home from './components/Home';
-import AboutUs from './components/AboutUs';
-import ContactUs from './components/ContactUs';
 import TeamMembers from './components/TeamMembers';
 import HeroSlides from './components/HeroSlides';
 import Videos from './components/Videos';
@@ -33,7 +30,6 @@ import AllTransactions from './components/AllTransactions';
 import Attendance from './components/Attendance';
 import MasterSupplierProducts from './components/MasterSupplierProducts';
 import { extractDominantColor } from './utils/colorExtractor';
-import TopInfoBar from './components/TopInfoBar';
 
 import API_BASE_URL from './config';
 
@@ -63,7 +59,6 @@ export default function App() {
   const [loading, setLoading] = useState(true); // checking stored token on startup
   const [suspendedMessage, setSuspendedMessage] = useState(''); // shop suspended message
   const [currentPath, setCurrentPath] = useState('/checkout');
-  const [publicPage, setPublicPage] = useState('home'); // home, about, contact
   const [lowStockAlerts, setLowStockAlerts] = useState([]);
   const [expiryAlerts, setExpiryAlerts] = useState([]);
   const [heldBillsCount, setHeldBillsCount] = useState(0);
@@ -71,56 +66,6 @@ export default function App() {
   const [logoColor, setLogoColor] = useState('#C4A484'); // Default light brown color
   const [newContactMessagesCount, setNewContactMessagesCount] = useState(0);
   const [pendingSubscriptionsCount, setPendingSubscriptionsCount] = useState(0);
-  const [isLoginOnly, setIsLoginOnly] = useState(false); // Track if on /login URL
-
-  // Handle URL-based routing for /login and public pages
-  useEffect(() => {
-    const handleUrlChange = () => {
-      const path = window.location.pathname;
-      if (path === '/login') {
-        setIsLoginOnly(true);
-      } else {
-        setIsLoginOnly(false);
-      }
-
-      // Handle public page routing based on URL
-      if (!user) {
-        if (path === '/about') {
-          setPublicPage('about');
-        } else if (path === '/contact') {
-          setPublicPage('contact');
-        } else {
-          setPublicPage('home');
-        }
-      }
-    };
-
-    // Check initial URL
-    handleUrlChange();
-
-    // Listen to URL changes
-    window.addEventListener('popstate', handleUrlChange);
-    
-    // Also listen to pushState/replaceState for SPA navigation
-    const originalPushState = history.pushState;
-    const originalReplaceState = history.replaceState;
-    
-    history.pushState = function(...args) {
-      originalPushState.apply(this, args);
-      handleUrlChange();
-    };
-    
-    history.replaceState = function(...args) {
-      originalReplaceState.apply(this, args);
-      handleUrlChange();
-    };
-
-    return () => {
-      window.removeEventListener('popstate', handleUrlChange);
-      history.pushState = originalPushState;
-      history.replaceState = originalReplaceState;
-    };
-  }, [user]);
 
   // On mount: verify existing token against the backend
   useEffect(() => {
@@ -401,37 +346,8 @@ export default function App() {
     );
   }
 
-  // Not logged in — show public pages (with optional suspension message)
+  // Not logged in — show login page directly
   if (!user) {
-    // If on /login URL, show only the login page
-    if (isLoginOnly) {
-      return (
-        <>
-          {suspendedMessage && (
-            <div className="fixed top-0 inset-x-0 z-50 flex items-center justify-center p-4 bg-slate-950">
-              <div className="w-full max-w-md bg-rose-900/40 border border-rose-500/40 rounded-2xl p-6 text-center shadow-2xl backdrop-blur-sm">
-                <div className="w-14 h-14 rounded-2xl bg-rose-500/20 flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-7 h-7 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-bold text-rose-300 mb-1">Shop Suspended</h3>
-                <p className="text-sm text-rose-200/80 mb-4">{suspendedMessage}</p>
-                <button
-                  onClick={() => setSuspendedMessage('')}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-xl transition-colors"
-                >
-                  Go to Login
-                </button>
-              </div>
-            </div>
-          )}
-          <Login onLoginSuccess={handleLoginSuccess} />
-        </>
-      );
-    }
-
-    // Otherwise show public pages
     return (
       <>
         {suspendedMessage && (
@@ -453,13 +369,7 @@ export default function App() {
             </div>
           </div>
         )}
-        {/* Shared sticky top bar for all public pages */}
-        <div className="sticky top-0 z-50">
-          <TopInfoBar />
-        </div>
-        {publicPage === 'home' && <Home onNavigate={setPublicPage} onLoginSuccess={handleLoginSuccess} publicPage={publicPage} />}
-        {publicPage === 'about' && <AboutUs onNavigate={setPublicPage} publicPage={publicPage} />}
-        {publicPage === 'contact' && <ContactUs onNavigate={setPublicPage} publicPage={publicPage} />}
+        <Login onLoginSuccess={handleLoginSuccess} />
       </>
     );
   }
