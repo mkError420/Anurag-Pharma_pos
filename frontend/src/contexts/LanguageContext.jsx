@@ -95,6 +95,12 @@ const translations = {
     'language_en': 'English',
     'language_bn': 'বাংলা',
     'switch_language': 'Switch Language',
+    'calculator': 'Calculator',
+    'quick_calculator': 'Quick Calculator',
+    'standard': 'Standard',
+    'shop_tools': 'Shop Tools',
+    'history': 'History',
+    'calc_shortcut': 'Shortcut: Alt + C or Esc to close',
 
     // Common Buttons & Actions
     'save': 'Save',
@@ -244,6 +250,12 @@ const translations = {
     'language_en': 'English',
     'language_bn': 'বাংলা',
     'switch_language': 'ভাষা পরিবর্তন করুন',
+    'calculator': 'ক্যালকুলেটর',
+    'quick_calculator': 'ক্যালকুলেটর',
+    'standard': 'সাধারণ',
+    'shop_tools': 'শপ টুলস',
+    'history': 'হিস্ট্রি',
+    'calc_shortcut': 'শর্টকাট: Alt + C বা Esc চেপে বন্ধ করুন',
 
     // Common Buttons & Actions
     'save': 'সংরক্ষণ করুন',

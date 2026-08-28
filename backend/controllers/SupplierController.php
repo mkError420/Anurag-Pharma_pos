@@ -597,14 +597,8 @@ class SupplierController {
                     DB::query('UPDATE products SET ' . implode(', ', $updateFields) . ' WHERE id = ? AND shop_id = ?', $updateParams);
                 }
             } else {
-                // Completely new product not in database
-                $sku = !empty($item['sku']) ? trim($item['sku']) : ('SKU-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $item['name']), 0, 3)) . '-' . rand(100, 999));
-                
-                // Ensure generated SKU is unique in shop
-                $skuCheck = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ?', [$shopId, $sku]);
-                if ($skuCheck->fetch()) {
-                    $sku = 'SKU-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $item['name']), 0, 3)) . '-' . rand(1000, 9999);
-                }
+                // Use provided SKU or keep empty
+                $sku = !empty($item['sku']) ? trim($item['sku']) : '';
 
                 $sellingPriceVal = ($item['selling_price'] > 0) ? $item['selling_price'] : $item['cost_price'];
                 $categoryVal = !empty($item['category']) ? $item['category'] : null;
@@ -1205,7 +1199,7 @@ class SupplierController {
                 // If items not provided, auto-receive all items with ordered quantities
                 if (empty($items) || !is_array($items)) {
                     $itemsStmt = DB::query(
-                        'SELECT poi.product_id, poi.quantity_ordered, poi.cost_price, poi.selling_price 
+                        'SELECT poi.product_id, poi.quantity_ordered, poi.cost_price, poi.selling_price, poi.expiry_date 
                          FROM purchase_order_items poi 
                          WHERE poi.purchase_order_id = ? AND poi.shop_id = ?',
                         [$poId, $shopId]
@@ -1219,7 +1213,7 @@ class SupplierController {
                             'quantity_received' => (int)$poItem['quantity_ordered'],
                             'cost_price' => (float)$poItem['cost_price'],
                             'selling_price' => (float)$poItem['selling_price'],
-                            'expiry_date' => null
+                            'expiry_date' => !empty($poItem['expiry_date']) ? $poItem['expiry_date'] : null
                         ];
                     }
                 }

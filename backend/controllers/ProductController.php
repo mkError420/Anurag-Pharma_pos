@@ -132,11 +132,11 @@ class ProductController {
                     
                     // Use batch quantity if available, otherwise use product stock
                     if ($p['batch_id'] !== null) {
-                        $p['stock_quantity'] = (int)$p['stock_quantity'];
+                        $p['stock_quantity'] = (float)$p['stock_quantity'];
                         $p['expiry_date'] = $p['expiry_date'];
                         $p['is_batch'] = true;
                     } else {
-                        $p['stock_quantity'] = (int)$p['stock_quantity'];
+                        $p['stock_quantity'] = (float)$p['stock_quantity'];
                         // Keep product expiry_date as is
                         $p['is_batch'] = false;
                     }

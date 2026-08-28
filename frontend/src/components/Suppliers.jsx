@@ -185,6 +185,7 @@ export default function Suppliers() {
     category: '',
     cost_price: '',
     selling_price: '',
+    margin_percent: '',
     quantity_ordered: 1,
     unit: 'piece',
     low_stock_threshold: '10',
@@ -335,12 +336,17 @@ export default function Suppliers() {
       setBarcodeStatus({ type: 'warn', msg: `+1 → ${matched.name} (qty updated in cart)` });
     } else {
       // Add as new cart item with qty 1
+      const matchMaster = (allMasterProducts || []).find(
+        p => p.product_name && p.product_name.trim().toLowerCase() === (matched.name || '').trim().toLowerCase()
+      );
+      const resolvedCategory = (matchMaster && matchMaster.category) ? matchMaster.category : (matched.category || '');
+
       const newItem = {
         product_id: matched.id,
         is_new: false,
         name: matched.name,
         sku: matched.sku,
-        category: matched.category || '',
+        category: resolvedCategory,
         cost_price: parseFloat(matched.current_cost || matched.cost_price || 0),
         selling_price: parseFloat(matched.price || matched.selling_price || 0),
         quantity_ordered: 1,
@@ -390,11 +396,8 @@ export default function Suppliers() {
       matchedProduct = productsList.find(p => p.name && p.name.trim().toLowerCase() === trimmedName.toLowerCase());
     }
 
-    // Auto-generate SKU only for new products, not when matching existing items or editing
-    let finalSku = trimmedSku || (matchedProduct ? matchedProduct.sku : '');
-    if (!finalSku && editingCartItemIndex === null) {
-      finalSku = 'SKU-' + trimmedName.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, 'X') + '-' + Math.floor(100 + Math.random() * 900);
-    }
+    // Keep SKU empty unless provided by the user (or matched from existing product)
+    const finalSku = trimmedSku || (matchedProduct ? (matchedProduct.sku || '') : '');
 
     const newItem = {
       product_id: matchedProduct ? matchedProduct.id : null,
@@ -432,6 +435,7 @@ export default function Suppliers() {
       category: '',
       cost_price: '',
       selling_price: '',
+      margin_percent: '',
       quantity_ordered: 1,
       expiry_date: '',
       unit: 'piece'
@@ -729,7 +733,9 @@ export default function Suppliers() {
       if (activeTab === 'pos') {
         await Promise.all([
           fetchProducts(),
-          fetchPurchaseOrders()
+          fetchPurchaseOrders(),
+          fetchMasterSupplierNames(),
+          fetchAllMasterProducts()
         ]);
       } else if (activeTab === 'logs') {
         await fetchCostLogs();
@@ -933,6 +939,7 @@ export default function Suppliers() {
 
   // Distinct supplier names from super admin Supplier Products Catalog
   const [masterSupplierNames, setMasterSupplierNames] = useState([]);
+  const [allMasterProducts, setAllMasterProducts] = useState([]);
 
   // Fetch all distinct supplier names from the master catalog (super admin)
   const fetchMasterSupplierNames = async () => {
@@ -945,6 +952,22 @@ export default function Suppliers() {
       if (Array.isArray(data)) setMasterSupplierNames(data);
     } catch (e) {
       // silently fail — supplier names are optional hint
+    }
+  };
+
+  // Fetch all master catalog products (super admin Supplier Products Catalog)
+  const fetchAllMasterProducts = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/master-supplier-products`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (data.data || []);
+      setAllMasterProducts(list);
+      return list;
+    } catch (e) {
+      return [];
     }
   };
 
@@ -971,8 +994,14 @@ export default function Suppliers() {
     setProductSearch('');
     setShowSupplierSuggestions(false);
     setShowProductSuggestions(false);
-    // Load master catalog supplier names so they appear in the Supplier * dropdown
+    // Load master catalog supplier names and all master products
     fetchMasterSupplierNames();
+    fetchAllMasterProducts();
+    if (existingSupplier && existingSupplier.name) {
+      fetchMasterCatalogForSupplier(existingSupplier.name);
+    } else {
+      setMasterCatalogProducts([]);
+    }
     setIsEditPoMode(false);
     setPoCart([]);
     setEditingCartItemIndex(null);
@@ -1031,13 +1060,19 @@ export default function Suppliers() {
     } else {
       const prod = productsList.find(p => String(p.id) === String(productId));
       if (prod) {
+        // Auto-match category from Super Admin Master Supplier Products Catalog if present
+        const matchMaster = (allMasterProducts || []).find(
+          m => m.product_name && m.product_name.trim().toLowerCase() === (prod.name || '').trim().toLowerCase()
+        );
+        const resolvedCategory = (matchMaster && matchMaster.category) ? matchMaster.category : (prod.category || '');
+
         setPoFormData(prev => ({
           ...prev, // Keep existing form data
           product_id: productId,
           is_new: false,
           name: prod.name,
           sku: prod.sku,
-          category: prod.category || '',
+          category: resolvedCategory,
           cost_price: prod.cost_price !== undefined && prod.cost_price !== null ? prod.cost_price : prev.cost_price,
           selling_price: prod.price,
           expiry_date: prod.expiry_date || '',
@@ -6364,9 +6399,9 @@ export default function Suppliers() {
               <div className="relative">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
                   Product Name *
-                  {poFormData.is_new && masterCatalogProducts.length > 0 && (
+                  {poFormData.is_new && (masterCatalogProducts.length > 0 || allMasterProducts.length > 0) && (
                     <span className="ml-2 text-[10px] font-normal bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100">
-                      {masterCatalogProducts.length} from catalog
+                      {masterCatalogProducts.length > 0 ? `${masterCatalogProducts.length} from catalog` : `${allMasterProducts.length} in catalog`}
                     </span>
                   )}
                 </label>
@@ -6377,7 +6412,21 @@ export default function Suppliers() {
                       value={poFormData.name}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setPoFormData({ ...poFormData, name: val });
+                        // Check if typed product name matches any master product catalog item
+                        const catalogPool = (masterCatalogProducts && masterCatalogProducts.length > 0)
+                          ? masterCatalogProducts
+                          : allMasterProducts;
+                        const match = catalogPool.find(
+                          p => p.product_name && p.product_name.trim().toLowerCase() === val.trim().toLowerCase()
+                        ) || (allMasterProducts || []).find(
+                          p => p.product_name && p.product_name.trim().toLowerCase() === val.trim().toLowerCase()
+                        );
+
+                        setPoFormData(prev => ({
+                          ...prev,
+                          name: val,
+                          category: match?.category ? match.category : prev.category
+                        }));
                         setMasterProductNameInput(val);
                         setShowMasterProductSuggestions(val.trim().length >= 0);
                       }}
@@ -6388,8 +6437,24 @@ export default function Suppliers() {
                         if (supName && masterCatalogProducts.length === 0) {
                           fetchMasterCatalogForSupplier(supName);
                         }
+                        if (allMasterProducts.length === 0) {
+                          fetchAllMasterProducts();
+                        }
                       }}
-                      onBlur={() => setTimeout(() => setShowMasterProductSuggestions(false), 220)}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          setShowMasterProductSuggestions(false);
+                          if (poFormData.name && poFormData.name.trim()) {
+                            const trimmed = poFormData.name.trim().toLowerCase();
+                            const match = (allMasterProducts || []).find(
+                              p => p.product_name && p.product_name.trim().toLowerCase() === trimmed
+                            );
+                            if (match?.category && !poFormData.category) {
+                              setPoFormData(prev => ({ ...prev, category: match.category }));
+                            }
+                          }
+                        }, 220);
+                      }}
                       required
                       placeholder="Type product name or pick from catalog..."
                       className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold"
@@ -6397,27 +6462,51 @@ export default function Suppliers() {
                     />
                     {showMasterProductSuggestions && (() => {
                       const query = (poFormData.name || '').toLowerCase().trim();
-                      const filteredMaster = masterCatalogProducts.filter(p =>
-                        !query || p.product_name.toLowerCase().includes(query)
+                      const catalogPool = (masterCatalogProducts && masterCatalogProducts.length > 0)
+                        ? masterCatalogProducts
+                        : allMasterProducts;
+                      const filteredMaster = catalogPool.filter(p =>
+                        !query || (p.product_name && p.product_name.toLowerCase().includes(query))
                       );
                       if (filteredMaster.length === 0) return null;
                       return (
                         <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-indigo-200 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto divide-y divide-slate-100">
-                          <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100">
-                            <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">📦 Supplier Catalog Suggestions</span>
+                          <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">📦 Super Admin Catalog Suggestions</span>
+                            <span className="text-[10px] text-slate-400 font-medium">{filteredMaster.length} items</span>
                           </div>
                           {filteredMaster.map((p) => (
                             <div
-                              key={p.id}
+                              key={p.id || `${p.supplier_name}-${p.product_name}`}
                               onMouseDown={(e) => {
                                 e.preventDefault();
-                                setPoFormData(prev => ({ ...prev, name: p.product_name }));
+                                setPoFormData(prev => ({
+                                  ...prev,
+                                  name: p.product_name,
+                                  category: p.category || prev.category || ''
+                                }));
                                 setShowMasterProductSuggestions(false);
+                                if (!supplierSearch.trim() && p.supplier_name) {
+                                  setSupplierSearch(p.supplier_name);
+                                  createOrGetSupplier(p.supplier_name).then(s => {
+                                    if (s) setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
+                                  });
+                                }
                               }}
                               className="px-3 py-2 hover:bg-indigo-50 cursor-pointer transition-colors"
                             >
-                              <div className="text-xs font-semibold text-slate-800">{p.product_name}</div>
-                              <div className="text-[10px] text-indigo-500 font-medium mt-0.5">🏢 {p.supplier_name}</div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-slate-800">{p.product_name}</span>
+                                {p.category && (
+                                  <span className="text-[10px] bg-indigo-50 text-indigo-700 font-medium px-1.5 py-0.5 rounded border border-indigo-100">
+                                    📁 {p.category}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center justify-between">
+                                <span>🏢 {p.supplier_name}</span>
+                                {p.category && <span className="text-slate-500 font-semibold">Category: {p.category}</span>}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -6441,7 +6530,7 @@ export default function Suppliers() {
                   type="text"
                   value={poFormData.sku || ''}
                   onChange={(e) => setPoFormData({ ...poFormData, sku: e.target.value })}
-                  placeholder="Auto-generated if empty"
+                  placeholder="Enter SKU / Code (optional)"
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold font-mono"
                 />
               </div>
@@ -6457,14 +6546,17 @@ export default function Suppliers() {
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold"
                 />
                 <datalist id="po-categories-list">
-                  {Array.from(new Set(productsList.map(p => p.category).filter(Boolean))).map(cat => (
+                  {Array.from(new Set([
+                    ...productsList.map(p => p.category),
+                    ...allMasterProducts.map(p => p.category)
+                  ].filter(Boolean))).map(cat => (
                     <option key={cat} value={cat} />
                   ))}
                 </datalist>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Cost Price (৳) *</label>
                 <input
@@ -6483,10 +6575,45 @@ export default function Suppliers() {
                   type="number"
                   step="0.01"
                   value={poFormData.selling_price}
-                  onChange={(e) => setPoFormData({ ...poFormData, selling_price: e.target.value })}
+                  onChange={(e) => {
+                    const salePrice = parseFloat(e.target.value) || 0;
+                    const pct = parseFloat(poFormData.margin_percent);
+                    const newCost = (!isNaN(pct) && pct > 0 && salePrice > 0)
+                      ? (salePrice * (1 - pct / 100)).toFixed(2)
+                      : poFormData.cost_price;
+                    setPoFormData({ ...poFormData, selling_price: e.target.value, cost_price: newCost });
+                  }}
                   placeholder="0.00"
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Margin %</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={poFormData.margin_percent}
+                    onChange={(e) => {
+                      const pct = parseFloat(e.target.value);
+                      const salePrice = parseFloat(poFormData.selling_price);
+                      const newCost = (!isNaN(pct) && pct >= 0 && salePrice > 0)
+                        ? (salePrice * (1 - pct / 100)).toFixed(2)
+                        : poFormData.cost_price;
+                      setPoFormData({ ...poFormData, margin_percent: e.target.value, cost_price: newCost });
+                    }}
+                    placeholder="e.g. 20"
+                    className="w-full border border-indigo-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-indigo-50 pr-7 font-semibold text-indigo-700"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-indigo-400 pointer-events-none">%</span>
+                </div>
+                {poFormData.margin_percent !== '' && parseFloat(poFormData.selling_price) > 0 && (
+                  <p className="text-[10px] text-indigo-500 mt-0.5 font-medium">
+                    Cost = {parseFloat(poFormData.selling_price).toFixed(2)} × {(1 - parseFloat(poFormData.margin_percent)/100).toFixed(4)} = ৳{poFormData.cost_price}
+                  </p>
+                )}
               </div>
 
               <div>

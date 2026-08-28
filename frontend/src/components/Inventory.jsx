@@ -375,7 +375,7 @@ export default function Inventory() {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      let url = `${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(search)}${lowStockFilter ? '&low_stock=true' : ''
+      let url = `${API_BASE_URL}/products?batch_level=true&purchased_only=true&search=${encodeURIComponent(search)}${lowStockFilter ? '&low_stock=true' : ''
         }${expiryFilter ? '&expiring=true' : ''
         }`;
       if (isSuperAdmin && selectedShopId) {
