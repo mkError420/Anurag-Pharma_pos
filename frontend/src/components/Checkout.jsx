@@ -278,22 +278,6 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     }
   }, [resumedHeldBill]);
 
-  // Automatically sync paidAmount with final total unless cashier manually edited it
-  useEffect(() => {
-    if (!activeTab?.isPaidTouched) {
-      updateActiveTabState('paidAmount', getFinalTotal().toFixed(3));
-    }
-  }, [
-    activeTab?.cart,
-    activeTab?.discountPercent,
-    activeTab?.discountAmount,
-    activeTab?.redeemPoints,
-    loyaltyPointValue,
-    taxRate,
-    activeTab?.isPaidTouched,
-    activeTab?.reduceDueAmount
-  ]);
-
   // Helper to detect mobile screen width or touch capabilities
   const isMobileDevice = () => {
     return window.innerWidth < 1024 || ('ontouchstart' in window || navigator.maxTouchPoints > 0);
@@ -324,7 +308,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       }
 
       if (barcodeInputRef.current) {
-        barcodeInputRef.current.focus();
+        barcodeInputRef.current.focus({ preventScroll: true });
       }
     };
 
@@ -332,16 +316,18 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
     // Add event listener to capture click events to recover focus or hide keyboard on mobile
     const handleDocumentClick = (e) => {
+      const isInteractiveTarget = e.target.closest('input, textarea, select, button, label, a, [role="button"], tr, table, .overflow-y-auto');
       if (isMobileDevice()) {
         const active = document.activeElement;
         if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
-          const isInteractiveTarget = e.target.closest('input, textarea, select, button, label, a');
           if (!isInteractiveTarget) {
             active.blur();
           }
         }
       } else {
-        setTimeout(keepFocus, 100);
+        if (!isInteractiveTarget) {
+          setTimeout(keepFocus, 100);
+        }
       }
     };
 
@@ -555,9 +541,9 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       if (e.key === 'F2') {
         e.preventDefault();
         if (searchInputRef.current) {
-          searchInputRef.current.focus();
+          searchInputRef.current.focus({ preventScroll: true });
         } else if (barcodeInputRef.current) {
-          barcodeInputRef.current.focus();
+          barcodeInputRef.current.focus({ preventScroll: true });
         }
         return;
       }
@@ -566,7 +552,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       if (e.key === 'F4') {
         e.preventDefault();
         if (customerInputRef.current) {
-          customerInputRef.current.focus();
+          customerInputRef.current.focus({ preventScroll: true });
         }
         return;
       }
@@ -719,59 +705,69 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       }
     } else if (numpadTarget === 'discountPercent') {
       let currentVal = String(activeTab.discountPercent || 0);
+      let newPercent = 0;
       if (key === 'CLEAR') {
-        updateActiveTabState('discountPercent', 0);
+        newPercent = 0;
       } else if (key === 'BACKSPACE') {
         const newVal = currentVal.slice(0, -1);
-        updateActiveTabState('discountPercent', Math.min(100, Math.max(0, parseFloat(newVal) || 0)));
+        newPercent = Math.min(100, Math.max(0, parseFloat(newVal) || 0));
       } else {
         const newVal = currentVal === '0' ? String(key) : currentVal + String(key);
-        updateActiveTabState('discountPercent', Math.min(100, Math.max(0, parseFloat(newVal) || 0)));
+        newPercent = Math.min(100, Math.max(0, parseFloat(newVal) || 0));
       }
-      updateActiveTabState('discountAmount', 0);
+      updateActiveTabFields({
+        discountPercent: newPercent,
+        discountAmount: 0,
+        isPaidTouched: false
+      });
     } else if (numpadTarget === 'discountAmount') {
       let currentVal = String(activeTab.discountAmount || 0);
+      let newAmount = 0;
       if (key === 'CLEAR') {
-        updateActiveTabState('discountAmount', 0);
+        newAmount = 0;
       } else if (key === 'BACKSPACE') {
         const newVal = currentVal.slice(0, -1);
-        updateActiveTabState('discountAmount', Math.max(0, parseFloat(newVal) || 0));
+        newAmount = Math.max(0, parseFloat(newVal) || 0);
       } else {
         const newVal = currentVal === '0' ? String(key) : currentVal + String(key);
-        updateActiveTabState('discountAmount', Math.max(0, parseFloat(newVal) || 0));
+        newAmount = Math.max(0, parseFloat(newVal) || 0);
       }
-      updateActiveTabState('discountPercent', 0);
+      updateActiveTabFields({
+        discountAmount: newAmount,
+        discountPercent: 0,
+        isPaidTouched: false
+      });
     } else if (numpadTarget === 'paidAmount') {
-      let currentVal = String(activeTab.paidAmount || '');
+      let currentVal = activeTab.isPaidTouched ? String(activeTab.paidAmount || '') : String(getFinalTotal().toFixed(3));
       if (key === 'CLEAR') {
-        updateActiveTabState('paidAmount', '');
-        updateActiveTabState('isPaidTouched', false);
+        updateActiveTabFields({ paidAmount: '', isPaidTouched: false });
       } else if (key === 'BACKSPACE') {
         const newVal = currentVal.slice(0, -1);
-        updateActiveTabState('paidAmount', newVal);
-        updateActiveTabState('isPaidTouched', true);
+        updateActiveTabFields({ paidAmount: newVal, isPaidTouched: true });
       } else if (key === 'EXACT') {
-        updateActiveTabState('paidAmount', getFinalTotal().toFixed(3));
-        updateActiveTabState('isPaidTouched', true);
+        updateActiveTabFields({ paidAmount: getFinalTotal().toFixed(3), isPaidTouched: false });
       } else if (typeof key === 'number' && key >= 10) {
-        updateActiveTabState('paidAmount', String(key));
-        updateActiveTabState('isPaidTouched', true);
+        updateActiveTabFields({ paidAmount: String(key), isPaidTouched: true });
       } else {
         const newVal = currentVal === '' ? String(key) : currentVal + String(key);
-        updateActiveTabState('paidAmount', newVal);
-        updateActiveTabState('isPaidTouched', true);
+        updateActiveTabFields({ paidAmount: newVal, isPaidTouched: true });
       }
     } else if (numpadTarget === 'redeemPoints') {
       let currentVal = String(activeTab.redeemPoints || 0);
+      let newPoints = 0;
       if (key === 'CLEAR') {
-        updateActiveTabState('redeemPoints', 0);
+        newPoints = 0;
       } else if (key === 'BACKSPACE') {
         const newVal = currentVal.slice(0, -1);
-        updateActiveTabState('redeemPoints', parseInt(newVal, 10) || 0);
+        newPoints = parseInt(newVal, 10) || 0;
       } else {
         const newVal = currentVal === '0' ? String(key) : currentVal + String(key);
-        updateActiveTabState('redeemPoints', parseInt(newVal, 10) || 0);
+        newPoints = parseInt(newVal, 10) || 0;
       }
+      updateActiveTabFields({
+        redeemPoints: newPoints,
+        isPaidTouched: false
+      });
     }
   };
 
@@ -808,6 +804,17 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       const tabIndex = newTabs.findIndex(t => t.id === activeTabId);
       if (tabIndex > -1) {
         newTabs[tabIndex] = { ...newTabs[tabIndex], [field]: value };
+      }
+      return newTabs;
+    });
+  };
+
+  const updateActiveTabFields = (fieldsObj) => {
+    setSaleTabs(prevTabs => {
+      const newTabs = [...prevTabs];
+      const tabIndex = newTabs.findIndex(t => t.id === activeTabId);
+      if (tabIndex > -1) {
+        newTabs[tabIndex] = { ...newTabs[tabIndex], ...fieldsObj };
       }
       return newTabs;
     });
@@ -859,12 +866,15 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       }
       const updatedCart = [...activeTab.cart];
       updatedCart[existingIndex] = { ...updatedCart[existingIndex], quantity: updatedCart[existingIndex].quantity + 1 };
-      updateActiveTabState('cart', updatedCart);
+      updateActiveTabFields({ cart: updatedCart, isPaidTouched: false });
     } else {
-      updateActiveTabState('cart', [
-        ...activeTab.cart,
-        { ...product, quantity: 1, price: product.price, stock_quantity: stockLimit },
-      ]);
+      updateActiveTabFields({
+        cart: [
+          ...activeTab.cart,
+          { ...product, quantity: 1, price: product.price, stock_quantity: stockLimit },
+        ],
+        isPaidTouched: false
+      });
     }
   };
 
@@ -885,9 +895,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       return;
     }
 
-    updateActiveTabState('cart', activeTab.cart.map(item =>
-      item.id === productId ? { ...item, quantity: newQty } : item
-    ));
+    updateActiveTabFields({
+      cart: activeTab.cart.map(item =>
+        item.id === productId ? { ...item, quantity: newQty } : item
+      ),
+      isPaidTouched: false
+    });
   };
 
   const handleQuantityInput = (productId, valStr) => {
@@ -911,9 +924,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       parsedVal = targetItem.stock_quantity;
     }
 
-    updateActiveTabState('cart', activeTab.cart.map(item =>
-      item.id === productId ? { ...item, quantity: parsedVal } : item
-    ));
+    updateActiveTabFields({
+      cart: activeTab.cart.map(item =>
+        item.id === productId ? { ...item, quantity: parsedVal } : item
+      ),
+      isPaidTouched: false
+    });
   };
 
   const handleQuantityBlur = (productId, quantity) => {
@@ -925,7 +941,10 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
   const removeFromCart = (productId) => {
     if (!activeTab) return;
-    updateActiveTabState('cart', activeTab.cart.filter(item => item.id !== productId));
+    updateActiveTabFields({
+      cart: activeTab.cart.filter(item => item.id !== productId),
+      isPaidTouched: false
+    });
   };
 
   const updatePrice = (productId, newPriceVal) => {
@@ -934,9 +953,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     if (parts[1] && parts[1].length > 3) {
       newPriceVal = parts[0] + '.' + parts[1].substring(0, 3);
     }
-    updateActiveTabState('cart', activeTab.cart.map(item =>
-      item.id === productId ? { ...item, price: newPriceVal } : item
-    ));
+    updateActiveTabFields({
+      cart: activeTab.cart.map(item =>
+        item.id === productId ? { ...item, price: newPriceVal } : item
+      ),
+      isPaidTouched: false
+    });
   };
 
   const updateSubtotal = (productId, newSubtotalVal) => {
@@ -950,9 +972,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     }
 
     if (newSubtotalVal === '') {
-      updateActiveTabState('cart', activeTab.cart.map(cartItem =>
-        cartItem.id === productId ? { ...cartItem, price: '' } : cartItem
-      ));
+      updateActiveTabFields({
+        cart: activeTab.cart.map(cartItem =>
+          cartItem.id === productId ? { ...cartItem, price: '' } : cartItem
+        ),
+        isPaidTouched: false
+      });
       return;
     }
 
@@ -960,9 +985,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     if (isNaN(parsedSubtotal)) return;
 
     const newPrice = parseFloat((parsedSubtotal / item.quantity).toFixed(3));
-    updateActiveTabState('cart', activeTab.cart.map(cartItem =>
-      cartItem.id === productId ? { ...cartItem, price: newPrice } : cartItem
-    ));
+    updateActiveTabFields({
+      cart: activeTab.cart.map(cartItem =>
+        cartItem.id === productId ? { ...cartItem, price: newPrice } : cartItem
+      ),
+      isPaidTouched: false
+    });
   };
 
   // Financial Calculators
@@ -3593,7 +3621,10 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   step="0.1"
                   value={activeTab.discountPercent || ''}
                   placeholder="0"
-                  onChange={(e) => updateActiveTabState('discountPercent', Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                  onChange={(e) => updateActiveTabFields({
+                    discountPercent: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)),
+                    isPaidTouched: false
+                  })}
                   disabled={parseFloat(activeTab.discountAmount || 0) > 0}
                   className="w-18 border border-slate-200 rounded px-1 py-1 text-right font-medium text-slate-700 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
@@ -3607,7 +3638,10 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   step="1"
                   value={activeTab.discountAmount || ''}
                   placeholder="0"
-                  onChange={(e) => updateActiveTabState('discountAmount', Math.max(0, parseFloat(e.target.value) || 0))}
+                  onChange={(e) => updateActiveTabFields({
+                    discountAmount: Math.max(0, parseFloat(e.target.value) || 0),
+                    isPaidTouched: false
+                  })}
                   disabled={parseFloat(activeTab.discountPercent || 0) > 0}
                   className="w-19 border border-slate-200 rounded px-1 py-1 text-right font-medium text-slate-700 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
@@ -3672,10 +3706,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   type="number"
                   min="0"
                   step="0.001"
-                  value={activeTab.paidAmount || ''}
+                  value={activeTab.isPaidTouched ? (activeTab.paidAmount ?? '') : getFinalTotal().toFixed(3)}
                   onChange={(e) => {
-                    updateActiveTabState('paidAmount', e.target.value);
-                    updateActiveTabState('isPaidTouched', true);
+                    updateActiveTabFields({
+                      paidAmount: e.target.value,
+                      isPaidTouched: true
+                    });
                   }}
                   placeholder={getFinalTotal().toFixed(3)}
                   className="w-35 border border-slate-200 rounded px-1.5 py-1 text-right font-semibold text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -3699,12 +3735,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               </div>
             </div>
 
-            {activeTab && (() => {
+            {activeTab && activeTab.isPaidTouched && (() => {
               const finalTotal = getFinalTotal();
               const rawPaid = activeTab.paidAmount;
-              const parsedPaid = (rawPaid === '' || rawPaid === null || rawPaid === undefined)
-                ? (activeTab.isPaidTouched ? 0 : finalTotal)
-                : (isNaN(parseFloat(rawPaid)) ? 0 : parseFloat(rawPaid));
+              const parsedPaid = (rawPaid === '' || rawPaid === null || rawPaid === undefined || isNaN(parseFloat(rawPaid)))
+                ? 0
+                : parseFloat(rawPaid);
               const dueAmount = Math.max(0, finalTotal - parsedPaid);
               const changeReturn = Math.max(0, parsedPaid - finalTotal);
 
@@ -3733,10 +3769,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       <button
                         type="button"
                         onClick={() => {
-                          updateActiveTabState('paidAmount', finalTotal.toFixed(3));
-                          updateActiveTabState('isPaidTouched', true);
+                          updateActiveTabFields({
+                            paidAmount: '',
+                            isPaidTouched: false
+                          });
                         }}
-                        className="text-[10px] font-bold text-amber-700 hover:text-amber-900 underline"
+                        className="text-[10px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
                         title="Clear due amount and pay in full"
                       >
                         Clear Due (Pay Full)
@@ -3755,7 +3793,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               type="button"
               onClick={() => { setPreviewModeType('due'); setShowCheckoutPreview(true); }}
               disabled={activeTab?.cart?.length === 0 || submitting}
-              className="col-span-1 bg-rose-50 hover:bg-rose-100 disabled:bg-slate-100 disabled:text-slate-400 text-rose-700 border border-rose-200 disabled:border-slate-200 font-bold py-2 px-1.5 rounded-xl transition-colors flex justify-center items-center space-x-1"
+              className="col-span-1 bg-rose-50 hover:bg-rose-100 disabled:bg-slate-100 disabled:text-slate-400 text-rose-700 border border-rose-200 disabled:border-slate-200 font-bold py-2 px-1.5 rounded-xl flex justify-center items-center space-x-1 cursor-pointer disabled:cursor-not-allowed"
               title="Save as Due (paid later)"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3764,19 +3802,15 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               <span className="text-xs">Due</span>
             </button>
             <button
+              type="button"
               onClick={() => { setPreviewModeType('checkout'); setShowCheckoutPreview(true); }}
               disabled={activeTab?.cart?.length === 0 || submitting}
-              className="col-span-2 bg-slate-600 hover:bg-gray-700 disabled:bg-slate-300 text-black font-bold py-2 px-3 rounded-xl shadow-md transition-colors flex justify-center items-center space-x-1.5"
+              className="col-span-2 bg-slate-600 hover:bg-gray-700 disabled:bg-slate-300 text-white font-bold py-2 px-3 rounded-xl shadow-md flex justify-center items-center space-x-1.5 cursor-pointer disabled:cursor-not-allowed"
             >
               {submitting ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
               ) : (
-                <>
-                  <span className="text-xs text-white">Preview Checkout</span>
-                  <span className="font-extrabold bg-yellow-500/80 px-1.5 py-0.5 rounded text-[10px]">
-                    ৳{getFinalTotal().toFixed(3)}
-                  </span>
-                </>
+                <span className="text-xs text-white">Preview Checkout</span>
               )}
             </button>
           </div>
