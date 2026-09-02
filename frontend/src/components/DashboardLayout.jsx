@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './Sidebar';
 import LanguageToggle from './LanguageToggle';
-import CalculatorDrawer from './CalculatorDrawer';
 import { useLanguage } from '../contexts/LanguageContext';
 
 export default function DashboardLayout({
@@ -22,7 +21,6 @@ export default function DashboardLayout({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [showCalculator, setShowCalculator] = useState(false);
   const [alertFilter, setAlertFilter] = useState('all'); // 'all', 'low_stock', 'expiry'
   const [currentTime, setCurrentTime] = useState(new Date());
   const notificationsRef = useRef(null);
@@ -66,18 +64,6 @@ export default function DashboardLayout({
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [showNotifications, showProfileDropdown]);
-
-  // Global shortcut Alt+C for Calculator
-  useEffect(() => {
-    const handleGlobalKeyDown = (e) => {
-      if (e.altKey && (e.key === 'c' || e.key === 'C')) {
-        e.preventDefault();
-        setShowCalculator((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, []);
 
   // Dynamic Badge Color mapping based on user role
   const getRoleBadge = (role) => {
@@ -207,16 +193,6 @@ export default function DashboardLayout({
               ))}
             </div>
 
-            {/* Quick Calculator Header Button */}
-            <button
-              onClick={() => setShowCalculator((prev) => !prev)}
-              className="p-2 text-slate-500 dark:text-slate-400 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none transition-colors relative"
-              title={t('quick_calculator', 'Quick Calculator (Alt + C)')}
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-            </button>
 
             
             {user.role !== 'super_admin' && (() => {
@@ -593,27 +569,6 @@ export default function DashboardLayout({
 
       </div>
 
-      {/* 4. Right Sidebar Dock Button for Calculator */}
-      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40">
-        <button
-          onClick={() => setShowCalculator((prev) => !prev)}
-          className="group flex items-center bg-gradient-to-l from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white pl-3.5 pr-2.5 py-4 rounded-l-2xl shadow-xl shadow-indigo-600/30 hover:shadow-indigo-600/50 transition-all duration-200 transform hover:-translate-x-1.5 focus:outline-none border-t border-b border-l border-indigo-400/40 cursor-pointer"
-          title={t('quick_calculator', 'Calculator (Alt + C)')}
-        >
-          <div className="flex flex-col items-center gap-1.5">
-            <span className="text-xl group-hover:scale-125 transition-transform duration-200">🧮</span>
-            <span className="text-[10px] font-extrabold tracking-widest uppercase [writing-mode:vertical-lr] rotate-180 text-indigo-100 group-hover:text-white select-none">
-              {t('calculator', 'Calculator')}
-            </span>
-          </div>
-        </button>
-      </div>
-
-      {/* 5. Slide-Out Calculator Drawer */}
-      <CalculatorDrawer
-        isOpen={showCalculator}
-        onClose={() => setShowCalculator(false)}
-      />
     </div>
   );
 }

@@ -1708,8 +1708,8 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       {/* 3. Split Screen Flex Layout */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 overflow-hidden min-h-0">
 
-        {/* Left Side: Product List Section (Increased Width - 7 cols) */}
-        <div className="lg:col-span-7 xl:col-span-7 flex flex-col overflow-hidden">
+        {/* Left Side: Product List Section */}
+        <div className="lg:col-span-5 xl:col-span-5 flex flex-col overflow-hidden">
           {/* Search & Barcode Scan Console */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-3.5">
             {/* Search Input */}
@@ -1952,7 +1952,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         </div>
 
         {/* Right Side / Cart Side Panel (Always visible on Desktop) */}
-        <div className={`hidden lg:flex lg:col-span-5 xl:col-span-5 bg-white border border-slate-200 rounded-2xl flex-col overflow-hidden shadow-sm`}>
+        <div className={`hidden lg:flex lg:col-span-7 xl:col-span-7 bg-white border border-slate-200 rounded-2xl flex-col overflow-hidden shadow-sm`}>
           {renderCartPanelContent()}
         </div>
 
@@ -3622,7 +3622,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                     isPaidTouched: false
                   })}
                   disabled={parseFloat(activeTab.discountAmount || 0) > 0}
-                  className="w-18 border border-slate-200 rounded px-1 py-1 text-right font-medium text-slate-700 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  className="w-28 border border-indigo-300 rounded-lg px-2 py-1.5 text-right font-semibold text-slate-700 bg-white text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -3639,7 +3639,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                     isPaidTouched: false
                   })}
                   disabled={parseFloat(activeTab.discountPercent || 0) > 0}
-                  className="w-19 border border-slate-200 rounded px-1 py-1 text-right font-medium text-slate-700 bg-white text-xs disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  className="w-28 border border-indigo-300 rounded-lg px-2 py-1.5 text-right font-semibold text-slate-700 bg-white text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -3710,7 +3710,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                     });
                   }}
                   placeholder={getFinalTotal().toFixed(3)}
-                  className="w-35 border border-slate-200 rounded px-1.5 py-1 text-right font-semibold text-xs text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-36 border border-indigo-300 rounded-lg px-2 py-1.5 text-right font-semibold text-xs text-slate-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
 
