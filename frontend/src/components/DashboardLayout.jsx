@@ -585,8 +585,8 @@ export default function DashboardLayout({
         </header>
 
         {/* 3. Main Dashboard Workspace Content Area */}
-        <main className="flex-1 overflow-y-auto focus:outline-none p-6" style={{ backgroundColor: currentTheme.bg }}>
-          <div className="max-w-7xl mx-auto">
+        <main className={`flex-1 overflow-y-auto focus:outline-none ${currentPath === '/checkout' ? 'p-3 sm:p-4 lg:p-5' : 'p-6'}`} style={{ backgroundColor: currentTheme.bg }}>
+          <div className={currentPath === '/checkout' ? 'w-full' : 'max-w-7xl mx-auto'}>
             {React.cloneElement(children, { onNavigate })}
           </div>
         </main>

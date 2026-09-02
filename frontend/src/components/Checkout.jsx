@@ -153,17 +153,13 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Filter out products that are expired AND have 0 stock (returned to company / discarded)
+      // Filter out ALL expired products — expired items must never be sold at POS
       const validProducts = data.filter(p => {
-        const stock = parseFloat(p.stock_quantity || 0);
-        let isExpired = false;
         if (p.expiry_date) {
           const exp = new Date(p.expiry_date);
           exp.setHours(0, 0, 0, 0);
-          isExpired = exp.getTime() < today.getTime();
+          if (exp.getTime() < today.getTime()) return false; // expired — hide regardless of stock
         }
-        // If expired and 0 stock (returned to company), do not show in POS checkout
-        if (isExpired && stock <= 0) return false;
         return true;
       });
 
@@ -1710,14 +1706,14 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         </button>
       </div>
       {/* 3. Split Screen Flex Layout */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-hidden min-h-0">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 overflow-hidden min-h-0">
 
-        {/* Left Side: Product Grid (2 columns on Desktop) */}
-        <div className="lg:col-span-4 flex flex-col overflow-hidden">
+        {/* Left Side: Product List Section (Increased Width - 7 cols) */}
+        <div className="lg:col-span-7 xl:col-span-7 flex flex-col overflow-hidden">
           {/* Search & Barcode Scan Console */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-3.5">
             {/* Search Input */}
-            <div className="sm:col-span-2 relative">
+            <div className="sm:col-span-7 relative">
               <input
                 ref={searchInputRef}
                 type="text"
@@ -1759,23 +1755,23 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                     }
                   }
                 }}
-                className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium"
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium"
               />
-              <svg className="absolute left-3.5 top-3.5 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
 
             {/* Barcode Scanner Console */}
-            <div className="relative flex items-center bg-slate-900 border border-slate-800 text-white rounded-xl shadow-sm px-3.5 py-3 overflow-hidden group">
+            <div className="sm:col-span-5 relative flex items-center bg-slate-900 border border-slate-800 text-white rounded-xl shadow-xs px-3 py-2.5 overflow-hidden group">
               {autoFocusBarcode && !receipt && !showHeldBillsModal && !showHoldBillModal && (
                 <div className="laser-line animate-laser-scan"></div>
               )}
 
-              <div className="flex items-center space-x-2.5 w-full z-10">
+              <div className="flex items-center space-x-2 w-full z-10">
                 {/* Barcode Icon */}
                 <div className="relative flex-shrink-0 text-rose-500 group-hover:text-rose-400 animate-pulse">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5v14M7 5v14M11 5v14M14 5v14M17 5v14M21 5v14" />
                   </svg>
                 </div>
@@ -1821,11 +1817,11 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs flex flex-col" style={{ maxHeight: 'calc(100vh - 320px)' }}>
                 <div className="overflow-x-auto flex-1 overflow-y-auto">
                   <table className="w-full text-left border-collapse">
-                    <thead className="sticky top-0 z-10 bg-slate-50/50">
-                      <tr className="border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                        <th className="p-3 pl-4 w-1/2">Product Name</th>
-                        <th className="p-3 text-right w-24">Price</th>
-                        <th className="p-3 text-center w-28">Expiry</th>
+                    <thead className="sticky top-0 z-10 bg-slate-50/90 backdrop-blur-xs">
+                      <tr className="border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        <th className="p-3 pl-4">Product Name</th>
+                        <th className="p-3 text-right w-28">Price</th>
+                        <th className="p-3 text-center w-32">Expiry</th>
                         <th className="p-3 text-center w-28">Stock</th>
                       </tr>
                     </thead>
@@ -1956,7 +1952,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         </div>
 
         {/* Right Side / Cart Side Panel (Always visible on Desktop) */}
-        <div className={`hidden lg:flex lg:col-span-8 bg-white border border-slate-200 rounded-2xl flex-col overflow-hidden shadow-sm`}>
+        <div className={`hidden lg:flex lg:col-span-5 xl:col-span-5 bg-white border border-slate-200 rounded-2xl flex-col overflow-hidden shadow-sm`}>
           {renderCartPanelContent()}
         </div>
 
@@ -3488,12 +3484,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase bg-slate-50/50">
-                    <th className="p-2 pl-3">Item</th>
-                    <th className="p-2 text-center w-36">Qty</th>
-                    <th className="p-2 text-center w-14">Unit</th>
-                    <th className="p-2 text-right w-32">Price (৳)</th>
-                    <th className="p-2 text-right w-32">Subtotal</th>
-                    <th className="p-2 w-8"></th>
+                    <th className="p-2 pl-2.5">Item</th>
+                    <th className="p-2 text-center w-28">Qty</th>
+                    <th className="p-2 text-center w-12">Unit</th>
+                    <th className="p-2 text-right w-22">Price (৳)</th>
+                    <th className="p-2 text-right w-22">Subtotal</th>
+                    <th className="p-2 w-6"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
@@ -3503,7 +3499,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       onClick={() => setSelectedCartItemId(item.id)}
                       className={`hover:bg-indigo-50/40 transition-colors cursor-pointer ${selectedCartItemId === item.id ? 'bg-indigo-50/80 font-bold border-l-4 border-indigo-600' : ''}`}
                     >
-                      <td className="p-2 pl-3 font-semibold text-slate-800 max-w-[120px] truncate" title={item.name}>
+                      <td className="p-2 pl-2.5 font-semibold text-slate-800 max-w-[110px] truncate" title={item.name}>
                         <div className="truncate">{item.name}</div>
                         <div className="text-[10px] text-slate-450 font-normal">Cost: ৳{parseFloat(item.cost_price || 0).toFixed(3)}</div>
                       </td>
@@ -3512,7 +3508,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.id, -1)}
-                            className="px-2 py-1 hover:bg-slate-100 text-slate-600 transition-colors font-bold text-xs"
+                            className="px-1.5 py-1 hover:bg-slate-100 text-slate-600 transition-colors font-bold text-xs"
                           >
                             -
                           </button>
@@ -3524,19 +3520,19 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                             value={item.quantity}
                             onChange={(e) => handleQuantityInput(item.id, e.target.value)}
                             onBlur={() => handleQuantityBlur(item.id, item.quantity)}
-                            className="w-16 text-center text-xs font-bold text-slate-700 bg-transparent border-0 focus:ring-0 focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-12 text-center text-xs font-bold text-slate-700 bg-transparent border-0 focus:ring-0 focus:outline-none p-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.id, 1)}
-                            className="px-2 py-1 hover:bg-slate-100 text-slate-600 transition-colors font-bold text-xs"
+                            className="px-1.5 py-1 hover:bg-slate-100 text-slate-600 transition-colors font-bold text-xs"
                           >
                             +
                           </button>
                         </div>
                       </td>
-                      <td className="p-2 text-center text-slate-500 font-medium font-sans">
-                        {item.unit || 'piece'}
+                      <td className="p-2 text-center text-slate-500 font-medium font-sans text-[11px]">
+                        {item.unit || 'pcs'}
                       </td>
                       <td className="p-2 text-right">
                         <input
@@ -3545,7 +3541,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                           min="0"
                           value={item.price}
                           onChange={(e) => updatePrice(item.id, e.target.value)}
-                          className="w-28 border border-slate-200 rounded px-1.5 py-0.5 text-right font-extrabold text-indigo-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs shadow-sm"
+                          className="w-20 border border-slate-200 rounded px-1.5 py-0.5 text-right font-extrabold text-indigo-600 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs shadow-xs"
                         />
                       </td>
                       <td className="p-2 text-right">
@@ -3579,7 +3575,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                               e.target.blur();
                             }
                           }}
-                          className="w-28 border border-slate-200 rounded px-1.5 py-0.5 text-right font-extrabold text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs shadow-sm"
+                          className="w-20 border border-slate-200 rounded px-1.5 py-0.5 text-right font-extrabold text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs shadow-xs"
                         />
                       </td>
                       <td className="p-2 text-center">

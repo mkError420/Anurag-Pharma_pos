@@ -220,7 +220,7 @@ export default function Sidebar({
       {/* 2. Sidebar Navigation Panel */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-slate-900 text-slate-100 transition-all duration-300 ease-in-out lg:static lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          } ${isCollapsed ? 'w-20' : 'w-64'}`}
+          } ${isCollapsed ? 'w-16' : 'w-52'}`}
       >
         {/* Brand Header */}
         <div className="flex flex-col border-b border-slate-800">
