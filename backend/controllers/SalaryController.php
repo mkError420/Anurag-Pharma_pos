@@ -8,10 +8,14 @@ require_once __DIR__ . '/../middleware/auth.php';
 
 class SalaryController {
 
+    private static $schemaChecked = false;
+
     /**
      * Auto-ensure DB migration on invocation
      */
     public static function ensureSchema() {
+        if (self::$schemaChecked) return;
+        self::$schemaChecked = true;
         try {
             $pdo = DB::getConnection();
             

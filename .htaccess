@@ -4,6 +4,10 @@ DirectoryIndex frontend/dist/index.html index.html index.php
   RewriteEngine On
   RewriteBase /
 
+  # 0. Prevent internal rewrite loops (fixes Apache AH00124 error)
+  RewriteCond %{ENV:REDIRECT_STATUS} 200
+  RewriteRule ^ - [L]
+
   # 1. Backend API requests
   RewriteRule ^backend/(.*)$ backend/index.php [L,QSA]
 
@@ -13,14 +17,15 @@ DirectoryIndex frontend/dist/index.html index.html index.php
   # 3. Static assets routing to frontend/dist/assets
   RewriteRule ^assets/(.*)$ frontend/dist/assets/$1 [L]
 
-  # 4. If actual file exists in public directory, serve directly
-  RewriteCond %{REQUEST_FILENAME} -f
+  # 4. If actual file or directory exists in public directory, serve directly
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
   # 5. SPA Fallback - route all other web requests to frontend/dist/index.html
   RewriteCond %{REQUEST_URI} !^/backend/
   RewriteCond %{REQUEST_URI} !^/uploads/
-  RewriteRule ^(.*)$ frontend/dist/index.html [L,QSA]
+  RewriteRule ^ frontend/dist/index.html [L]
 </IfModule>
 
 # Protect sensitive configuration and database files
