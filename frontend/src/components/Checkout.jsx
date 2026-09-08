@@ -3622,7 +3622,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                     isPaidTouched: false
                   })}
                   disabled={parseFloat(activeTab.discountAmount || 0) > 0}
-                  className="w-44 border border-indigo-300 rounded-lg px-2 py-1.5 text-right font-semibold text-slate-700 bg-white text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  className="w-44 border border-[#E23D4D] rounded-lg px-2 py-1.5 text-right font-semibold text-slate-700 bg-white text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E23D4D] focus:border-[#E23D4D] disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -3639,7 +3639,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                     isPaidTouched: false
                   })}
                   disabled={parseFloat(activeTab.discountPercent || 0) > 0}
-                  className="w-44 border border-indigo-300 rounded-lg px-2 py-1.5 text-right font-semibold text-slate-700 bg-white text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                  className="w-44 border border-[#E23D4D] rounded-lg px-2 py-1.5 text-right font-semibold text-slate-700 bg-white text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E23D4D] focus:border-[#E23D4D] disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -3710,7 +3710,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                     });
                   }}
                   placeholder={getFinalTotal().toFixed(3)}
-                  className="w-44 border border-indigo-300 rounded-lg px-2 py-1.5 text-right font-semibold text-xs text-slate-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-44 border border-[#E23D4D] rounded-lg px-2 py-1.5 text-right font-semibold text-xs text-slate-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#E23D4D] focus:border-[#E23D4D]"
                 />
               </div>
 
