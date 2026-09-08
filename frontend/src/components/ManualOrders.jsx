@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import API_BASE_URL from '../config';
+import { printThermalElement } from '../utils/receiptPrinter';
 
 export default function ManualOrders() {
   const [orders, setOrders] = useState([]);
@@ -743,11 +744,26 @@ export default function ManualOrders() {
 
   const handlePrintReceipt = (mode) => {
     setPrintMode(mode);
+
+    if (mode === 'thermal') {
+      const thermalEl = document.querySelector('#receipt-print-area .thermal-only');
+      if (thermalEl) {
+        printThermalElement(thermalEl, 'Receipt');
+        return;
+      }
+    }
+
+    window.scrollTo(0, 0);
     document.body.classList.add(`print-mode-${mode}`);
-    window.print();
-    setTimeout(() => {
+
+    const cleanup = () => {
       document.body.classList.remove(`print-mode-${mode}`);
-    }, 500);
+      window.removeEventListener('afterprint', cleanup);
+    };
+
+    window.addEventListener('afterprint', cleanup);
+    window.print();
+    setTimeout(cleanup, 1500);
   };
 
   const exportOrdersToCSV = () => {

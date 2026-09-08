@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import Adjustments from './Adjustments';
 import API_BASE_URL from '../config';
+import { printThermalElement } from '../utils/receiptPrinter';
 
 export default function Inventory() {
   const userObj = JSON.parse(localStorage.getItem('user') || '{}');
@@ -205,14 +206,24 @@ export default function Inventory() {
 
   const handlePrintSaleDetails = (mode = 'regular') => {
     if (mode === 'thermal') {
-      document.body.classList.add('print-mode-thermal');
-    } else {
-      document.body.classList.remove('print-mode-thermal');
+      const thermalEl = document.querySelector('#receipt-print-area .thermal-only');
+      if (thermalEl) {
+        printThermalElement(thermalEl, 'Sale Details');
+        return;
+      }
     }
-    window.print();
-    setTimeout(() => {
+
+    document.body.classList.remove('print-mode-thermal');
+    window.scrollTo(0, 0);
+
+    const cleanup = () => {
       document.body.classList.remove('print-mode-thermal');
-    }, 500);
+      window.removeEventListener('afterprint', cleanup);
+    };
+
+    window.addEventListener('afterprint', cleanup);
+    window.print();
+    setTimeout(cleanup, 1500);
   };
 
   const handleViewBatches = async (product) => {

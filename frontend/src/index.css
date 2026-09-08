@@ -51,14 +51,16 @@
 
 @media print {
   @page {
-    margin: 0 !important;
-    margin-top: 0 !important;
+    margin: 0;
     size: auto;
   }
 
   html, body {
     margin: 0 !important;
     padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
   }
 
   /* Hide standard web UI elements */
@@ -77,11 +79,11 @@
   #receipt-print-area,
   #history-print-area {
     display: block !important;
-    position: absolute !important;
+    position: relative !important;
     left: 0 !important;
     top: 0 !important;
-    margin-top: 0 !important;
-    padding-top: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
     width: 100% !important;
     height: auto !important;
     background: white !important;
@@ -93,6 +95,7 @@
   #receipt-print-area > *,
   #history-print-area > * {
     margin-top: 0 !important;
+    padding-top: 0 !important;
   }
 
   #receipt-print-area *,
@@ -103,6 +106,7 @@
   /* Thermal mode layout (80mm width) */
   body.print-mode-thermal {
     width: 80mm !important;
+    max-width: 80mm !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
@@ -112,6 +116,7 @@
   body.print-mode-thermal #receipt-print-area,
   body.print-mode-thermal #history-print-area {
     width: 80mm !important;
+    max-width: 80mm !important;
     margin: 0 !important;
     padding: 0mm 2mm 2mm 2mm !important;
     padding-top: 0 !important;

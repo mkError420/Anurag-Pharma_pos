@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import API_BASE_URL from '../config';
 import ElectronicCashDrawerModal from './ElectronicCashDrawerModal';
 import { triggerDrawerEjection, getDrawerConfig } from '../utils/cashDrawerService';
+import { printThermalElement } from '../utils/receiptPrinter';
 
 const createNewSaleTab = (index) => ({
   id: Date.now() + Math.random() * 1000, // Unique ID for the tab with random factor
@@ -787,11 +788,26 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       });
     }
 
+    if (mode === 'thermal') {
+      const thermalEl = document.querySelector('#receipt-print-area .thermal-only');
+      if (thermalEl) {
+        printThermalElement(thermalEl, `Receipt #${receipt?.sale_id || 'POS'}`);
+        return;
+      }
+    }
+
+    // Default Regular (A4) print
+    window.scrollTo(0, 0);
     document.body.classList.add(`print-mode-${mode}`);
-    window.print();
-    setTimeout(() => {
+
+    const cleanup = () => {
       document.body.classList.remove(`print-mode-${mode}`);
-    }, 500);
+      window.removeEventListener('afterprint', cleanup);
+    };
+
+    window.addEventListener('afterprint', cleanup);
+    window.print();
+    setTimeout(cleanup, 1500);
   };
 
   const updateActiveTabState = (field, value) => {

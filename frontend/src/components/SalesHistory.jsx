@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import API_BASE_URL from '../config';
+import { printThermalElement } from '../utils/receiptPrinter';
 
 export default function SalesHistory() {
   const [sales, setSales] = useState([]);
@@ -87,6 +88,15 @@ export default function SalesHistory() {
   const [salesFilterOption, setSalesFilterOption] = useState('all'); // 'all', 'due', 'paid'
 
   const handlePrint = (mode) => {
+    if (mode === 'thermal') {
+      const thermalEl = document.querySelector('#receipt-print-area .thermal-only');
+      if (thermalEl) {
+        printThermalElement(thermalEl, 'Receipt');
+        return;
+      }
+    }
+
+    window.scrollTo(0, 0);
     // Apply print filter to body
     document.body.classList.add(`print-mode-${mode}`);
     document.body.classList.add(`print-filter-${printFilterOption}`);
