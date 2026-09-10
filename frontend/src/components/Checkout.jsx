@@ -40,6 +40,9 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
   const [currentUser, setCurrentUser] = useState(null);
   const [taxRate, setTaxRate] = useState(0.10); // Dynamic Tax Rate (default 10%)
 
+  // Shop info state (fetched from API)
+  const [shopInfo, setShopInfo] = useState({ name: '', address: '', phone: '', email: '' });
+
   // Loyalty settings states
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [loyaltyEarnRate, setLoyaltyEarnRate] = useState(100.00);
@@ -227,6 +230,13 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         if (data.loyalty_point_value !== undefined) {
           setLoyaltyPointValue(parseFloat(data.loyalty_point_value));
         }
+        // Save shop contact info for receipt printing
+        setShopInfo({
+          name: data.name || data.shop_name || currentUser?.shop_name || 'Pharmacy',
+          address: data.address || data.shop_address || currentUser?.shop_address || '',
+          phone: data.phone || data.shop_phone || currentUser?.shop_phone || '',
+          email: data.email || data.shop_email || currentUser?.email || '',
+        });
       }
     } catch (e) {
       console.error('Failed to fetch shop settings for tax rate and loyalty program', e);
@@ -1220,10 +1230,10 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         customer_name: activeTab.customerName.trim() || 'Walk-in Customer',
         customer_phone: activeTab.customerPhone.trim() || '',
         customer_address: activeTab.customerAddress.trim() || '',
-        shop_name: currentUser?.shop_name || 'Boutique POS',
-        shop_phone: currentUser?.shop_phone || '',
-        shop_address: currentUser?.shop_address || '',
-        shop_email: currentUser?.email || '',
+        shop_name: shopInfo.name || currentUser?.shop_name || 'Boutique POS',
+        shop_phone: shopInfo.phone || currentUser?.shop_phone || '',
+        shop_address: shopInfo.address || currentUser?.shop_address || '',
+        shop_email: shopInfo.email || currentUser?.email || '',
         staff_name: currentUser?.name || 'Cashier',
         reduce_due_amount: parseFloat(activeTab.reduceDueAmount || 0),
         paid_amount: paid,
@@ -2528,17 +2538,17 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         <div id="receipt-print-area" style={{ marginTop: 0, paddingTop: 0 }}>
           {/* Thermal View Container */}
           <div className="thermal-only" style={{ marginTop: 0, paddingTop: 0 }}>
-            <div style={{ textAlign: 'center', marginBottom: '8px', marginTop: 0, paddingTop: 0 }}>
-              <h2 style={{ fontSize: '15px', fontWeight: 'bold', margin: '0 0 2px 0' }}>{receipt.shop_name}</h2>
-              {receipt.shop_address && <p style={{ margin: '0 0 2px 0', fontSize: '9px' }}>{receipt.shop_address}</p>}
-              <div style={{ fontSize: '9px', margin: '0 0 4px 0' }}>
-                {receipt.shop_phone && <span style={{ marginRight: '6px' }}>Tel: {receipt.shop_phone}</span>}
-                {receipt.shop_email && <span>Email: {receipt.shop_email}</span>}
-              </div>
-              <p style={{ margin: '4px 0 0 0', fontSize: '9px', fontWeight: 'bold', letterSpacing: '0.05em' }}>*** TRANSACTION RECEIPT ***</p>
+            {/* ── HEADER ── */}
+            <div style={{ textAlign: 'center', marginBottom: '10px', marginTop: 0, paddingTop: 0, borderBottom: '1px dashed #000', paddingBottom: '8px' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0 0 3px 0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{receipt.shop_name}</h2>
+              {receipt.shop_address && <p style={{ margin: '0 0 2px 0', fontSize: '11px', fontWeight: 'bold' }}>{receipt.shop_address}</p>}
+              {receipt.shop_phone && <p style={{ margin: '0 0 2px 0', fontSize: '11px', fontWeight: 'bold' }}>Tel: {receipt.shop_phone}</p>}
+              {receipt.shop_email && <p style={{ margin: '0 0 4px 0', fontSize: '11px', fontWeight: 'bold' }}>Email: {receipt.shop_email}</p>}
+              <p style={{ margin: '4px 0 0 0', fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.06em' }}>*** TRANSACTION RECEIPT ***</p>
             </div>
 
-            <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '4px 0', margin: '8px 0', fontSize: '9px', lineHeight: '1.3' }}>
+            {/* ── SALE INFO ── */}
+            <div style={{ borderBottom: '1px dashed #000', padding: '6px 0', margin: '0 0 6px 0', fontSize: '11px', lineHeight: '1.6' }}>
               <div><strong>Sale ID:</strong> #{receipt.sale_id}</div>
               <div><strong>Date:</strong> {receipt.created_at}</div>
               <div><strong>Cashier:</strong> {receipt.staff_name}</div>
@@ -2546,32 +2556,34 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               {receipt.customer_phone && <div><strong>Phone:</strong> {receipt.customer_phone}</div>}
             </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', margin: '8px 0' }}>
+            {/* ── ITEMS TABLE ── */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', margin: '4px 0 8px 0' }}>
               <thead>
                 <tr style={{ borderBottom: '1px dashed #000' }}>
-                  <th style={{ textAlign: 'left', paddingBottom: '3px' }}>Item</th>
-                  <th style={{ textAlign: 'center', paddingBottom: '3px', width: '25px' }}>Qty</th>
-                  <th style={{ textAlign: 'center', paddingBottom: '3px', width: '25px' }}>Unit</th>
-                  <th style={{ textAlign: 'right', paddingBottom: '3px', width: '55px' }}>Price</th>
-                  <th style={{ textAlign: 'right', paddingBottom: '3px', width: '60px' }}>Total</th>
+                  <th style={{ textAlign: 'left', paddingBottom: '4px', fontWeight: 'bold' }}>Item</th>
+                  <th style={{ textAlign: 'center', paddingBottom: '4px', width: '28px', fontWeight: 'bold' }}>Qty</th>
+                  <th style={{ textAlign: 'center', paddingBottom: '4px', width: '28px', fontWeight: 'bold' }}>Unit</th>
+                  <th style={{ textAlign: 'right', paddingBottom: '4px', width: '58px', fontWeight: 'bold' }}>Price</th>
+                  <th style={{ textAlign: 'right', paddingBottom: '4px', width: '62px', fontWeight: 'bold' }}>Total</th>
                 </tr>
               </thead>
               <tbody>
                 {receipt.items.map((item, idx) => (
-                  <tr key={idx}>
-                    <td style={{ paddingTop: '3px', maxWidth: '100px', wordBreak: 'break-all' }}>
+                  <tr key={idx} style={{ borderBottom: '1px dashed #ccc' }}>
+                    <td style={{ paddingTop: '4px', paddingBottom: '4px', maxWidth: '100px', wordBreak: 'break-word', fontWeight: 'bold' }}>
                       {item.name || item.product_name}
                     </td>
-                    <td style={{ textAlign: 'center', paddingTop: '3px' }}>{item.quantity}</td>
-                    <td style={{ textAlign: 'center', paddingTop: '3px', color: '#666' }}>{item.unit || 'pcs'}</td>
-                    <td style={{ textAlign: 'right', paddingTop: '3px' }}>৳{parseFloat(item.price || item.unit_price).toFixed(3)}</td>
-                    <td style={{ textAlign: 'right', paddingTop: '3px' }}>৳{((item.price || item.unit_price) * item.quantity).toFixed(3)}</td>
+                    <td style={{ textAlign: 'center', paddingTop: '4px', fontWeight: 'bold' }}>{item.quantity}</td>
+                    <td style={{ textAlign: 'center', paddingTop: '4px', fontWeight: 'bold' }}>{item.unit || 'pcs'}</td>
+                    <td style={{ textAlign: 'right', paddingTop: '4px', fontWeight: 'bold' }}>৳{parseFloat(item.price || item.unit_price).toFixed(3)}</td>
+                    <td style={{ textAlign: 'right', paddingTop: '4px', fontWeight: 'bold' }}>৳{((item.price || item.unit_price) * item.quantity).toFixed(3)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            <div style={{ borderTop: '1px dashed #000', paddingTop: '4px', fontSize: '9px', lineHeight: '1.3' }}>
+            {/* ── TOTALS ── */}
+            <div style={{ borderTop: '1px dashed #000', paddingTop: '6px', fontSize: '11px', lineHeight: '1.7' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Subtotal:</span>
                 <span>৳{receipt.subtotal.toFixed(3)}</span>
@@ -2582,26 +2594,26 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   <span>-৳{parseFloat(receipt.discount).toFixed(3)}</span>
                 </div>
               )}
-              <div style={{ display: 'flex', style: { justifyContent: 'space-between' } }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Tax ({(taxRate * 100).toString()}%):</span>
                 <span>৳{receipt.tax.toFixed(3)}</span>
               </div>
               {receipt.loyalty_enabled && (
                 <>
                   {receipt.points_earned > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4f46e5', fontWeight: 'bold' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
                       <span>Points Earned:</span>
                       <span>+{receipt.points_earned} pts</span>
                     </div>
                   )}
                   {receipt.points_redeemed > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#e11d48', fontWeight: 'bold' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
                       <span>Points Redeemed:</span>
                       <span>-{receipt.points_redeemed} pts</span>
                     </div>
                   )}
                   {receipt.points_redeemed_value > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#e11d48' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>Points Discount:</span>
                       <span>-৳{receipt.points_redeemed_value.toFixed(3)}</span>
                     </div>
@@ -2614,34 +2626,35 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   <span>৳{parseFloat(receipt.reduce_due_amount).toFixed(3)}</span>
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '3px', marginTop: '3px' }}>
-                <span>Total Bill:</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '4px', marginTop: '4px' }}>
+                <span>Total Paid:</span>
                 <span>৳{parseFloat(receipt.total).toFixed(3)}</span>
               </div>
               {receipt.change_amount > 0 && (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold', paddingTop: '2px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', paddingTop: '2px' }}>
                     <span>Given Amount:</span>
                     <span>৳{parseFloat(receipt.paid_amount).toFixed(3)}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '3px', marginTop: '3px' }}>
                     <span>Change Return:</span>
                     <span>৳{parseFloat(receipt.change_amount).toFixed(3)}</span>
                   </div>
                 </>
               )}
               {parseFloat(receipt.due_amount || 0) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 'bold', color: '#ef4444', borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
-                  <span>Due ammount:</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', borderTop: '1px dashed #000', paddingTop: '3px', marginTop: '3px' }}>
+                  <span>Due Amount:</span>
                   <span>৳{parseFloat(receipt.due_amount).toFixed(3)}</span>
                 </div>
               )}
             </div>
 
-            <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '9px' }}>
-              <p style={{ margin: '0 0 2px 0' }}>Payment: {receipt.payment_method.toUpperCase()}</p>
-              <p style={{ margin: '0', fontWeight: 'bold' }}>*** THANK YOU ***</p>
-              <p style={{ margin: '8px 0 0 0', textAlign: 'right', fontSize: '8px', color: '#64748b' }}>Bring this receipt, if you return product</p>
+            {/* ── FOOTER ── */}
+            <div style={{ textAlign: 'center', marginTop: '14px', paddingTop: '8px', borderTop: '1px dashed #000', fontSize: '11px' }}>
+              <p style={{ margin: '0 0 4px 0', fontWeight: 'bold' }}>PAYMENT: {receipt.payment_method.toUpperCase().replace('_', ' ')}</p>
+              <p style={{ margin: '0', fontWeight: 'bold', letterSpacing: '0.06em' }}>*** THANK YOU ***</p>
+              <p style={{ margin: '10px 0 0 0', textAlign: 'right', fontSize: '9px', fontWeight: 'bold' }}>Bring this receipt if you return product</p>
             </div>
           </div>
 
