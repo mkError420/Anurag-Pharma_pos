@@ -26,11 +26,14 @@ export default function Login({
   const [error, setError] = useState('');
   const [logo, setLogo] = useState(null);
 
-  // Fetch logo on component mount
+  // Fetch logo on component mount (no-cache so latest shop logo is always shown)
   useEffect(() => {
     const fetchLogo = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/public/logo`);
+        const response = await fetch(`${API_BASE_URL}/public/logo`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        });
         if (response.ok) {
           const data = await response.json();
           if (data.logo) {

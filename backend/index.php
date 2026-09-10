@@ -147,15 +147,30 @@ $routes = [
         '/^public\/logo$/' => function() {
             require_once __DIR__ . '/config/db.php';
             try {
-                // Fetch logo from super admin (role = 'super_admin')
+                // First, try to fetch logo from shops table (shop admin uploaded logo)
+                $stmt = DB::query(
+                    'SELECT logo FROM shops WHERE logo IS NOT NULL AND logo != ? LIMIT 1',
+                    ['']
+                );
+                $shopResult = $stmt->fetch();
+
+                if ($shopResult && !empty($shopResult['logo'])) {
+                    // Return the shop logo (set via Settings > Store Brand Logo)
+                    header('Content-Type: application/json');
+                    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+                    echo json_encode(['logo' => $shopResult['logo']]);
+                    return;
+                }
+
+                // Fallback: fetch logo from super admin (role = 'super_admin')
                 $stmt = DB::query(
                     'SELECT logo FROM users WHERE role = ? AND status = ? LIMIT 1',
                     ['super_admin', 'active']
                 );
                 $result = $stmt->fetch();
-                
+
                 header('Content-Type: application/json');
-                header('Cache-Control: public, max-age=3600'); // Cache for 1 hour
+                header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
                 if ($result && !empty($result['logo'])) {
                     echo json_encode(['logo' => $result['logo']]);
                 } else {
