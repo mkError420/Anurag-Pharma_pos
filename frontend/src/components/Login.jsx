@@ -371,7 +371,7 @@ export default function Login({
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-slate-600 shadow-2xl shadow-indigo-600/40 mb-4 overflow-hidden">
             {logo ? (
-              <img src={logo} alt="Logo" className="w-full h-full object-contain p-2" />
+              <img src={logo} alt="Logo" className="w-full h-full object-cover" />
             ) : (
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
