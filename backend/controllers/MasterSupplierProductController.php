@@ -10,7 +10,10 @@ require_once __DIR__ . '/../middleware/auth.php';
 
 class MasterSupplierProductController {
 
+    private static $tableChecked = false;
+
     private static function ensureTableExists() {
+        if (self::$tableChecked) return;
         try {
             $pdo = DB::getConnection();
             $pdo->exec("
@@ -35,6 +38,7 @@ class MasterSupplierProductController {
                 $pdo->exec("ALTER TABLE `master_supplier_products` ADD COLUMN `category` VARCHAR(255) DEFAULT NULL AFTER `product_name`");
                 $pdo->exec("ALTER TABLE `master_supplier_products` ADD INDEX `idx_category` (`category`)");
             }
+            self::$tableChecked = true;
         } catch (\Exception $e) {
             error_log("Failed to ensure master_supplier_products table: " . $e->getMessage());
         }
@@ -71,7 +75,7 @@ class MasterSupplierProductController {
             }
 
             if (!empty($supplierName)) {
-                $whereClauses[] = 'LOWER(supplier_name) = LOWER(?)';
+                $whereClauses[] = 'supplier_name = ?';
                 $params[] = $supplierName;
             }
 

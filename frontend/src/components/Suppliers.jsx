@@ -207,15 +207,17 @@ export default function Suppliers() {
       if (!nameGroups.has(normalizedName)) {
         nameGroups.set(normalizedName, {
           name: product.name,
-          allSkus: [product.sku],
+          allSkus: [product.sku].filter(Boolean),
           allIds: [product.id],
           // Store first product's details as default
-          defaultProduct: product
+          defaultProduct: product,
+          searchKey: `${product.name} ${product.sku || ''}`.toLowerCase()
         });
       } else {
         const group = nameGroups.get(normalizedName);
         if (product.sku && !group.allSkus.includes(product.sku)) {
           group.allSkus.push(product.sku);
+          group.searchKey += ` ${product.sku.toLowerCase()}`;
         }
         if (!group.allIds.includes(product.id)) {
           group.allIds.push(product.id);
@@ -934,7 +936,6 @@ export default function Suppliers() {
 
   // ── MASTER CATALOG (super admin supplier products) ──────────────────────
   const [masterCatalogProducts, setMasterCatalogProducts] = useState([]);
-  const [masterProductNameInput, setMasterProductNameInput] = useState('');
   const [showMasterProductSuggestions, setShowMasterProductSuggestions] = useState(false);
 
   // Distinct supplier names from super admin Supplier Products Catalog
@@ -942,7 +943,8 @@ export default function Suppliers() {
   const [allMasterProducts, setAllMasterProducts] = useState([]);
 
   // Fetch all distinct supplier names from the master catalog (super admin)
-  const fetchMasterSupplierNames = async () => {
+  const fetchMasterSupplierNames = async (force = false) => {
+    if (!force && masterSupplierNames.length > 0) return;
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE_URL}/master-supplier-products/suppliers`, {
@@ -956,7 +958,8 @@ export default function Suppliers() {
   };
 
   // Fetch all master catalog products (super admin Supplier Products Catalog)
-  const fetchAllMasterProducts = async () => {
+  const fetchAllMasterProducts = async (force = false) => {
+    if (!force && allMasterProducts.length > 0) return allMasterProducts;
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE_URL}/master-supplier-products`, {
@@ -970,6 +973,109 @@ export default function Suppliers() {
       return [];
     }
   };
+
+  // ── PERFORMANCE OPTIMIZATIONS: Fast lookup maps and capped dropdown suggestions ──
+  const localSupplierNamesSet = useMemo(() => {
+    return new Set(suppliers.map(s => s.name && s.name.trim().toLowerCase()).filter(Boolean));
+  }, [suppliers]);
+
+  const poCategoryOptions = useMemo(() => {
+    const set = new Set();
+    productsList.forEach(p => { if (p.category && p.category.trim()) set.add(p.category.trim()); });
+    allMasterProducts.forEach(p => { if (p.category && p.category.trim()) set.add(p.category.trim()); });
+    return Array.from(set).sort();
+  }, [productsList, allMasterProducts]);
+
+  const masterCategoryLookup = useMemo(() => {
+    const map = new Map();
+    if (allMasterProducts && allMasterProducts.length > 0) {
+      for (let i = 0; i < allMasterProducts.length; i++) {
+        const p = allMasterProducts[i];
+        if (p.product_name && p.category) {
+          map.set(p.product_name.trim().toLowerCase(), p.category);
+        }
+      }
+    }
+    if (masterCatalogProducts && masterCatalogProducts.length > 0) {
+      for (let i = 0; i < masterCatalogProducts.length; i++) {
+        const p = masterCatalogProducts[i];
+        if (p.product_name && p.category) {
+          map.set(p.product_name.trim().toLowerCase(), p.category);
+        }
+      }
+    }
+    return map;
+  }, [allMasterProducts, masterCatalogProducts]);
+
+  const filteredProductSuggestions = useMemo(() => {
+    if (!showProductSuggestions) return [];
+    const query = productSearch.toLowerCase().trim();
+    if (!query) {
+      return groupedProductNames.slice(0, 40);
+    }
+    const results = [];
+    for (let i = 0; i < groupedProductNames.length; i++) {
+      const g = groupedProductNames[i];
+      if (g.searchKey.includes(query)) {
+        results.push(g);
+        if (results.length >= 40) break;
+      }
+    }
+    return results;
+  }, [showProductSuggestions, productSearch, groupedProductNames]);
+
+  const filteredMasterSuggestions = useMemo(() => {
+    if (!showMasterProductSuggestions) return [];
+    const query = (poFormData.name || '').toLowerCase().trim();
+    const catalogPool = (masterCatalogProducts && masterCatalogProducts.length > 0)
+      ? masterCatalogProducts
+      : allMasterProducts;
+    if (!catalogPool || catalogPool.length === 0) return [];
+
+    const results = [];
+    for (let i = 0; i < catalogPool.length; i++) {
+      const p = catalogPool[i];
+      if (!query || (p.product_name && p.product_name.toLowerCase().includes(query))) {
+        results.push(p);
+        if (results.length >= 40) break;
+      }
+    }
+    return results;
+  }, [showMasterProductSuggestions, poFormData.name, masterCatalogProducts, allMasterProducts]);
+
+  const filteredSupplierSuggestions = useMemo(() => {
+    if (!showSupplierSuggestions) return { suggestions: [], catalogOnlySuggestions: [], showCreateOption: false, totalCount: 0 };
+    const query = supplierSearch.toLowerCase().trim();
+
+    const suggestions = [];
+    for (let i = 0; i < suppliers.length; i++) {
+      const s = suppliers[i];
+      if (!query || (s.name && s.name.toLowerCase().includes(query))) {
+        suggestions.push(s);
+        if (suggestions.length >= 30) break;
+      }
+    }
+
+    const catalogOnlySuggestions = [];
+    if (query) {
+      for (let i = 0; i < masterSupplierNames.length; i++) {
+        const name = masterSupplierNames[i];
+        if (name && name.toLowerCase().includes(query) && !localSupplierNamesSet.has(name.trim().toLowerCase())) {
+          catalogOnlySuggestions.push(name);
+          if (catalogOnlySuggestions.length >= 20) break;
+        }
+      }
+    }
+
+    const exactMatch = query !== '' && (
+      suppliers.some(s => s.name && s.name.trim().toLowerCase() === query) ||
+      masterSupplierNames.some(n => n && n.trim().toLowerCase() === query)
+    );
+    const showCreateOption = query !== '' && !exactMatch;
+    const totalCount = suggestions.length + catalogOnlySuggestions.length + (showCreateOption ? 1 : 0);
+
+    return { suggestions, catalogOnlySuggestions, showCreateOption, totalCount };
+  }, [showSupplierSuggestions, supplierSearch, suppliers, masterSupplierNames, localSupplierNamesSet]);
 
   // Fetch master catalog products filtered by the current supplier name (when is_new mode)
   const fetchMasterCatalogForSupplier = async (supplierName) => {
@@ -1061,10 +1167,7 @@ export default function Suppliers() {
       const prod = productsList.find(p => String(p.id) === String(productId));
       if (prod) {
         // Auto-match category from Super Admin Master Supplier Products Catalog if present
-        const matchMaster = (allMasterProducts || []).find(
-          m => m.product_name && m.product_name.trim().toLowerCase() === (prod.name || '').trim().toLowerCase()
-        );
-        const resolvedCategory = (matchMaster && matchMaster.category) ? matchMaster.category : (prod.category || '');
+        const resolvedCategory = masterCategoryLookup.get((prod.name || '').trim().toLowerCase()) || (prod.category || '');
 
         setPoFormData(prev => ({
           ...prev, // Keep existing form data
@@ -6104,42 +6207,55 @@ export default function Suppliers() {
                       onBlur={() => setTimeout(() => setShowSupplierSuggestions(false), 250)}
                       onKeyDown={async (e) => {
                         if (showSupplierSuggestions) {
-                          const query = supplierSearch.toLowerCase().trim();
-                          const suggestions = suppliers.filter(s => s.name && s.name.toLowerCase().includes(query));
-                          const exactMatch = query !== '' && suppliers.some(s => s.name && s.name.trim().toLowerCase() === query);
-                          const hasCreateOption = query !== '' && !exactMatch;
-                          const totalOptions = suggestions.length + (hasCreateOption ? 1 : 0);
+                          const { suggestions, catalogOnlySuggestions, showCreateOption, totalCount } = filteredSupplierSuggestions;
 
                           if (e.key === 'ArrowDown') {
                             e.preventDefault();
-                            setSupplierSearchFocusedIndex(prev => (prev < totalOptions - 1 ? prev + 1 : prev));
+                            setSupplierSearchFocusedIndex(prev => (prev < totalCount - 1 ? prev + 1 : prev));
                           } else if (e.key === 'ArrowUp') {
                             e.preventDefault();
                             setSupplierSearchFocusedIndex(prev => (prev > 0 ? prev - 1 : prev));
                           } else if (e.key === 'Enter') {
                             e.preventDefault();
-                            if (hasCreateOption && supplierSearchFocusedIndex === 0) {
+                            if (showCreateOption && supplierSearchFocusedIndex === 0) {
                               const created = await createOrGetSupplier(supplierSearch.trim());
                               if (created) {
                                 setSupplierSearch(created.name);
                                 setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
                                 setShowSupplierSuggestions(false);
                                 setSupplierSearchFocusedIndex(-1);
+                                if (poFormData.is_new) fetchMasterCatalogForSupplier(created.name);
                               }
                             } else {
-                              const actualIdx = hasCreateOption ? supplierSearchFocusedIndex - 1 : supplierSearchFocusedIndex;
-                              if (actualIdx >= 0 && suggestions[actualIdx]) {
-                                setSupplierSearch(suggestions[actualIdx].name);
-                                setPoFormData(prev => ({ ...prev, supplier_id: String(suggestions[actualIdx].id) }));
+                              const actualIdx = showCreateOption ? supplierSearchFocusedIndex - 1 : supplierSearchFocusedIndex;
+                              if (actualIdx >= 0 && actualIdx < suggestions.length) {
+                                const s = suggestions[actualIdx];
+                                setSupplierSearch(s.name);
+                                setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
                                 setShowSupplierSuggestions(false);
                                 setSupplierSearchFocusedIndex(-1);
+                                if (poFormData.is_new) fetchMasterCatalogForSupplier(s.name);
+                              } else if (actualIdx >= suggestions.length) {
+                                const catIdx = actualIdx - suggestions.length;
+                                if (catalogOnlySuggestions[catIdx]) {
+                                  const name = catalogOnlySuggestions[catIdx];
+                                  const created = await createOrGetSupplier(name);
+                                  if (created) {
+                                    setSupplierSearch(created.name);
+                                    setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
+                                    setShowSupplierSuggestions(false);
+                                    setSupplierSearchFocusedIndex(-1);
+                                    if (poFormData.is_new) fetchMasterCatalogForSupplier(created.name);
+                                  }
+                                }
                               } else if (supplierSearch.trim()) {
-                                // Auto-create on enter even if not navigating list
                                 const created = await createOrGetSupplier(supplierSearch.trim());
                                 if (created) {
                                   setSupplierSearch(created.name);
                                   setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
                                   setShowSupplierSuggestions(false);
+                                  setSupplierSearchFocusedIndex(-1);
+                                  if (poFormData.is_new) fetchMasterCatalogForSupplier(created.name);
                                 }
                               }
                             }
@@ -6151,6 +6267,7 @@ export default function Suppliers() {
                             if (created) {
                               setSupplierSearch(created.name);
                               setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
+                              if (poFormData.is_new) fetchMasterCatalogForSupplier(created.name);
                             }
                           }
                         }
@@ -6160,30 +6277,15 @@ export default function Suppliers() {
                     />
 
                     {showSupplierSuggestions && (() => {
-                      const query = supplierSearch.toLowerCase().trim();
-                      const suggestions = suppliers.filter(s =>
-                        s.name && s.name.toLowerCase().includes(query)
-                      );
-                      // Master catalog supplier names that are NOT already in local suppliers list
-                      const localNames = new Set(suppliers.map(s => s.name && s.name.trim().toLowerCase()).filter(Boolean));
-                      const catalogOnlySuggestions = masterSupplierNames.filter(name =>
-                        name && name.toLowerCase().includes(query) && !localNames.has(name.trim().toLowerCase())
-                      );
-                      const exactMatch = query !== '' && (
-                        suppliers.some(s => s.name && s.name.trim().toLowerCase() === query) ||
-                        masterSupplierNames.some(n => n && n.trim().toLowerCase() === query)
-                      );
-                      const showCreateOption = query !== '' && !exactMatch;
+                      const { suggestions, catalogOnlySuggestions, showCreateOption } = filteredSupplierSuggestions;
 
-                      // Always show dropdown when focused — even if no results yet (loading state)
                       if (suggestions.length === 0 && catalogOnlySuggestions.length === 0 && !showCreateOption) {
-                        // Show a loading/empty hint
                         return (
                           <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 divide-y divide-slate-100">
                             <div className="p-3 text-xs text-slate-400 text-center">
                               {masterSupplierNames.length === 0 && suppliers.length === 0
                                 ? 'Loading suppliers...'
-                                : query
+                                : supplierSearch.trim()
                                   ? 'No matching suppliers found'
                                   : 'Type to search or scroll below'}
                             </div>
@@ -6201,10 +6303,7 @@ export default function Suppliers() {
                                   setSupplierSearch(created.name);
                                   setPoFormData(prev => ({ ...prev, supplier_id: String(created.id) }));
                                   setShowSupplierSuggestions(false);
-                                  // Refresh master catalog for newly selected supplier
-                                  if (poFormData.is_new) {
-                                    fetchMasterCatalogForSupplier(created.name);
-                                  }
+                                  if (poFormData.is_new) fetchMasterCatalogForSupplier(created.name);
                                 }
                               }}
                               className={`p-2.5 px-3 hover:bg-emerald-50 cursor-pointer text-left transition-colors text-emerald-700 font-bold text-xs flex items-center justify-between ${supplierSearchFocusedIndex === 0 ? 'bg-emerald-100 ring-1 ring-emerald-500' : ''}`}
@@ -6226,7 +6325,6 @@ export default function Suppliers() {
                                       setSupplierSearch(s.name);
                                       setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
                                       setShowSupplierSuggestions(false);
-                                      // Refresh master catalog for newly selected supplier
                                       if (poFormData.is_new) {
                                         fetchMasterCatalogForSupplier(s.name);
                                       } else {
@@ -6256,7 +6354,6 @@ export default function Suppliers() {
                                   <div
                                     key={`catalog-${name}`}
                                     onClick={async () => {
-                                      // Auto-create this supplier locally so we can store supplier_id
                                       const created = await createOrGetSupplier(name);
                                       if (created) {
                                         setSupplierSearch(created.name);
@@ -6301,13 +6398,7 @@ export default function Suppliers() {
                   onBlur={() => setTimeout(() => setShowProductSuggestions(false), 250)}
                   onKeyDown={(e) => {
                     if (showProductSuggestions) {
-                      const query = productSearch.toLowerCase();
-                      const suggestions = groupedProductNames.filter(g => {
-                        const matchesSearch = g.name.toLowerCase().includes(query);
-                        // Show all products from All Product Names page regardless of supplier
-                        return matchesSearch;
-                      });
-                      const totalOptions = suggestions.length + 1; // +1 for the "Create New" option
+                      const totalOptions = filteredProductSuggestions.length + 1; // +1 for the "Create New" option
                       if (e.key === 'ArrowDown') {
                         e.preventDefault();
                         setProductSearchFocusedIndex(prev => (prev < totalOptions - 1 ? prev + 1 : prev));
@@ -6321,10 +6412,9 @@ export default function Suppliers() {
                           handlePoProductChange('new_product');
                           setShowProductSuggestions(false);
                           setProductSearchFocusedIndex(-1);
-                        } else if (productSearchFocusedIndex > 0 && suggestions[productSearchFocusedIndex - 1]) {
-                          const g = suggestions[productSearchFocusedIndex - 1];
+                        } else if (productSearchFocusedIndex > 0 && filteredProductSuggestions[productSearchFocusedIndex - 1]) {
+                          const g = filteredProductSuggestions[productSearchFocusedIndex - 1];
                           setProductSearch(g.name);
-                          // Use the default product (first one) for the group
                           handlePoProductChange(String(g.defaultProduct.id));
                           setShowProductSuggestions(false);
                           setProductSearchFocusedIndex(-1);
@@ -6338,60 +6428,54 @@ export default function Suppliers() {
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-medium"
                 />
 
-                {showProductSuggestions && (() => {
-                  const query = productSearch.toLowerCase();
-                  const suggestions = groupedProductNames.filter(g => {
-                    const matchesSearch = g.name.toLowerCase().includes(query);
-                    // Show all products from All Product Names page regardless of supplier
-                    // Supplier selection is for the PO itself, not for filtering products
-                    return matchesSearch;
-                  });
-
-                  return (
-                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                {showProductSuggestions && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                    <div
+                      onClick={() => {
+                        setProductSearch('+ New Product (Create on-the-fly)');
+                        handlePoProductChange('new_product');
+                        setShowProductSuggestions(false);
+                      }}
+                      className={`p-2.5 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors text-indigo-650 font-bold text-xs ${productSearchFocusedIndex === 0 ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
+                    >
+                      + Create New Product On-The-Fly
+                    </div>
+                    {filteredProductSuggestions.length === 0 && (
+                      <div className="p-3 text-xs text-slate-400 text-center">
+                        No matching products found
+                      </div>
+                    )}
+                    {filteredProductSuggestions.map((g, idx) => (
                       <div
+                        key={g.name}
                         onClick={() => {
-                          setProductSearch('+ New Product (Create on-the-fly)');
-                          handlePoProductChange('new_product');
+                          setProductSearch(g.name);
+                          handlePoProductChange(String(g.defaultProduct.id));
                           setShowProductSuggestions(false);
                         }}
-                        className={`p-2.5 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors text-indigo-650 font-bold text-xs ${productSearchFocusedIndex === 0 ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
+                        className={`p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors ${productSearchFocusedIndex === idx + 1 ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
                       >
-                        + Create New Product On-The-Fly
-                      </div>
-                      {suggestions.map((g, idx) => (
-                        <div
-                          key={g.name}
-                          onClick={() => {
-                            setProductSearch(g.name);
-                            // Use the default product (first one) for the group
-                            handlePoProductChange(String(g.defaultProduct.id));
-                            setShowProductSuggestions(false);
-                          }}
-                          className={`p-2 px-3 hover:bg-indigo-50 cursor-pointer text-left transition-colors ${productSearchFocusedIndex === idx + 1 ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
-                        >
-                          <div className="text-xs font-semibold text-slate-800 flex items-center justify-between">
-                            <span>{g.name}</span>
-                            {g.allSkus.length > 1 && (
-                              <span className="text-[10px] bg-amber-50 text-amber-700 font-medium px-1.5 py-0.5 rounded border border-amber-100">
-                                {g.allSkus.length} variants
-                              </span>
-                            )}
-                            {g.defaultProduct.supplier_name && (
-                              <span className="text-[10px] bg-indigo-50 text-indigo-700 font-medium px-1.5 py-0.5 rounded border border-indigo-100">
-                                🏢 {g.defaultProduct.supplier_name}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-slate-400 flex justify-between mt-0.5">
-                            <span>SKU: {g.defaultProduct.sku || 'Auto-generated'}</span>
-                            <span>Stock: {g.defaultProduct.stock_quantity} left</span>
-                          </div>
+                        <div className="text-xs font-semibold text-slate-800 flex items-center justify-between">
+                          <span>{g.name}</span>
+                          {g.allSkus.length > 1 && (
+                            <span className="text-[10px] bg-amber-50 text-amber-700 font-medium px-1.5 py-0.5 rounded border border-amber-100">
+                              {g.allSkus.length} variants
+                            </span>
+                          )}
+                          {g.defaultProduct.supplier_name && (
+                            <span className="text-[10px] bg-indigo-50 text-indigo-700 font-medium px-1.5 py-0.5 rounded border border-indigo-100">
+                              🏢 {g.defaultProduct.supplier_name}
+                            </span>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  );
-                })()}
+                        <div className="text-[10px] text-slate-400 flex justify-between mt-0.5">
+                          <span>SKU: {g.defaultProduct.sku || 'Auto-generated'}</span>
+                          <span>Stock: {g.defaultProduct.stock_quantity} left</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -6412,22 +6496,12 @@ export default function Suppliers() {
                       value={poFormData.name}
                       onChange={(e) => {
                         const val = e.target.value;
-                        // Check if typed product name matches any master product catalog item
-                        const catalogPool = (masterCatalogProducts && masterCatalogProducts.length > 0)
-                          ? masterCatalogProducts
-                          : allMasterProducts;
-                        const match = catalogPool.find(
-                          p => p.product_name && p.product_name.trim().toLowerCase() === val.trim().toLowerCase()
-                        ) || (allMasterProducts || []).find(
-                          p => p.product_name && p.product_name.trim().toLowerCase() === val.trim().toLowerCase()
-                        );
-
+                        const matchedCategory = masterCategoryLookup.get(val.trim().toLowerCase());
                         setPoFormData(prev => ({
                           ...prev,
                           name: val,
-                          category: match?.category ? match.category : prev.category
+                          category: matchedCategory || prev.category
                         }));
-                        setMasterProductNameInput(val);
                         setShowMasterProductSuggestions(val.trim().length >= 0);
                       }}
                       onFocus={() => {
@@ -6446,11 +6520,9 @@ export default function Suppliers() {
                           setShowMasterProductSuggestions(false);
                           if (poFormData.name && poFormData.name.trim()) {
                             const trimmed = poFormData.name.trim().toLowerCase();
-                            const match = (allMasterProducts || []).find(
-                              p => p.product_name && p.product_name.trim().toLowerCase() === trimmed
-                            );
-                            if (match?.category && !poFormData.category) {
-                              setPoFormData(prev => ({ ...prev, category: match.category }));
+                            const matchedCategory = masterCategoryLookup.get(trimmed);
+                            if (matchedCategory && !poFormData.category) {
+                              setPoFormData(prev => ({ ...prev, category: matchedCategory }));
                             }
                           }
                         }, 220);
@@ -6460,58 +6532,48 @@ export default function Suppliers() {
                       className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold"
                       autoComplete="off"
                     />
-                    {showMasterProductSuggestions && (() => {
-                      const query = (poFormData.name || '').toLowerCase().trim();
-                      const catalogPool = (masterCatalogProducts && masterCatalogProducts.length > 0)
-                        ? masterCatalogProducts
-                        : allMasterProducts;
-                      const filteredMaster = catalogPool.filter(p =>
-                        !query || (p.product_name && p.product_name.toLowerCase().includes(query))
-                      );
-                      if (filteredMaster.length === 0) return null;
-                      return (
-                        <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-indigo-200 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto divide-y divide-slate-100">
-                          <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">📦 Super Admin Catalog Suggestions</span>
-                            <span className="text-[10px] text-slate-400 font-medium">{filteredMaster.length} items</span>
-                          </div>
-                          {filteredMaster.map((p) => (
-                            <div
-                              key={p.id || `${p.supplier_name}-${p.product_name}`}
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                setPoFormData(prev => ({
-                                  ...prev,
-                                  name: p.product_name,
-                                  category: p.category || prev.category || ''
-                                }));
-                                setShowMasterProductSuggestions(false);
-                                if (!supplierSearch.trim() && p.supplier_name) {
-                                  setSupplierSearch(p.supplier_name);
-                                  createOrGetSupplier(p.supplier_name).then(s => {
-                                    if (s) setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
-                                  });
-                                }
-                              }}
-                              className="px-3 py-2 hover:bg-indigo-50 cursor-pointer transition-colors"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-semibold text-slate-800">{p.product_name}</span>
-                                {p.category && (
-                                  <span className="text-[10px] bg-indigo-50 text-indigo-700 font-medium px-1.5 py-0.5 rounded border border-indigo-100">
-                                    📁 {p.category}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center justify-between">
-                                <span>🏢 {p.supplier_name}</span>
-                                {p.category && <span className="text-slate-500 font-semibold">Category: {p.category}</span>}
-                              </div>
-                            </div>
-                          ))}
+                    {showMasterProductSuggestions && filteredMasterSuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-indigo-200 rounded-lg shadow-xl z-50 max-h-52 overflow-y-auto divide-y divide-slate-100">
+                        <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">📦 Super Admin Catalog Suggestions</span>
+                          <span className="text-[10px] text-slate-400 font-medium">{filteredMasterSuggestions.length} items</span>
                         </div>
-                      );
-                    })()}
+                        {filteredMasterSuggestions.map((p) => (
+                          <div
+                            key={p.id || `${p.supplier_name}-${p.product_name}`}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setPoFormData(prev => ({
+                                ...prev,
+                                name: p.product_name,
+                                category: p.category || prev.category || ''
+                              }));
+                              setShowMasterProductSuggestions(false);
+                              if (!supplierSearch.trim() && p.supplier_name) {
+                                setSupplierSearch(p.supplier_name);
+                                createOrGetSupplier(p.supplier_name).then(s => {
+                                  if (s) setPoFormData(prev => ({ ...prev, supplier_id: String(s.id) }));
+                                });
+                              }
+                            }}
+                            className="px-3 py-2 hover:bg-indigo-50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-slate-800">{p.product_name}</span>
+                              {p.category && (
+                                <span className="text-[10px] bg-indigo-50 text-indigo-700 font-medium px-1.5 py-0.5 rounded border border-indigo-100">
+                                  📁 {p.category}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center justify-between">
+                              <span>🏢 {p.supplier_name}</span>
+                              {p.category && <span className="text-slate-500 font-semibold">Category: {p.category}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <input
@@ -6546,10 +6608,7 @@ export default function Suppliers() {
                   className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold"
                 />
                 <datalist id="po-categories-list">
-                  {Array.from(new Set([
-                    ...productsList.map(p => p.category),
-                    ...allMasterProducts.map(p => p.category)
-                  ].filter(Boolean))).map(cat => (
+                  {poCategoryOptions.map(cat => (
                     <option key={cat} value={cat} />
                   ))}
                 </datalist>
