@@ -200,9 +200,20 @@ export default function DashboardLayout({
               const today = new Date();
               today.setHours(0, 0, 0, 0);
 
-              // Process and sort all expiry items (earliest/expired first)
+              // Process and sort all expiry items (earliest/expired first, strictly valid dates >= year 2000)
               const allExpiry = (Array.isArray(expiryItems) ? expiryItems : [])
-                .filter(item => item && item.expiry_date)
+                .filter(item => {
+                  if (!item || !item.expiry_date) return false;
+                  const str = String(item.expiry_date).trim();
+                  if (str === '' || str === '0000-00-00' || str.startsWith('0000-') || str.startsWith('0001-')) return false;
+                  const parts = str.split('T')[0].split(' ')[0].split(/[-/]/);
+                  if (parts.length === 3) {
+                    const y = parseInt(parts[0].length === 4 ? parts[0] : parts[2], 10);
+                    if (isNaN(y) || y < 2000 || y > 2099) return false;
+                  }
+                  const d = new Date(str);
+                  return !isNaN(d.getTime()) && d.getFullYear() >= 2000;
+                })
                 .sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
 
               const totalAlerts = allLowStock.length + allExpiry.length;
@@ -340,10 +351,20 @@ export default function DashboardLayout({
                             {/* Expiring / Expired Items */}
                             {(alertFilter === 'all' || alertFilter === 'expiry') &&
                               allExpiry.map((item) => {
-                                const expiryParts = String(item.expiry_date).split('T')[0].split(' ')[0].split('-');
-                                const expiry = expiryParts.length === 3
-                                  ? new Date(parseInt(expiryParts[0], 10), parseInt(expiryParts[1], 10) - 1, parseInt(expiryParts[2], 10))
-                                  : new Date(item.expiry_date);
+                                const dateStr = String(item.expiry_date).split('T')[0].split(' ')[0];
+                                const parts = dateStr.split(/[-/]/);
+                                let expiry;
+                                if (parts.length === 3) {
+                                  if (parts[0].length === 4) {
+                                    expiry = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                                  } else if (parts[2].length === 4) {
+                                    expiry = new Date(parseInt(parts[2], 10), parseInt(parts[0], 10) - 1, parseInt(parts[1], 10));
+                                  } else {
+                                    expiry = new Date(item.expiry_date);
+                                  }
+                                } else {
+                                  expiry = new Date(item.expiry_date);
+                                }
                                 expiry.setHours(0, 0, 0, 0);
                                 const diffTime = expiry.getTime() - today.getTime();
                                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));

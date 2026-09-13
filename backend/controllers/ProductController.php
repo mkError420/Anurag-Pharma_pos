@@ -50,7 +50,7 @@ class ProductController {
                             ib.id as batch_id,
                             ib.batch_number,
                             ib.quantity as stock_quantity,
-                            COALESCE(ib.expiry_date, p.expiry_date) as expiry_date,
+                            CASE WHEN ib.expiry_date >= '2000-01-01' THEN ib.expiry_date WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END as expiry_date,
                             ib.received_date,
                             ib.status as batch_status
                         FROM products p
@@ -100,8 +100,8 @@ class ProductController {
                 }
 
                 if ($expiring === 'true') {
-                    // For products without batches, use product expiry. For products with batches, use batch expiry
-                    $alertConditions[] = "((ib.id IS NULL AND p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0) OR (ib.id IS NOT NULL AND COALESCE(ib.expiry_date, p.expiry_date) IS NOT NULL AND COALESCE(ib.expiry_date, p.expiry_date) != '' AND COALESCE(ib.expiry_date, p.expiry_date) <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND ib.quantity > 0))";
+                    // For products without batches, use product expiry. For products with batches, use batch expiry (strictly valid dates >= 2000-01-01)
+                    $alertConditions[] = "((ib.id IS NULL AND p.expiry_date IS NOT NULL AND p.expiry_date >= '2000-01-01' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0) OR (ib.id IS NOT NULL AND COALESCE(ib.expiry_date, p.expiry_date) IS NOT NULL AND COALESCE(ib.expiry_date, p.expiry_date) >= '2000-01-01' AND COALESCE(ib.expiry_date, p.expiry_date) <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND ib.quantity > 0))";
                 }
 
                 if (!empty($alertConditions)) {
@@ -146,7 +146,10 @@ class ProductController {
                 }
             } else {
                 $sql = "SELECT p.id, p.shop_id, p.name, p.sku, p.price, p.cost_price, p.stock_quantity, p.low_stock_threshold, p.unit, 
-                               COALESCE(NULLIF(p.expiry_date, ''), (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '')) AS expiry_date,
+                               COALESCE(
+                                   (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date >= '2000-01-01'),
+                                   CASE WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END
+                               ) AS expiry_date,
                                p.supplier_id, p.category, s.name AS supplier_name, sh.name AS shop_name
                         FROM products p
                         LEFT JOIN suppliers s ON p.supplier_id = s.id
@@ -193,7 +196,13 @@ class ProductController {
                 }
 
                 if ($expiring === 'true') {
-                    $alertConditions[] = "((p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0) OR EXISTS (SELECT 1 FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '' AND ib.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)))";
+                    $alertConditions[] = "(
+                        CASE 
+                            WHEN EXISTS (SELECT 1 FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date >= '2000-01-01')
+                            THEN (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date >= '2000-01-01') <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)
+                            ELSE (p.expiry_date IS NOT NULL AND p.expiry_date >= '2000-01-01' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0)
+                        END
+                    )";
                 }
 
                 if (!empty($alertConditions)) {
@@ -205,7 +214,7 @@ class ProductController {
                     $sql .= " ORDER BY p.created_at DESC, p.id DESC LIMIT " . (int)$latest;
                 } else {
                     // Priority: Items expiring earliest come first, items with no expiry date come after
-                    $sql .= " ORDER BY CASE WHEN COALESCE(NULLIF(p.expiry_date, ''), (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '')) IS NOT NULL AND COALESCE(NULLIF(p.expiry_date, ''), (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '')) != '' THEN 0 ELSE 1 END ASC, COALESCE(NULLIF(p.expiry_date, ''), (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '')) ASC, p.name ASC";
+                    $sql .= " ORDER BY CASE WHEN COALESCE((SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date >= '2000-01-01'), CASE WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END) IS NOT NULL THEN 0 ELSE 1 END ASC, COALESCE((SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date >= '2000-01-01'), CASE WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END) ASC, p.name ASC";
                     if ($limit !== null && $limit > 0) {
                         $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
                     }

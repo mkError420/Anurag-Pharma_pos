@@ -1023,7 +1023,10 @@ export default function Inventory({ onAlertsRefresh }) {
                     if (!p.expiry_date) return false;
                     const stock = parseFloat(p.stock_quantity || 0);
                     if (stock <= 0) return false; // Exclude returned/out-of-stock items
+                    const str = String(p.expiry_date).trim();
+                    if (str === '' || str === '0000-00-00' || str.startsWith('0000-') || str.startsWith('0001-')) return false;
                     const exp = new Date(p.expiry_date);
+                    if (isNaN(exp.getTime()) || exp.getFullYear() < 2000) return false;
                     exp.setHours(0, 0, 0, 0);
                     const t30 = new Date();
                     t30.setHours(0, 0, 0, 0);
@@ -1518,35 +1521,53 @@ export default function Inventory({ onAlertsRefresh }) {
 
                       // Expiry status calculation
                       let expiryBadge = null;
-                      if (product.expiry_date) {
+                      const dateStr = product.expiry_date ? String(product.expiry_date).trim() : '';
+                      const isPre2000 = dateStr === '' || dateStr === '0000-00-00' || dateStr.startsWith('0000-') || dateStr.startsWith('0001-');
+                      if (product.expiry_date && !isPre2000) {
                         const today = new Date();
                         today.setHours(0, 0, 0, 0);
-                        const expiry = new Date(product.expiry_date);
-                        expiry.setHours(0, 0, 0, 0);
-                        const isExpired = expiry.getTime() < today.getTime();
-                        const diffTime = expiry.getTime() - today.getTime();
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                        if (isExpired) {
-                          expiryBadge = (
-                            <span className="bg-rose-50 text-rose-600 border border-rose-100 px-2.5 py-0.5 rounded text-xs font-bold inline-flex items-center">
-                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5 animate-pulse"></span>
-                              Expired ({expiry.toLocaleDateString()})
-                            </span>
-                          );
-                        } else if (diffDays <= 30) {
-                          expiryBadge = (
-                            <span className="bg-amber-50 text-amber-600 border border-amber-100 px-2.5 py-0.5 rounded text-xs font-bold inline-flex items-center">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 animate-ping"></span>
-                              Expiring in {diffDays}d ({expiry.toLocaleDateString()})
-                            </span>
-                          );
+                        const parts = dateStr.split('T')[0].split(' ')[0].split(/[-/]/);
+                        let expiry;
+                        if (parts.length === 3) {
+                          if (parts[0].length === 4) {
+                            expiry = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                          } else if (parts[2].length === 4) {
+                            expiry = new Date(parseInt(parts[2], 10), parseInt(parts[0], 10) - 1, parseInt(parts[1], 10));
+                          } else {
+                            expiry = new Date(product.expiry_date);
+                          }
                         } else {
-                          expiryBadge = (
-                            <span className="bg-slate-50 text-slate-655 border border-slate-200 px-2.5 py-0.5 rounded text-xs font-semibold">
-                              {expiry.toLocaleDateString()}
-                            </span>
-                          );
+                          expiry = new Date(product.expiry_date);
+                        }
+                        expiry.setHours(0, 0, 0, 0);
+                        if (!isNaN(expiry.getTime()) && expiry.getFullYear() >= 2000) {
+                          const isExpired = expiry.getTime() < today.getTime();
+                          const diffTime = expiry.getTime() - today.getTime();
+                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                          if (isExpired) {
+                            expiryBadge = (
+                              <span className="bg-rose-50 text-rose-600 border border-rose-100 px-2.5 py-0.5 rounded text-xs font-bold inline-flex items-center">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5 animate-pulse"></span>
+                                Expired ({expiry.toLocaleDateString()})
+                              </span>
+                            );
+                          } else if (diffDays <= 30) {
+                            expiryBadge = (
+                              <span className="bg-amber-50 text-amber-600 border border-amber-100 px-2.5 py-0.5 rounded text-xs font-bold inline-flex items-center">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 animate-ping"></span>
+                                Expiring in {diffDays}d ({expiry.toLocaleDateString()})
+                              </span>
+                            );
+                          } else {
+                            expiryBadge = (
+                              <span className="bg-slate-50 text-slate-655 border border-slate-200 px-2.5 py-0.5 rounded text-xs font-semibold">
+                                {expiry.toLocaleDateString()}
+                              </span>
+                            );
+                          }
+                        } else {
+                          expiryBadge = <span className="text-slate-400 text-xs">N/A</span>;
                         }
                       } else {
                         expiryBadge = <span className="text-slate-400 text-xs">N/A</span>;

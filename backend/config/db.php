@@ -841,6 +841,30 @@ class DB {
                 }
             }
 
+            // Clean up invalid, zero, or corrupt expiry dates (e.g. 0000-00-00 or pre-2000 dates)
+            if ($tableExists('products')) {
+                try {
+                    $pdo->exec("UPDATE `products` SET `expiry_date` = NULL WHERE `expiry_date` IS NOT NULL AND (`expiry_date` = '0000-00-00' OR `expiry_date` < '2000-01-01')");
+                } catch (\Exception $e) {}
+            }
+            if ($tableExists('inventory_batches')) {
+                try {
+                    $pdo->exec("UPDATE `inventory_batches` SET `expiry_date` = NULL WHERE `expiry_date` IS NOT NULL AND (`expiry_date` = '0000-00-00' OR `expiry_date` < '2000-01-01')");
+                    // Sync products.expiry_date to earliest active batch expiry date
+                    $pdo->exec("
+                        UPDATE `products` p
+                        JOIN (
+                            SELECT product_id, shop_id, MIN(expiry_date) AS min_expiry
+                            FROM inventory_batches
+                            WHERE status = 'active' AND quantity > 0 AND expiry_date IS NOT NULL AND expiry_date >= '2000-01-01'
+                            GROUP BY product_id, shop_id
+                        ) ib ON p.id = ib.product_id AND p.shop_id = ib.shop_id
+                        SET p.expiry_date = ib.min_expiry
+                        WHERE p.expiry_date IS NULL OR p.expiry_date < '2000-01-01' OR p.expiry_date = '0000-00-00'
+                    ");
+                } catch (\Exception $e) {}
+            }
+
         } catch (\PDOException $e) {
             error_log("Migration error: " . $e->getMessage());
             file_put_contents(__DIR__ . '/migration_error.txt', "Migration error: " . $e->getMessage());
