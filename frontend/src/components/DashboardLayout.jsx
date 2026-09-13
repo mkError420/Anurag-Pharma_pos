@@ -315,7 +315,7 @@ export default function DashboardLayout({
                             {(alertFilter === 'all' || alertFilter === 'low_stock') &&
                               allLowStock.map((item) => (
                                 <div
-                                  key={`low-${item.id}`}
+                                  key={`low-${item.id}-${item.batch_id || 'base'}`}
                                   onClick={() => {
                                     if (onNavigate) onNavigate('/products');
                                     setShowNotifications(false);
@@ -330,6 +330,11 @@ export default function DashboardLayout({
                                       {item.sku && (
                                         <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
                                           SKU: {item.sku}
+                                          {item.batch_number && (
+                                            <span className="ml-1 text-indigo-600 dark:text-indigo-400 font-medium font-sans">
+                                              • {item.batch_number}
+                                            </span>
+                                          )}
                                         </span>
                                       )}
                                     </div>
@@ -373,7 +378,7 @@ export default function DashboardLayout({
 
                                 return (
                                   <div
-                                    key={`exp-${item.id}`}
+                                    key={`exp-${item.id}-${item.batch_id || 'base'}`}
                                     onClick={() => {
                                       if (onNavigate) onNavigate('/products');
                                       setShowNotifications(false);
@@ -388,6 +393,11 @@ export default function DashboardLayout({
                                         {item.sku && (
                                           <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
                                             SKU: {item.sku}
+                                            {item.batch_number && (
+                                              <span className="ml-1 text-indigo-600 dark:text-indigo-400 font-medium font-sans">
+                                                • {item.batch_number}
+                                              </span>
+                                            )}
                                           </span>
                                         )}
                                       </div>

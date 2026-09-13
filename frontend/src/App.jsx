@@ -138,8 +138,8 @@ export default function App() {
     if (!token) return;
     try {
       const [stockRes, expiryRes] = await Promise.allSettled([
-        fetch(`${API_BASE_URL}/products?low_stock=true`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_BASE_URL}/products?expiring=true`, { headers: { Authorization: `Bearer ${token}` } })
+        fetch(`${API_BASE_URL}/products?batch_level=true&purchased_only=true&low_stock=true`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/products?batch_level=true&purchased_only=true&expiring=true`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
       if (stockRes.status === 'fulfilled' && stockRes.value.ok) {
         const data = await stockRes.value.json().catch(() => []);
@@ -168,8 +168,8 @@ export default function App() {
           // Fetch all required data concurrently in parallel
           const [shopRes, stockRes, expiringRes, heldRes] = await Promise.allSettled([
             fetch(`${API_BASE_URL}/shops/my-shop`, { headers: { Authorization: `Bearer ${token}` } }),
-            fetch(`${API_BASE_URL}/products?low_stock=true`, { headers: { Authorization: `Bearer ${token}` } }),
-            fetch(`${API_BASE_URL}/products?expiring=true`, { headers: { Authorization: `Bearer ${token}` } }),
+            fetch(`${API_BASE_URL}/products?batch_level=true&purchased_only=true&low_stock=true`, { headers: { Authorization: `Bearer ${token}` } }),
+            fetch(`${API_BASE_URL}/products?batch_level=true&purchased_only=true&expiring=true`, { headers: { Authorization: `Bearer ${token}` } }),
             fetch(`${API_BASE_URL}/held-bills`, { headers: { Authorization: `Bearer ${token}` } })
           ]);
 
