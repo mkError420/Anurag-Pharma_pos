@@ -864,6 +864,18 @@ class DB {
                     ");
                 } catch (\Exception $e) {}
             }
+            // Fix products with empty or NULL SKUs — they all collide on uq_shop_sku (shop_id, sku)
+            // when trying to insert more than one product without a SKU in the same shop.
+            if ($tableExists('products')) {
+                try {
+                    $pdo->exec(
+                        "UPDATE `products` SET `sku` = CONCAT('SKU-FIX-', `id`, '-', UNIX_TIMESTAMP())
+                         WHERE `sku` IS NULL OR TRIM(`sku`) = ''"
+                    );
+                } catch (\Exception $e) {
+                    error_log("SKU fix migration warning: " . $e->getMessage());
+                }
+            }
 
         } catch (\PDOException $e) {
             error_log("Migration error: " . $e->getMessage());

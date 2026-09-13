@@ -469,7 +469,33 @@ class SupplierController {
         }
     }
 
+    public static function generateUniqueSku($shopId, $name = '') {
+        $cleanName = preg_replace('/[^A-Za-z0-9]/', '', $name ?? '');
+        $prefix = strtoupper(substr($cleanName, 0, 3));
+        if (empty($prefix) || strlen($prefix) < 2) {
+            $prefix = 'PRD';
+        }
+        
+        do {
+            $randomPart = strtoupper(substr(md5(uniqid((string)mt_rand(), true)), 0, 6));
+            $candidate = 'SKU-' . $prefix . '-' . $randomPart;
+            $stmt = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ? LIMIT 1', [$shopId, $candidate]);
+        } while ($stmt->fetch());
+        
+        return $candidate;
+    }
+
     private static function processAndInsertPoItems($poId, $shopId, $supplierId, $items, $status = 'draft') {
+        // Self-heal: ensure no legacy products in this shop have empty or null SKUs (which causes uq_shop_sku collision)
+        try {
+            DB::query(
+                "UPDATE products SET sku = CONCAT('SKU-FIX-', id, '-', UNIX_TIMESTAMP()) WHERE shop_id = ? AND (sku IS NULL OR TRIM(sku) = '')",
+                [$shopId]
+            );
+        } catch (\Exception $e) {
+            error_log('Cleanup empty SKUs warning: ' . $e->getMessage());
+        }
+
         $normalizedItems = [];
         foreach ($items as $item) {
             $qty = isset($item['quantity']) ? (int)$item['quantity'] : (isset($item['quantity_ordered']) ? (int)$item['quantity_ordered'] : 0);
@@ -597,8 +623,17 @@ class SupplierController {
                     DB::query('UPDATE products SET ' . implode(', ', $updateFields) . ' WHERE id = ? AND shop_id = ?', $updateParams);
                 }
             } else {
-                // Use provided SKU or keep empty
+                // Resolve SKU: use provided SKU or auto-generate a unique one
                 $sku = !empty($item['sku']) ? trim($item['sku']) : '';
+                if (empty($sku)) {
+                    $sku = self::generateUniqueSku($shopId, $item['name'] ?? '');
+                } else {
+                    // Check if provided SKU already exists in this shop
+                    $stmtSkuCheck = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ? LIMIT 1', [$shopId, $sku]);
+                    if ($stmtSkuCheck->fetch()) {
+                        $sku = self::generateUniqueSku($shopId, $sku);
+                    }
+                }
 
                 $sellingPriceVal = ($item['selling_price'] > 0) ? $item['selling_price'] : $item['cost_price'];
                 $categoryVal = !empty($item['category']) ? $item['category'] : null;
@@ -946,10 +981,43 @@ class SupplierController {
                 // Calculate total amount and update items
                 $totalAmount = 0.0;
                 foreach ($items as $item) {
-                    $productId = (int)$item['product_id'];
-                    $qtyOrdered = (int)$item['quantity_ordered'];
-                    $costPrice = (float)$item['cost_price'];
+                    $productId = (int)($item['product_id'] ?? 0);
+                    $qtyOrdered = (int)($item['quantity_ordered'] ?? 0);
+                    $costPrice = (float)($item['cost_price'] ?? 0);
                     $sellingPrice = (float)($item['selling_price'] ?? 0);
+                    $resolvedExpiry = !empty($item['expiry_date']) ? date('Y-m-d', strtotime($item['expiry_date'])) : null;
+                    
+                    if ($productId <= 0) {
+                        // Brand new product added to an edited PO
+                        $sku = !empty($item['sku']) ? trim($item['sku']) : '';
+                        if (empty($sku)) {
+                            $sku = self::generateUniqueSku($shopId, $item['name'] ?? '');
+                        } else {
+                            $stmtSkuCheck = DB::query('SELECT id FROM products WHERE shop_id = ? AND sku = ? LIMIT 1', [$shopId, $sku]);
+                            if ($stmtSkuCheck->fetch()) {
+                                $sku = self::generateUniqueSku($shopId, $sku);
+                            }
+                        }
+                        $sellingPriceVal = ($sellingPrice > 0) ? $sellingPrice : $costPrice;
+                        $categoryVal = !empty($item['category']) ? $item['category'] : null;
+                        DB::query(
+                            'INSERT INTO products (shop_id, name, sku, price, cost_price, stock_quantity, low_stock_threshold, expiry_date, supplier_id, unit, category)
+                             VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)',
+                            [
+                                $shopId,
+                                $item['name'] ?? 'Product',
+                                $sku,
+                                $sellingPriceVal,
+                                $costPrice,
+                                (int)($item['low_stock_threshold'] ?? 10),
+                                $resolvedExpiry,
+                                $supplierId,
+                                $item['unit'] ?? 'piece',
+                                $categoryVal
+                            ]
+                        );
+                        $productId = (int)DB::lastInsertId();
+                    }
                     
                     // Get current item data
                     $checkStmt = DB::query('SELECT id, quantity_ordered, quantity_received FROM purchase_order_items WHERE purchase_order_id = ? AND product_id = ? AND shop_id = ?', [$poId, $productId, $shopId]);
