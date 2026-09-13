@@ -50,7 +50,7 @@ class ProductController {
                             ib.id as batch_id,
                             ib.batch_number,
                             ib.quantity as stock_quantity,
-                            ib.expiry_date,
+                            COALESCE(ib.expiry_date, p.expiry_date) as expiry_date,
                             ib.received_date,
                             ib.status as batch_status
                         FROM products p
@@ -101,7 +101,7 @@ class ProductController {
 
                 if ($expiring === 'true') {
                     // For products without batches, use product expiry. For products with batches, use batch expiry
-                    $alertConditions[] = "((ib.id IS NULL AND p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0) OR (ib.id IS NOT NULL AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '' AND ib.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND ib.quantity > 0))";
+                    $alertConditions[] = "((ib.id IS NULL AND p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0) OR (ib.id IS NOT NULL AND COALESCE(ib.expiry_date, p.expiry_date) IS NOT NULL AND COALESCE(ib.expiry_date, p.expiry_date) != '' AND COALESCE(ib.expiry_date, p.expiry_date) <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND ib.quantity > 0))";
                 }
 
                 if (!empty($alertConditions)) {
@@ -145,8 +145,9 @@ class ProductController {
                     $p['supplier_id'] = $p['supplier_id'] !== null ? (int)$p['supplier_id'] : null;
                 }
             } else {
-                // Original product-level query
-                $sql = "SELECT p.id, p.shop_id, p.name, p.sku, p.price, p.cost_price, p.stock_quantity, p.low_stock_threshold, p.unit, p.expiry_date, p.supplier_id, p.category, s.name AS supplier_name, sh.name AS shop_name
+                $sql = "SELECT p.id, p.shop_id, p.name, p.sku, p.price, p.cost_price, p.stock_quantity, p.low_stock_threshold, p.unit, 
+                               COALESCE(NULLIF(p.expiry_date, ''), (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '')) AS expiry_date,
+                               p.supplier_id, p.category, s.name AS supplier_name, sh.name AS shop_name
                         FROM products p
                         LEFT JOIN suppliers s ON p.supplier_id = s.id
                         LEFT JOIN shops sh ON p.shop_id = sh.id
@@ -192,7 +193,7 @@ class ProductController {
                 }
 
                 if ($expiring === 'true') {
-                    $alertConditions[] = "(p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0)";
+                    $alertConditions[] = "((p.expiry_date IS NOT NULL AND p.expiry_date != '' AND p.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY) AND p.stock_quantity > 0) OR EXISTS (SELECT 1 FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '' AND ib.expiry_date <= DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)))";
                 }
 
                 if (!empty($alertConditions)) {
@@ -204,7 +205,7 @@ class ProductController {
                     $sql .= " ORDER BY p.created_at DESC, p.id DESC LIMIT " . (int)$latest;
                 } else {
                     // Priority: Items expiring earliest come first, items with no expiry date come after
-                    $sql .= " ORDER BY CASE WHEN p.expiry_date IS NOT NULL AND p.expiry_date != '' THEN 0 ELSE 1 END ASC, p.expiry_date ASC, p.name ASC";
+                    $sql .= " ORDER BY CASE WHEN COALESCE(NULLIF(p.expiry_date, ''), (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '')) IS NOT NULL AND COALESCE(NULLIF(p.expiry_date, ''), (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '')) != '' THEN 0 ELSE 1 END ASC, COALESCE(NULLIF(p.expiry_date, ''), (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date != '')) ASC, p.name ASC";
                     if ($limit !== null && $limit > 0) {
                         $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
                     }
@@ -460,6 +461,18 @@ class ProductController {
                 [$quantity, (int)$productId, $shopId]
             );
 
+            // Re-sync products.expiry_date with earliest active batch expiry date
+            $earliestStmt = DB::query(
+                "SELECT expiry_date FROM inventory_batches 
+                 WHERE product_id = ? AND shop_id = ? AND status = 'active' AND expiry_date IS NOT NULL AND expiry_date != ''
+                 ORDER BY expiry_date ASC LIMIT 1",
+                [(int)$productId, $shopId]
+            );
+            $earliestBatch = $earliestStmt->fetch();
+            if ($earliestBatch && !empty($earliestBatch['expiry_date'])) {
+                DB::query("UPDATE products SET expiry_date = ? WHERE id = ? AND shop_id = ?", [$earliestBatch['expiry_date'], (int)$productId, $shopId]);
+            }
+
             DB::commit();
 
             header('Content-Type: application/json');
@@ -556,6 +569,22 @@ class ProductController {
                 );
             }
 
+            // Re-sync products.expiry_date if batch expiry_date or status was updated
+            if (array_key_exists('expiry_date', $requestData) || isset($requestData['status'])) {
+                $earliestStmt = DB::query(
+                    "SELECT expiry_date FROM inventory_batches 
+                     WHERE product_id = ? AND shop_id = ? AND status = 'active' AND expiry_date IS NOT NULL AND expiry_date != ''
+                     ORDER BY expiry_date ASC LIMIT 1",
+                    [(int)$productId, $shopId]
+                );
+                $earliestBatch = $earliestStmt->fetch();
+                $syncedExpiry = $earliestBatch ? $earliestBatch['expiry_date'] : (!empty($requestData['expiry_date']) ? $requestData['expiry_date'] : null);
+                DB::query(
+                    "UPDATE products SET expiry_date = ? WHERE id = ? AND shop_id = ?",
+                    [$syncedExpiry, (int)$productId, $shopId]
+                );
+            }
+
             DB::commit();
 
             header('Content-Type: application/json');
@@ -623,6 +652,17 @@ class ProductController {
 
             // Delete the batch
             DB::query('DELETE FROM inventory_batches WHERE id = ? AND shop_id = ?', [(int)$batchId, $shopId]);
+
+            // Re-sync products.expiry_date from remaining active batches
+            $earliestStmt = DB::query(
+                "SELECT expiry_date FROM inventory_batches 
+                 WHERE product_id = ? AND shop_id = ? AND status = 'active' AND expiry_date IS NOT NULL AND expiry_date != ''
+                 ORDER BY expiry_date ASC LIMIT 1",
+                [(int)$productId, $shopId]
+            );
+            $earliestBatch = $earliestStmt->fetch();
+            $syncedExpiry = $earliestBatch ? $earliestBatch['expiry_date'] : null;
+            DB::query("UPDATE products SET expiry_date = ? WHERE id = ? AND shop_id = ?", [$syncedExpiry, (int)$productId, $shopId]);
 
             DB::commit();
 
@@ -795,6 +835,29 @@ class ProductController {
                 "UPDATE products SET " . implode(', ', $updateFields) . " WHERE id = ? AND shop_id = ?",
                 $params
             );
+
+            // Sync inventory_batches if expiry_date was provided
+            if (array_key_exists('expiry_date', $requestData)) {
+                $newExpiry = !empty($requestData['expiry_date']) ? $requestData['expiry_date'] : null;
+                $batchIdParam = isset($requestData['batch_id']) && !empty($requestData['batch_id']) ? (int)$requestData['batch_id'] : null;
+
+                try {
+                    if ($batchIdParam) {
+                        DB::query(
+                            "UPDATE inventory_batches SET expiry_date = ? WHERE id = ? AND product_id = ? AND shop_id = ?",
+                            [$newExpiry, $batchIdParam, $productId, $shopId]
+                        );
+                    } else {
+                        // Update active batches for this product
+                        DB::query(
+                            "UPDATE inventory_batches SET expiry_date = ? WHERE product_id = ? AND shop_id = ? AND status = 'active'",
+                            [$newExpiry, $productId, $shopId]
+                        );
+                    }
+                } catch (\Exception $e) {
+                    // Ignore if inventory_batches table does not exist
+                }
+            }
 
             // Log cost price change if it was modified
             if (array_key_exists('cost_price', $requestData)) {

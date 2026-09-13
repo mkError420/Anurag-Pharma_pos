@@ -3,7 +3,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import API_BASE_URL from '../config';
 
-export default function Suppliers() {
+export default function Suppliers({ onAlertsRefresh }) {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user.role === 'shop_admin';
   const [suppliers, setSuppliers] = useState([]);
@@ -102,7 +102,7 @@ export default function Suppliers() {
   // Product Edit states (inside supplied products profile tab)
   const [showEditProductModal, setShowEditProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
-  const [productEditForm, setProductEditForm] = useState({ name: '', sku: '', cost_price: '', price: '', stock_quantity: '', category: '', unit: 'piece' });
+  const [productEditForm, setProductEditForm] = useState({ name: '', sku: '', cost_price: '', price: '', stock_quantity: '', category: '', unit: 'piece', expiry_date: '' });
   const [updatingProduct, setUpdatingProduct] = useState(false);
 
   // Log Edit CRUD states
@@ -2057,6 +2057,7 @@ export default function Suppliers() {
       if (selectedSupplierId) {
         await loadProfileData(selectedSupplierId);
       }
+      if (onAlertsRefresh) onAlertsRefresh();
     } catch (err) {
       triggerAlert('error', err.message);
     } finally {

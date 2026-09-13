@@ -340,7 +340,10 @@ export default function DashboardLayout({
                             {/* Expiring / Expired Items */}
                             {(alertFilter === 'all' || alertFilter === 'expiry') &&
                               allExpiry.map((item) => {
-                                const expiry = new Date(item.expiry_date);
+                                const expiryParts = String(item.expiry_date).split('T')[0].split(' ')[0].split('-');
+                                const expiry = expiryParts.length === 3
+                                  ? new Date(parseInt(expiryParts[0], 10), parseInt(expiryParts[1], 10) - 1, parseInt(expiryParts[2], 10))
+                                  : new Date(item.expiry_date);
                                 expiry.setHours(0, 0, 0, 0);
                                 const diffTime = expiry.getTime() - today.getTime();
                                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));

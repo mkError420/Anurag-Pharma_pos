@@ -4,7 +4,7 @@ import Adjustments from './Adjustments';
 import API_BASE_URL from '../config';
 import { printThermalElement } from '../utils/receiptPrinter';
 
-export default function Inventory() {
+export default function Inventory({ onAlertsRefresh }) {
   const userObj = JSON.parse(localStorage.getItem('user') || '{}');
   const isSuperAdmin = userObj.role === 'super_admin';
 
@@ -314,6 +314,7 @@ export default function Inventory() {
       // Refresh product list and batches
       fetchProducts();
       handleViewBatches(currentProduct);
+      if (onAlertsRefresh) onAlertsRefresh();
     } catch (err) {
       triggerBatchAlert('error', err.message);
     } finally {
@@ -335,6 +336,7 @@ export default function Inventory() {
       triggerBatchAlert('success', 'Batch deleted successfully!');
       fetchProducts();
       handleViewBatches(currentProduct);
+      if (onAlertsRefresh) onAlertsRefresh();
     } catch (err) {
       triggerBatchAlert('error', err.message);
     }
@@ -364,6 +366,7 @@ export default function Inventory() {
       setEditingBatchId(null);
       fetchProducts();
       handleViewBatches(currentProduct);
+      if (onAlertsRefresh) onAlertsRefresh();
     } catch (err) {
       triggerBatchAlert('error', err.message);
     }
@@ -532,6 +535,7 @@ export default function Inventory() {
       setShowAddModal(false);
       resetForm();
       fetchProducts();
+      if (onAlertsRefresh) onAlertsRefresh();
     } catch (err) {
       triggerAlert('error', err.message);
     }
@@ -596,6 +600,7 @@ export default function Inventory() {
       setShowEditModal(false);
       resetForm();
       fetchProducts();
+      if (onAlertsRefresh) onAlertsRefresh();
     } catch (err) {
       triggerAlert('error', err.message);
     }
@@ -708,6 +713,7 @@ export default function Inventory() {
         setProductToDelete(null);
         setDeleteProgress({ active: false, current: 0, total: 0, percent: 0, currentName: '' });
         fetchProducts();
+        if (onAlertsRefresh) onAlertsRefresh();
       }, 600);
 
     } catch (err) {
@@ -838,6 +844,7 @@ export default function Inventory() {
       setShowCsvUploadModal(false);
       setCsvFile(null);
       fetchProducts();
+      if (onAlertsRefresh) onAlertsRefresh();
     } catch (err) {
       triggerAlert('error', err.message);
     } finally {

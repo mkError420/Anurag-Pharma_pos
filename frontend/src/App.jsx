@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Login from './components/Login';
 import TeamMembers from './components/TeamMembers';
 import HeroSlides from './components/HeroSlides';
@@ -130,6 +130,29 @@ export default function App() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // ─── refreshAlerts: re-fetch only the stock & expiry alerts ───────────────
+  const refreshAlerts = useCallback(async () => {
+    if (!user || user.role === 'super_admin') return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const [stockRes, expiryRes] = await Promise.allSettled([
+        fetch(`${API_BASE_URL}/products?low_stock=true`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE_URL}/products?expiring=true`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      if (stockRes.status === 'fulfilled' && stockRes.value.ok) {
+        const data = await stockRes.value.json().catch(() => []);
+        setLowStockAlerts(Array.isArray(data) ? data : []);
+      }
+      if (expiryRes.status === 'fulfilled' && expiryRes.value.ok) {
+        const data = await expiryRes.value.json().catch(() => []);
+        setExpiryAlerts(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('refreshAlerts failed:', e);
+    }
+  }, [user]);
 
   // Fetch low-stock alerts, held bills, and session details concurrently
   useEffect(() => {
@@ -263,7 +286,7 @@ export default function App() {
         case '/dashboard': return <Dashboard />;
         case '/shops': return <ManageShops />;
         case '/users': return <SystemUsers />;
-        case '/products': return <Inventory />;
+        case '/products': return <Inventory onAlertsRefresh={refreshAlerts} />;
         case '/wastage': return <Wastage />;
         case '/other-cost': return <OtherCost />;
         case '/other-sales': return <OtherSales />;
@@ -313,8 +336,8 @@ export default function App() {
       case '/dashboard': return <Dashboard />;
       case '/checkout': return <Checkout resumedHeldBill={resumedHeldBill} onClearResumedHeldBill={() => setResumedHeldBill(null)} onHeldBillsChange={(count) => setHeldBillsCount(count)} onNavigate={setCurrentPath} />;
       case '/held-bills': return <HeldBills onResume={(bill) => { setResumedHeldBill(bill); setCurrentPath('/checkout'); }} onHeldBillsChange={(count) => setHeldBillsCount(count)} />;
-      case '/products': return <Inventory />;
-      case '/suppliers': return <Suppliers />;
+      case '/products': return <Inventory onAlertsRefresh={refreshAlerts} />;
+      case '/suppliers': return <Suppliers onAlertsRefresh={refreshAlerts} />;
       case '/customers': return <Customers />;
       case '/sales': return <SalesHistory />;
       case '/manual-orders': return <ManualOrders />;
