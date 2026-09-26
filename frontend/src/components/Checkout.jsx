@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import API_BASE_URL from '../config';
 import ElectronicCashDrawerModal from './ElectronicCashDrawerModal';
@@ -55,6 +55,12 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
   const customerInputRef = useRef(null);
   const searchInputRef = useRef(null);
   const productTableBodyRef = useRef(null);
+
+  // In-memory catalog cache for 0ms instant local search and debounce refs
+  const catalogRef = useRef([]);
+  const searchAbortControllerRef = useRef(null);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Virtual Keyboard / Numpad Pad States
   const [showKeyboardModal, setShowKeyboardModal] = useState(false);
@@ -127,16 +133,59 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     }
   }, [activeTab?.selectedCustomerId, customers]);
 
-  // --- API FETCH LOGIC ---
+  // --- API FETCH & INSTANT SEARCH LOGIC ---
 
-  // 1. Fetch products matching search string
+  // Fast in-memory filter and ranking for 0ms instant local search response
+  const filterCatalogLocally = useCallback((catalogList, query) => {
+    if (!query || !query.trim()) {
+      return catalogList;
+    }
+    const q = query.trim().toLowerCase();
+    const tokens = q.split(/\s+/).filter(Boolean);
+
+    const matches = catalogList.filter(p => {
+      const name = (p.name || '').toLowerCase();
+      const sku = (p.sku || '').toLowerCase();
+      const category = (p.category || '').toLowerCase();
+      const supplier = (p.supplier_name || '').toLowerCase();
+
+      return tokens.every(tok =>
+        name.includes(tok) || sku.includes(tok) || category.includes(tok) || supplier.includes(tok)
+      );
+    });
+
+    return matches.sort((a, b) => {
+      const aName = (a.name || '').toLowerCase();
+      const bName = (b.name || '').toLowerCase();
+      const aSku = (a.sku || '').toLowerCase();
+      const bSku = (b.sku || '').toLowerCase();
+
+      // 1. Exact SKU or Name match
+      const aExact = (aSku === q || aName === q) ? 0 : 1;
+      const bExact = (bSku === q || bName === q) ? 0 : 1;
+      if (aExact !== bExact) return aExact - bExact;
+
+      // 2. Prefix match
+      const aPrefix = (aSku.startsWith(q) || aName.startsWith(q)) ? 0 : 1;
+      const bPrefix = (bSku.startsWith(q) || bName.startsWith(q)) ? 0 : 1;
+      if (aPrefix !== bPrefix) return aPrefix - bPrefix;
+
+      // 3. In-stock products before out-of-stock
+      const aOut = parseFloat(a.stock_quantity || 0) <= 0 ? 1 : 0;
+      const bOut = parseFloat(b.stock_quantity || 0) <= 0 ? 1 : 0;
+      if (aOut !== bOut) return aOut - bOut;
+
+      return aName.localeCompare(bName);
+    });
+  }, []);
+
+  // 1. Fetch initial catalog and background refresh
   const fetchProducts = async (searchTerm = '') => {
-    setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const url = searchTerm
-        ? `${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(searchTerm)}`
-        : `${API_BASE_URL}/products?purchased_only=true&latest=10`;
+      const url = searchTerm.trim()
+        ? `${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(searchTerm.trim())}&limit=60`
+        : `${API_BASE_URL}/products?purchased_only=true&limit=300`;
 
       const response = await fetch(url, {
         headers: {
@@ -162,22 +211,28 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         if (p.expiry_date) {
           const exp = new Date(p.expiry_date);
           exp.setHours(0, 0, 0, 0);
-          if (exp.getTime() < today.getTime()) return false; // expired — hide regardless of stock
+          if (exp.getTime() < today.getTime()) return false;
         }
         return true;
       });
 
-      // Sort: in-stock products first, out-of-stock (≤ 0) pushed to the bottom
-      const sorted = [...validProducts].sort((a, b) => {
-        const aOut = parseFloat(a.stock_quantity || 0) <= 0 ? 1 : 0;
-        const bOut = parseFloat(b.stock_quantity || 0) <= 0 ? 1 : 0;
-        return aOut - bOut; // stable: preserves original server order within each group
-      });
-      setProducts(sorted);
+      if (!searchTerm.trim()) {
+        catalogRef.current = validProducts;
+        setProducts(validProducts);
+      } else {
+        // Merge into catalogRef so newly fetched products are cached locally
+        const existingIds = new Set(catalogRef.current.map(p => p.id));
+        const newItems = validProducts.filter(p => !existingIds.has(p.id));
+        if (newItems.length > 0) {
+          catalogRef.current = [...catalogRef.current, ...newItems];
+        }
+        setProducts(validProducts);
+      }
     } catch (err) {
       triggerAlert('error', err.message);
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
+      setIsSearching(false);
     }
   };
 
@@ -268,14 +323,73 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     fetchHeldBills();
   }, []);
 
-  // Debounced/delayed search triggers on input change
+  // Fast debounced background search to enrich catalog and fetch remote results
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      fetchProducts(search);
-    }, 400);
+    if (!search.trim()) {
+      if (searchAbortControllerRef.current) {
+        searchAbortControllerRef.current.abort();
+      }
+      setIsSearching(false);
+      return;
+    }
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [search]);
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    searchAbortControllerRef.current = abortController;
+
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const token = localStorage.getItem('token');
+        const url = `${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(search.trim())}&limit=60`;
+        const response = await fetch(url, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          signal: abortController.signal
+        });
+
+        if (!response.ok) return;
+        const data = await response.json();
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const validProducts = data.filter(p => {
+          if (p.expiry_date) {
+            const exp = new Date(p.expiry_date);
+            exp.setHours(0, 0, 0, 0);
+            if (exp.getTime() < today.getTime()) return false;
+          }
+          return true;
+        });
+
+        // Enrich catalog cache with remote matches
+        const existingIds = new Set(catalogRef.current.map(p => p.id));
+        const newItems = validProducts.filter(p => !existingIds.has(p.id));
+        if (newItems.length > 0) {
+          catalogRef.current = [...catalogRef.current, ...newItems];
+        }
+
+        // Re-filter locally using enriched catalog to keep results responsive
+        const merged = filterCatalogLocally(catalogRef.current, search);
+        setProducts(merged);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Background search error:', err);
+        }
+      } finally {
+        if (!abortController.signal.aborted) {
+          setIsSearching(false);
+        }
+      }
+    }, 150);
+
+    return () => {
+      clearTimeout(delayDebounceFn);
+      abortController.abort();
+    };
+  }, [search, filterCatalogLocally]);
 
   // Handle resuming a held bill passed from the parent state (sidebar navigation)
   useEffect(() => {
@@ -391,11 +505,26 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
   const handleBarcodeScan = async (barcode) => {
     if (!barcode || !barcode.trim()) return;
     const trimmedBarcode = barcode.trim();
+    const barcodeLower = trimmedBarcode.toLowerCase();
+
+    // Check catalog cache first for 0ms instant barcode resolution
+    const exactLocalMatch = catalogRef.current.find(p => (p.sku || '').toLowerCase() === barcodeLower);
+    if (exactLocalMatch) {
+      if (exactLocalMatch.stock_quantity <= 0) {
+        playBeepSound(false);
+        triggerAlert('error', `Product "${exactLocalMatch.name}" is out of stock.`);
+      } else {
+        addToCart(exactLocalMatch);
+        playBeepSound(true);
+        triggerAlert('success', `Added to cart: ${exactLocalMatch.name}`);
+      }
+      return;
+    }
 
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(trimmedBarcode)}`, {
+      const response = await fetch(`${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(trimmedBarcode)}&limit=10`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -405,7 +534,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       const data = await response.json();
 
       // Find a product with the exact SKU
-      const exactMatch = data.find(p => p.sku.toLowerCase() === trimmedBarcode.toLowerCase());
+      const exactMatch = data.find(p => (p.sku || '').toLowerCase() === barcodeLower);
 
       if (exactMatch) {
         if (exactMatch.stock_quantity <= 0) {
@@ -1632,6 +1761,66 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     }
   };
 
+  // Memoize displayed products for 60fps fast rendering
+  const displayedProducts = useMemo(() => {
+    if (search.trim()) {
+      // Relevance ranking is already performed in filterCatalogLocally
+      return products.slice(0, 60);
+    }
+
+    // Default POS catalog view: in-stock first, then FEFO expiry date, then name
+    const sorted = [...products].sort((a, b) => {
+      const aOut = parseFloat(a.stock_quantity || 0) <= 0 ? 1 : 0;
+      const bOut = parseFloat(b.stock_quantity || 0) <= 0 ? 1 : 0;
+      if (aOut !== bOut) return aOut - bOut;
+
+      if (a.expiry_date && b.expiry_date) {
+        return new Date(a.expiry_date) - new Date(b.expiry_date);
+      }
+      if (a.expiry_date) return -1;
+      if (b.expiry_date) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    return sorted.slice(0, 60);
+  }, [products, search]);
+
+  // Memoize row allocations for displayed products
+  const rowAllocations = useMemo(() => {
+    const cartAllocations = {};
+    activeTab?.cart?.forEach(item => {
+      const key = (item.name || '').trim().toLowerCase();
+      cartAllocations[key] = (cartAllocations[key] || 0) + (parseFloat(item.quantity) || 0);
+    });
+
+    const allocations = {};
+    displayedProducts.forEach(product => {
+      const nameKey = (product.name || '').trim().toLowerCase();
+      let qtyForRow = 0;
+      if (cartAllocations[nameKey] > 0) {
+        qtyForRow = Math.min(product.stock_quantity, cartAllocations[nameKey]);
+        cartAllocations[nameKey] -= qtyForRow;
+      }
+      allocations[product.id] = parseFloat(qtyForRow.toFixed(3));
+    });
+
+    return allocations;
+  }, [displayedProducts, activeTab?.cart]);
+
+  // Instant search input change handler (0ms response)
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearch(val);
+    setSearchFocusedIndex(-1);
+
+    if (!val.trim()) {
+      setProducts(catalogRef.current);
+    } else {
+      const instantFiltered = filterCatalogLocally(catalogRef.current, val);
+      setProducts(instantFiltered);
+    }
+  };
+
   return (
     <div className="relative h-full flex flex-col">
 
@@ -1745,11 +1934,11 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                 type="text"
                 placeholder="Search by product name, category, or SKU... (F2)"
                 value={search}
-                onChange={(e) => { setSearch(e.target.value); setSearchFocusedIndex(-1); }}
+                onChange={handleSearchChange}
                 onKeyDown={(e) => {
                   if (e.key === 'ArrowDown') {
                     e.preventDefault();
-                    const newIndex = searchFocusedIndex < products.length - 1 ? searchFocusedIndex + 1 : searchFocusedIndex;
+                    const newIndex = searchFocusedIndex < displayedProducts.length - 1 ? searchFocusedIndex + 1 : searchFocusedIndex;
                     setSearchFocusedIndex(newIndex);
                     // Scroll to keep the focused item visible
                     setTimeout(() => {
@@ -1771,21 +1960,56 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                     }, 0);
                   } else if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (searchFocusedIndex >= 0 && products[searchFocusedIndex]) {
-                      const product = products[searchFocusedIndex];
+                    if (searchFocusedIndex >= 0 && displayedProducts[searchFocusedIndex]) {
+                      const product = displayedProducts[searchFocusedIndex];
+                      const inCartItem = activeTab?.cart?.find(item => item.id === product.id);
+                      const remainingQty = product.stock_quantity - (inCartItem ? inCartItem.quantity : 0);
+                      if (remainingQty > 0) {
+                        addToCart(product);
+                      }
+                    } else if (displayedProducts.length === 1) {
+                      const product = displayedProducts[0];
                       const inCartItem = activeTab?.cart?.find(item => item.id === product.id);
                       const remainingQty = product.stock_quantity - (inCartItem ? inCartItem.quantity : 0);
                       if (remainingQty > 0) {
                         addToCart(product);
                       }
                     }
+                  } else if (e.key === 'Escape') {
+                    setSearch('');
+                    setProducts(catalogRef.current);
+                    setSearchFocusedIndex(-1);
                   }
                 }}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium"
+                className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium"
               />
               <svg className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
+              {isSearching ? (
+                <div className="absolute right-3 top-3">
+                  <svg className="animate-spin h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                </div>
+              ) : search ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch('');
+                    setProducts(catalogRef.current);
+                    setSearchFocusedIndex(-1);
+                    searchInputRef.current?.focus();
+                  }}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-100"
+                  title="Clear search"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              ) : null}
             </div>
 
             {/* Barcode Scanner Console */}
@@ -1831,13 +2055,13 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
           {/* Product Items Scrolling Container */}
           <div className="flex-1 overflow-y-auto pr-1">
-            {loading ? (
+            {initialLoading ? (
               <div className="flex justify-center items-center h-48">
                 <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-600"></div>
               </div>
-            ) : products.length === 0 ? (
+            ) : displayedProducts.length === 0 ? (
               <div className="bg-white border border-slate-100 rounded-xl p-12 text-center text-slate-400">
-                No items found. Create items in inventory to begin.
+                {search.trim() ? `No items found matching "${search}".` : 'No items found. Create items in inventory to begin.'}
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs flex flex-col" style={{ maxHeight: 'calc(100vh - 320px)' }}>
@@ -1852,126 +2076,97 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       </tr>
                     </thead>
                     <tbody ref={productTableBodyRef} className="divide-y divide-slate-100 text-sm">
-                      {(() => {
-                        const sortedProducts = [...products].sort((a, b) => {
-                          const aOut = parseFloat(a.stock_quantity || 0) <= 0 ? 1 : 0;
-                          const bOut = parseFloat(b.stock_quantity || 0) <= 0 ? 1 : 0;
-                          // First: in-stock items come before out-of-stock
-                          if (aOut !== bOut) return aOut - bOut;
-                          // Then: within same stock group, sort by expiry date (FEFO)
-                          if (a.expiry_date && b.expiry_date) {
-                            return new Date(a.expiry_date) - new Date(b.expiry_date);
-                          }
-                          if (a.expiry_date) return -1;
-                          if (b.expiry_date) return 1;
-                          return (a.name || '').localeCompare(b.name || '');
-                        });
+                      {displayedProducts.map((product, index) => {
+                        const qtyForRow = rowAllocations[product.id] || 0;
+                        const remainingQty = product.stock_quantity;
+                        const isOutOfStock = remainingQty <= 0;
 
-                        // Pre-calculate cart allocations for FEFO display
-                        const cartAllocations = {};
-                        activeTab?.cart?.forEach(item => {
-                          cartAllocations[(item.name || '').trim().toLowerCase()] = item.quantity;
-                        });
+                        // Expiry status calculation
+                        let isExpired = false;
+                        let expiryBadge = null;
+                        if (product.expiry_date) {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const expiry = new Date(product.expiry_date);
+                          expiry.setHours(0, 0, 0, 0);
+                          isExpired = expiry.getTime() < today.getTime();
+                          const diffTime = expiry.getTime() - today.getTime();
+                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                        const rowAllocations = {};
-                        sortedProducts.forEach(product => {
-                          const nameKey = (product.name || '').trim().toLowerCase();
-                          let qtyForRow = 0;
-                          if (cartAllocations[nameKey] > 0) {
-                            qtyForRow = Math.min(product.stock_quantity, cartAllocations[nameKey]);
-                            cartAllocations[nameKey] -= qtyForRow;
-                          }
-                          rowAllocations[product.id] = parseFloat(qtyForRow.toFixed(3));
-                        });
-
-                        return sortedProducts.map((product, index) => {
-                          const inCartItem = activeTab?.cart?.find(item => (item.name || '').trim().toLowerCase() === (product.name || '').trim().toLowerCase());
-                          const qtyForRow = rowAllocations[product.id] || 0;
-                          const remainingQty = product.stock_quantity;
-                          const isOutOfStock = remainingQty <= 0;
-
-                          // Expiry status calculation
-                          let isExpired = false;
-                          let expiryBadge = null;
-                          if (product.expiry_date) {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            const expiry = new Date(product.expiry_date);
-                            expiry.setHours(0, 0, 0, 0);
-                            isExpired = expiry.getTime() < today.getTime();
-                            const diffTime = expiry.getTime() - today.getTime();
-                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                            if (isExpired) {
-                              expiryBadge = (
-                                <span className="bg-rose-100 text-rose-700 border border-rose-200 px-2 py-0.5 rounded text-[11px] font-extrabold inline-flex items-center shadow-2xs">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-600 mr-1 animate-pulse"></span>
-                                  Expired ({expiry.toLocaleDateString()})
-                                </span>
-                              );
-                            } else if (diffDays <= 30) {
-                              expiryBadge = (
-                                <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[11px] font-bold inline-flex items-center">
-                                  Expiring ({expiry.toLocaleDateString()})
-                                </span>
-                              );
-                            } else {
-                              expiryBadge = (
-                                <span className="text-slate-600 text-xs font-medium">
-                                  {expiry.toLocaleDateString()}
-                                </span>
-                              );
-                            }
+                          if (isExpired) {
+                            expiryBadge = (
+                              <span className="bg-rose-100 text-rose-700 border border-rose-200 px-2 py-0.5 rounded text-[11px] font-extrabold inline-flex items-center shadow-2xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 mr-1 animate-pulse"></span>
+                                Expired ({expiry.toLocaleDateString()})
+                              </span>
+                            );
+                          } else if (diffDays <= 30) {
+                            expiryBadge = (
+                              <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded text-[11px] font-bold inline-flex items-center">
+                                Expiring ({expiry.toLocaleDateString()})
+                              </span>
+                            );
                           } else {
-                            expiryBadge = <span className="text-slate-400 text-xs">N/A</span>;
+                            expiryBadge = (
+                              <span className="text-slate-600 text-xs font-medium">
+                                {expiry.toLocaleDateString()}
+                              </span>
+                            );
                           }
+                        } else {
+                          expiryBadge = <span className="text-slate-400 text-xs">N/A</span>;
+                        }
 
-                          const isDisabled = isOutOfStock || isExpired;
+                        const isDisabled = isOutOfStock || isExpired;
 
-                          return (
-                            <tr key={product.id} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''} ${isExpired ? 'bg-rose-50/60' : ''}`}>
-                              <td
-                                className={`p-3 pl-4 font-semibold transition-colors ${isDisabled ? 'text-slate-400 cursor-not-allowed' : 'text-slate-800 cursor-pointer hover:text-indigo-600'}`}
-                                onClick={() => !isDisabled && addToCart(product)}
-                                title={isExpired ? `Expired on ${product.expiry_date}` : (isOutOfStock ? 'Out of stock' : 'Click to add to cart')}
-                              >
-                                <div>
-                                  {product.name}
-                                  {isExpired && <span className="ml-2 text-xs text-rose-600 font-bold">(Expired)</span>}
-                                </div>
-                                <div className="text-xs text-slate-500 font-normal mt-0.5">
-                                  {product.category && (
-                                    <span className="text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded mr-2">
-                                      {product.category}
-                                    </span>
-                                  )}
-                                  {product.supplier_name && (
-                                    <span>
-                                      {product.supplier_name}
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="p-3 text-right font-extrabold text-slate-700">৳{parseFloat(product.price).toFixed(3)}</td>
-                              <td className="p-3 text-center">{expiryBadge}</td>
-                              <td className="p-3 text-center">
-                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${isExpired
-                                  ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                                  : remainingQty <= product.low_stock_threshold
-                                    ? 'bg-rose-50 text-rose-600 border border-rose-100'
-                                    : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                                  }`}>
-                                  {isExpired ? 'Expired' : `${remainingQty} ${product.unit || 'pcs'} left`}
-                                </span>
-                              </td>
+                        return (
+                          <tr key={product.id} className={`hover:bg-slate-50/50 transition-colors ${searchFocusedIndex === index ? 'bg-indigo-100 ring-2 ring-indigo-500 ring-inset' : ''} ${isExpired ? 'bg-rose-50/60' : ''}`}>
+                            <td
+                              className={`p-3 pl-4 font-semibold transition-colors ${isDisabled ? 'text-slate-400 cursor-not-allowed' : 'text-slate-800 cursor-pointer hover:text-indigo-600'}`}
+                              onClick={() => !isDisabled && addToCart(product)}
+                              title={isExpired ? `Expired on ${product.expiry_date}` : (isOutOfStock ? 'Out of stock' : 'Click to add to cart')}
+                            >
+                              <div>
+                                {product.name}
+                                {isExpired && <span className="ml-2 text-xs text-rose-600 font-bold">(Expired)</span>}
+                              </div>
+                              <div className="text-xs text-slate-500 font-normal mt-0.5">
+                                {product.category && (
+                                  <span className="text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded mr-2">
+                                    {product.category}
+                                  </span>
+                                )}
+                                {product.supplier_name && (
+                                  <span>
+                                    {product.supplier_name}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3 text-right font-extrabold text-slate-700">৳{parseFloat(product.price).toFixed(3)}</td>
+                            <td className="p-3 text-center">{expiryBadge}</td>
+                            <td className="p-3 text-center">
+                              <span className={`px-2 py-0.5 rounded text-xs font-bold ${isExpired
+                                ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                                : remainingQty <= product.low_stock_threshold
+                                  ? 'bg-rose-50 text-rose-600 border border-rose-100'
+                                  : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                }`}>
+                                {isExpired ? 'Expired' : `${remainingQty} ${product.unit || 'pcs'} left`}
+                              </span>
+                            </td>
 
-                            </tr>
-                          );
-                        })
-                      })()}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
+                {products.length > displayedProducts.length && (
+                  <div className="py-2 px-3 bg-slate-50/80 border-t border-slate-100 text-center text-xs text-slate-500 font-medium">
+                    Showing top {displayedProducts.length} of {products.length} matches. Type more characters to narrow down.
+                  </div>
+                )}
               </div>
             )}
           </div>

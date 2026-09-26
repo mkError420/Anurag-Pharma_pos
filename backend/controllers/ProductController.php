@@ -111,9 +111,26 @@ class ProductController {
                 $latest = $_GET['latest'] ?? null;
                 if ($latest !== null) {
                     $sql .= " ORDER BY COALESCE(ib.created_at, p.created_at) DESC, COALESCE(ib.id, p.id) DESC LIMIT " . (int)$latest;
+                } else if (!empty($search)) {
+                    $sql .= " ORDER BY 
+                                CASE 
+                                    WHEN p.sku = ? THEN 1 
+                                    WHEN p.name LIKE ? THEN 2 
+                                    WHEN p.sku LIKE ? THEN 3 
+                                    ELSE 4 
+                                END ASC, 
+                                p.name ASC";
+                    $params[] = $search;
+                    $params[] = "$search%";
+                    $params[] = "$search%";
+                    if ($limit !== null && $limit > 0) {
+                        $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+                    } else {
+                        $sql .= " LIMIT 100 OFFSET " . (int)$offset;
+                    }
                 } else {
                     // Priority: Items expiring earliest come first, items with no expiry date come after
-                    $sql .= " ORDER BY CASE WHEN COALESCE(ib.expiry_date, p.expiry_date) IS NOT NULL AND COALESCE(ib.expiry_date, p.expiry_date) != '' THEN 0 ELSE 1 END ASC, COALESCE(ib.expiry_date, p.expiry_date) ASC, p.sku ASC, p.name ASC";
+                    $sql .= " ORDER BY CASE WHEN expiry_date IS NOT NULL AND expiry_date != '' THEN 0 ELSE 1 END ASC, expiry_date ASC, p.sku ASC, p.name ASC";
                     if ($limit !== null && $limit > 0) {
                         $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
                     }
@@ -212,9 +229,26 @@ class ProductController {
                 $latest = $_GET['latest'] ?? null;
                 if ($latest !== null) {
                     $sql .= " ORDER BY p.created_at DESC, p.id DESC LIMIT " . (int)$latest;
+                } else if (!empty($search)) {
+                    $sql .= " ORDER BY 
+                                CASE 
+                                    WHEN p.sku = ? THEN 1 
+                                    WHEN p.name LIKE ? THEN 2 
+                                    WHEN p.sku LIKE ? THEN 3 
+                                    ELSE 4 
+                                END ASC, 
+                                p.name ASC";
+                    $params[] = $search;
+                    $params[] = "$search%";
+                    $params[] = "$search%";
+                    if ($limit !== null && $limit > 0) {
+                        $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
+                    } else {
+                        $sql .= " LIMIT 100 OFFSET " . (int)$offset;
+                    }
                 } else {
                     // Priority: Items expiring earliest come first, items with no expiry date come after
-                    $sql .= " ORDER BY CASE WHEN COALESCE((SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date >= '2000-01-01'), CASE WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END) IS NOT NULL THEN 0 ELSE 1 END ASC, COALESCE((SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date >= '2000-01-01'), CASE WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END) ASC, p.name ASC";
+                    $sql .= " ORDER BY CASE WHEN expiry_date IS NOT NULL THEN 0 ELSE 1 END ASC, expiry_date ASC, p.name ASC";
                     if ($limit !== null && $limit > 0) {
                         $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
                     }

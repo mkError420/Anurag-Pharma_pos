@@ -875,7 +875,20 @@ class DB {
                 } catch (\Exception $e) {
                     error_log("SKU fix migration warning: " . $e->getMessage());
                 }
+
+                // Performance index for product search
+                try {
+                    $pdo->exec("ALTER TABLE `products` ADD INDEX `idx_products_shop_name` (`shop_id`, `name`)");
+                } catch (\Exception $e) {}
             }
+
+            // Performance index for purchased_only EXISTS checks in POS
+            if ($tableExists('purchase_order_items')) {
+                try {
+                    $pdo->exec("ALTER TABLE `purchase_order_items` ADD INDEX `idx_poi_product_shop` (`product_id`, `shop_id`)");
+                } catch (\Exception $e) {}
+            }
+
 
         } catch (\PDOException $e) {
             error_log("Migration error: " . $e->getMessage());
