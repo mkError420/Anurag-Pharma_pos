@@ -4978,15 +4978,17 @@ export default function Suppliers({ onAlertsRefresh }) {
                       ))
                     )}
                   </tbody>
-                  <tfoot>
-                    <tr className="bg-slate-50/50 border-t-2 border-slate-200 font-bold">
-                      <td colSpan="5" className="p-4 text-slate-500 uppercase text-xs">Total</td>
-                      <td className="p-4 font-bold text-slate-800">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0))}</td>
-                      <td className="p-4 font-bold text-emerald-700">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0))}</td>
-                      <td className="p-4 font-bold text-rose-700">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.due_amount || 0), 0))}</td>
-                      <td colSpan="2"></td>
-                    </tr>
-                  </tfoot>
+                  {!isStaff && (
+                    <tfoot>
+                      <tr className="bg-slate-50/50 border-t-2 border-slate-200 font-bold">
+                        <td colSpan="5" className="p-4 text-slate-500 uppercase text-xs">Total</td>
+                        <td className="p-4 font-bold text-slate-800">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0))}</td>
+                        <td className="p-4 font-bold text-emerald-700">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0))}</td>
+                        <td className="p-4 font-bold text-rose-700">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.due_amount || 0), 0))}</td>
+                        <td colSpan="2"></td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </div>
