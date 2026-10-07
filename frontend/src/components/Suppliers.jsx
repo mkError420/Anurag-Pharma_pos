@@ -6,6 +6,7 @@ import API_BASE_URL from '../config';
 export default function Suppliers({ onAlertsRefresh }) {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user.role === 'shop_admin';
+  const isStaff = user.role === 'shop_staff' || user.role === 'staff';
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -669,6 +670,7 @@ export default function Suppliers({ onAlertsRefresh }) {
 
   // Load cost price logs global list
   const fetchCostLogs = async () => {
+    if (isStaff) return;
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE_URL}/suppliers/cost-price-logs`, {
@@ -4450,15 +4452,17 @@ export default function Suppliers({ onAlertsRefresh }) {
               <span>Create Purchase Order</span>
             </button>
           )}
-          <button
-            onClick={() => { resetForm(); setShowAddModal(true); }}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Add New Supplier</span>
-          </button>
+          {!isStaff && (
+            <button
+              onClick={() => { resetForm(); setShowAddModal(true); }}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-2.5 px-5 rounded-xl text-sm shadow-sm transition-colors flex items-center space-x-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Add New Supplier</span>
+            </button>
+          )}
           {isAdmin && activeTab === 'directory' && selectedSupplierIds.length > 0 && (
             <button
               onClick={handleBulkDeleteSuppliers}
@@ -4484,29 +4488,33 @@ export default function Suppliers({ onAlertsRefresh }) {
         >
           Purchase Orders
         </button>
-        <button
-          onClick={() => setActiveTab('directory')}
-          className={`flex-1 sm:flex-initial text-center px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'directory'
-            ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/40'
-            : 'text-slate-500 hover:text-slate-800'
-            }`}
-        >
-          Vendors Directory
-        </button>
+        {!isStaff && (
+          <button
+            onClick={() => setActiveTab('directory')}
+            className={`flex-1 sm:flex-initial text-center px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'directory'
+              ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/40'
+              : 'text-slate-500 hover:text-slate-800'
+              }`}
+          >
+            Vendors Directory
+          </button>
+        )}
 
-        <button
-          onClick={() => setActiveTab('logs')}
-          className={`flex-1 sm:flex-initial text-center px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'logs'
-            ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/40'
-            : 'text-slate-500 hover:text-slate-800'
-            }`}
-        >
-          Cost Price Logs
-        </button>
+        {!isStaff && (
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`flex-1 sm:flex-initial text-center px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'logs'
+              ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/40'
+              : 'text-slate-500 hover:text-slate-800'
+              }`}
+          >
+            Cost Price Logs
+          </button>
+        )}
       </div>
 
       {/* --- TAB: DIRECTORY --- */}
-      {activeTab === 'directory' && (() => {
+      {!isStaff && activeTab === 'directory' && (() => {
         const filteredSuppliers = suppliers.filter(s => {
           if (!directorySearchTerm) return true;
           const search = directorySearchTerm.toLowerCase();
@@ -4709,26 +4717,28 @@ export default function Suppliers({ onAlertsRefresh }) {
         return (
           <div className="space-y-4">
             {/* PO Totals */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                <p className="text-xs font-semibold text-slate-500 uppercase">Total Purchase Amount</p>
-                <p className="text-2xl font-bold text-slate-800 mt-1">
-                  {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0))}
-                </p>
+            {!isStaff && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                  <p className="text-xs font-semibold text-slate-500 uppercase">Total Purchase Amount</p>
+                  <p className="text-2xl font-bold text-slate-800 mt-1">
+                    {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0))}
+                  </p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                  <p className="text-xs font-semibold text-slate-500 uppercase">Total Paid</p>
+                  <p className="text-2xl font-bold text-emerald-600 mt-1">
+                    {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0))}
+                  </p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                  <p className="text-xs font-semibold text-slate-500 uppercase">Total Due</p>
+                  <p className="text-2xl font-bold text-rose-600 mt-1">
+                    {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.due_amount || 0), 0))}
+                  </p>
+                </div>
               </div>
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                <p className="text-xs font-semibold text-slate-500 uppercase">Total Paid</p>
-                <p className="text-2xl font-bold text-emerald-600 mt-1">
-                  {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0))}
-                </p>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                <p className="text-xs font-semibold text-slate-500 uppercase">Total Due</p>
-                <p className="text-2xl font-bold text-rose-600 mt-1">
-                  {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.due_amount || 0), 0))}
-                </p>
-              </div>
-            </div>
+            )}
             {/* Date Filter and View Details - shown under Purchase Orders tab */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs">
               <div className="flex flex-wrap items-center gap-2">
@@ -5049,7 +5059,7 @@ export default function Suppliers({ onAlertsRefresh }) {
       })()}
 
       {/* --- TAB: COST PRICE LOGS --- */}
-      {activeTab === 'logs' && (() => {
+      {!isStaff && activeTab === 'logs' && (() => {
         const logsItemsPerPage = 15;
         const totalLogPages = Math.max(1, Math.ceil(costLogs.length / logsItemsPerPage));
         const indexOfFirstLog = (logsPage - 1) * logsItemsPerPage;
