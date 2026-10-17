@@ -137,13 +137,16 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
   // Fast in-memory filter and ranking for 0ms instant local search response
   const filterCatalogLocally = useCallback((catalogList, query) => {
+    // Only in-stock products — "0" stock products will not show in POS Checkout
+    const inStockCatalog = catalogList.filter(p => parseFloat(p.stock_quantity || 0) > 0);
+
     if (!query || !query.trim()) {
-      return catalogList;
+      return inStockCatalog;
     }
     const q = query.trim().toLowerCase();
     const tokens = q.split(/\s+/).filter(Boolean);
 
-    const matches = catalogList.filter(p => {
+    const matches = inStockCatalog.filter(p => {
       const name = (p.name || '').toLowerCase();
       const sku = (p.sku || '').toLowerCase();
       const category = (p.category || '').toLowerCase();
@@ -170,11 +173,6 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       const bPrefix = (bSku.startsWith(q) || bName.startsWith(q)) ? 0 : 1;
       if (aPrefix !== bPrefix) return aPrefix - bPrefix;
 
-      // 3. In-stock products before out-of-stock
-      const aOut = parseFloat(a.stock_quantity || 0) <= 0 ? 1 : 0;
-      const bOut = parseFloat(b.stock_quantity || 0) <= 0 ? 1 : 0;
-      if (aOut !== bOut) return aOut - bOut;
-
       return aName.localeCompare(bName);
     });
   }, []);
@@ -184,8 +182,8 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     try {
       const token = localStorage.getItem('token');
       const url = searchTerm.trim()
-        ? `${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(searchTerm.trim())}&limit=60`
-        : `${API_BASE_URL}/products?purchased_only=true&limit=300`;
+        ? `${API_BASE_URL}/products?purchased_only=true&in_stock_only=true&search=${encodeURIComponent(searchTerm.trim())}&limit=60`
+        : `${API_BASE_URL}/products?purchased_only=true&in_stock_only=true&limit=300`;
 
       const response = await fetch(url, {
         headers: {
@@ -206,8 +204,9 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Filter out ALL expired products — expired items must never be sold at POS
+      // Filter out products with 0 or negative stock and ALL expired products — expired & 0 stock items must never be sold at POS
       const validProducts = data.filter(p => {
+        if (parseFloat(p.stock_quantity || 0) <= 0) return false;
         if (p.expiry_date) {
           const exp = new Date(p.expiry_date);
           exp.setHours(0, 0, 0, 0);
@@ -343,7 +342,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
       setIsSearching(true);
       try {
         const token = localStorage.getItem('token');
-        const url = `${API_BASE_URL}/products?purchased_only=true&search=${encodeURIComponent(search.trim())}&limit=60`;
+        const url = `${API_BASE_URL}/products?purchased_only=true&in_stock_only=true&search=${encodeURIComponent(search.trim())}&limit=60`;
         const response = await fetch(url, {
           headers: { 'Authorization': `Bearer ${token}` },
           signal: abortController.signal
@@ -356,6 +355,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
         today.setHours(0, 0, 0, 0);
 
         const validProducts = data.filter(p => {
+          if (parseFloat(p.stock_quantity || 0) <= 0) return false;
           if (p.expiry_date) {
             const exp = new Date(p.expiry_date);
             exp.setHours(0, 0, 0, 0);
@@ -1763,17 +1763,16 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
 
   // Memoize displayed products for 60fps fast rendering
   const displayedProducts = useMemo(() => {
+    // Only in-stock products — "0" stock products will not show in POS Checkout
+    const inStock = products.filter(p => parseFloat(p.stock_quantity || 0) > 0);
+
     if (search.trim()) {
       // Relevance ranking is already performed in filterCatalogLocally
-      return products.slice(0, 60);
+      return inStock.slice(0, 60);
     }
 
-    // Default POS catalog view: in-stock first, then FEFO expiry date, then name
-    const sorted = [...products].sort((a, b) => {
-      const aOut = parseFloat(a.stock_quantity || 0) <= 0 ? 1 : 0;
-      const bOut = parseFloat(b.stock_quantity || 0) <= 0 ? 1 : 0;
-      if (aOut !== bOut) return aOut - bOut;
-
+    // Default POS catalog view: FEFO expiry date, then name
+    const sorted = [...inStock].sort((a, b) => {
       if (a.expiry_date && b.expiry_date) {
         return new Date(a.expiry_date) - new Date(b.expiry_date);
       }
@@ -1814,7 +1813,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
     setSearchFocusedIndex(-1);
 
     if (!val.trim()) {
-      setProducts(catalogRef.current);
+      setProducts(catalogRef.current.filter(p => parseFloat(p.stock_quantity || 0) > 0));
     } else {
       const instantFiltered = filterCatalogLocally(catalogRef.current, val);
       setProducts(instantFiltered);
@@ -1977,7 +1976,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                     }
                   } else if (e.key === 'Escape') {
                     setSearch('');
-                    setProducts(catalogRef.current);
+                    setProducts(catalogRef.current.filter(p => parseFloat(p.stock_quantity || 0) > 0));
                     setSearchFocusedIndex(-1);
                   }
                 }}
@@ -1998,7 +1997,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                   type="button"
                   onClick={() => {
                     setSearch('');
-                    setProducts(catalogRef.current);
+                    setProducts(catalogRef.current.filter(p => parseFloat(p.stock_quantity || 0) > 0));
                     setSearchFocusedIndex(-1);
                     searchInputRef.current?.focus();
                   }}
@@ -2059,9 +2058,9 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
               <div className="flex justify-center items-center h-48">
                 <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-600"></div>
               </div>
-            ) : displayedProducts.length === 0 ? (
+            ) : displayedProducts.filter(p => parseFloat(p.stock_quantity || 0) > 0).length === 0 ? (
               <div className="bg-white border border-slate-100 rounded-xl p-12 text-center text-slate-400">
-                {search.trim() ? `No items found matching "${search}".` : 'No items found. Create items in inventory to begin.'}
+                {search.trim() ? `No items found matching "${search}".` : 'No in-stock items found. Create items in inventory to begin.'}
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs flex flex-col" style={{ maxHeight: 'calc(100vh - 320px)' }}>
@@ -2076,7 +2075,7 @@ export default function Checkout({ onHeldBillsChange = () => { }, resumedHeldBil
                       </tr>
                     </thead>
                     <tbody ref={productTableBodyRef} className="divide-y divide-slate-100 text-sm">
-                      {displayedProducts.map((product, index) => {
+                      {displayedProducts.filter(p => parseFloat(p.stock_quantity || 0) > 0).map((product, index) => {
                         const qtyForRow = rowAllocations[product.id] || 0;
                         const remainingQty = product.stock_quantity;
                         const isOutOfStock = remainingQty <= 0;

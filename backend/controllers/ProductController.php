@@ -68,6 +68,7 @@ class ProductController {
         $supplierIdParam = $_GET['supplier_id'] ?? null;
         $categoryParam = $_GET['category'] ?? null;
         $purchasedOnly = ($_GET['purchased_only'] ?? null) === 'true';
+        $inStockOnly = ($_GET['in_stock_only'] ?? null) === 'true';
         $batchLevel = ($_GET['batch_level'] ?? null) === 'true';
         $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : null;
         $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
@@ -185,6 +186,10 @@ class ProductController {
                     $params[] = $categoryParam;
                 }
 
+                if ($inStockOnly) {
+                    $sql .= " AND p.stock_quantity > 0";
+                }
+
                 $alertConditions = [];
 
                 if ($low_stock === 'true') {
@@ -251,6 +256,12 @@ class ProductController {
                     
                     $p['low_stock_threshold'] = (int)$p['low_stock_threshold'];
                     $p['supplier_id'] = $p['supplier_id'] !== null ? (int)$p['supplier_id'] : null;
+                }
+
+                if ($inStockOnly) {
+                    $products = array_values(array_filter($products, function($p) {
+                        return (float)$p['stock_quantity'] > 0;
+                    }));
                 }
             } else {
                 $sql = "SELECT p.id, p.shop_id, p.name, p.sku, p.price, p.cost_price, 
@@ -343,6 +354,10 @@ class ProductController {
                     $params[] = $categoryParam;
                 }
 
+                if ($inStockOnly) {
+                    $sql .= " AND p.stock_quantity > 0";
+                }
+
                 $alertConditions = [];
 
                 if ($low_stock === 'true') {
@@ -404,6 +419,12 @@ class ProductController {
                     $p['low_stock_threshold'] = (int)$p['low_stock_threshold'];
                     $p['supplier_id'] = $p['supplier_id'] !== null ? (int)$p['supplier_id'] : null;
                     $p['is_batch'] = false; // Flag to indicate this is product-level data
+                }
+
+                if ($inStockOnly) {
+                    $products = array_values(array_filter($products, function($p) {
+                        return (float)$p['stock_quantity'] > 0;
+                    }));
                 }
             }
 
