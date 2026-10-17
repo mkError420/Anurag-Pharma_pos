@@ -882,10 +882,49 @@ class DB {
                 } catch (\Exception $e) {}
             }
 
-            // Performance index for purchased_only EXISTS checks in POS
+            // Ensure purchase_order_items has shop_id and sync with purchase_orders
             if ($tableExists('purchase_order_items')) {
+                if (!$columnExists('purchase_order_items', 'shop_id')) {
+                    try {
+                        $pdo->exec("ALTER TABLE `purchase_order_items` ADD COLUMN `shop_id` INT NULL AFTER `purchase_order_id`");
+                    } catch (\Exception $e) {}
+                }
+
+                // Backfill shop_id from parent purchase_orders if missing or null
+                try {
+                    $pdo->exec("
+                        UPDATE `purchase_order_items` poi
+                        JOIN `purchase_orders` po ON poi.purchase_order_id = po.id
+                        SET poi.shop_id = po.shop_id
+                        WHERE poi.shop_id IS NULL OR poi.shop_id = 0
+                    ");
+                } catch (\Exception $e) {}
+
+                // Performance index for purchased_only EXISTS checks in POS
                 try {
                     $pdo->exec("ALTER TABLE `purchase_order_items` ADD INDEX `idx_poi_product_shop` (`product_id`, `shop_id`)");
+                } catch (\Exception $e) {}
+
+                try {
+                    $pdo->exec("ALTER TABLE `purchase_order_items` ADD INDEX `idx_poi_po_prod` (`purchase_order_id`, `product_id`)");
+                } catch (\Exception $e) {}
+            }
+
+            // Backfill product supplier_id from purchase orders if missing
+            if ($tableExists('purchase_order_items') && $tableExists('purchase_orders') && $tableExists('products')) {
+                try {
+                    $pdo->exec("
+                        UPDATE `products` p
+                        JOIN (
+                            SELECT poi.product_id, po.supplier_id
+                            FROM purchase_order_items poi
+                            JOIN purchase_orders po ON poi.purchase_order_id = po.id
+                            WHERE po.supplier_id IS NOT NULL AND po.supplier_id > 0
+                            GROUP BY poi.product_id
+                        ) latest_po ON p.id = latest_po.product_id
+                        SET p.supplier_id = latest_po.supplier_id
+                        WHERE p.supplier_id IS NULL OR p.supplier_id = 0
+                    ");
                 } catch (\Exception $e) {}
             }
 

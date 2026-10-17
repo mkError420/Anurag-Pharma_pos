@@ -73,11 +73,17 @@ export default function Inventory({ onAlertsRefresh }) {
       const stock = parseFloat(p.stock_quantity || 0);
       let isExpired = false;
       if (p.expiry_date) {
-        const exp = new Date(p.expiry_date);
-        exp.setHours(0, 0, 0, 0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        isExpired = exp.getTime() < today.getTime();
+        const dateStr = String(p.expiry_date).trim();
+        const isPre2000 = dateStr === '' || dateStr === '0000-00-00' || dateStr.startsWith('0000-') || dateStr.startsWith('0001-');
+        if (!isPre2000) {
+          const exp = new Date(p.expiry_date);
+          exp.setHours(0, 0, 0, 0);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (!isNaN(exp.getTime()) && exp.getFullYear() >= 2000) {
+            isExpired = exp.getTime() < today.getTime();
+          }
+        }
       }
       if (isExpired && stock <= 0) {
         return false;
@@ -411,6 +417,7 @@ export default function Inventory({ onAlertsRefresh }) {
       setProducts(data);
     } catch (err) {
       setError(err.message);
+      triggerAlert('error', err.message);
     } finally {
       setLoading(false);
     }

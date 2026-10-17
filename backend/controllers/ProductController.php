@@ -43,13 +43,27 @@ class ProductController {
                             p.cost_price,
                             p.low_stock_threshold,
                             p.unit,
-                            p.supplier_id,
+                            COALESCE(
+                                p.supplier_id,
+                                (SELECT po2.supplier_id FROM purchase_order_items poi2 
+                                 JOIN purchase_orders po2 ON poi2.purchase_order_id = po2.id 
+                                 WHERE poi2.product_id = p.id 
+                                 ORDER BY po2.id DESC LIMIT 1)
+                            ) AS supplier_id,
                             p.category,
-                            s.name AS supplier_name,
+                            COALESCE(
+                                s.name,
+                                (SELECT s2.name FROM purchase_order_items poi2 
+                                 JOIN purchase_orders po2 ON poi2.purchase_order_id = po2.id 
+                                 JOIN suppliers s2 ON po2.supplier_id = s2.id 
+                                 WHERE poi2.product_id = p.id 
+                                 ORDER BY po2.id DESC LIMIT 1)
+                            ) AS supplier_name,
                             sh.name AS shop_name,
                             ib.id as batch_id,
                             ib.batch_number,
-                            ib.quantity as stock_quantity,
+                            COALESCE(ib.quantity, p.stock_quantity, 0) as stock_quantity,
+                            p.stock_quantity as product_stock_quantity,
                             CASE WHEN ib.expiry_date >= '2000-01-01' THEN ib.expiry_date WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END as expiry_date,
                             ib.received_date,
                             ib.status as batch_status
@@ -63,10 +77,24 @@ class ProductController {
 
                 if ($purchasedOnly) {
                     if ($hasShop) {
-                        $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id AND poi.shop_id = ?)";
+                        $sql .= " AND (
+                            EXISTS (
+                                SELECT 1 FROM purchase_order_items poi 
+                                JOIN purchase_orders po ON poi.purchase_order_id = po.id 
+                                WHERE poi.product_id = p.id AND po.shop_id = ?
+                            )
+                            OR (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
+                        )";
                         $params[] = $shopId;
                     } else {
-                        $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id)";
+                        $sql .= " AND (
+                            EXISTS (
+                                SELECT 1 FROM purchase_order_items poi 
+                                JOIN purchase_orders po ON poi.purchase_order_id = po.id 
+                                WHERE poi.product_id = p.id
+                            )
+                            OR (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
+                        )";
                     }
                 }
 
@@ -130,7 +158,7 @@ class ProductController {
                     }
                 } else {
                     // Priority: Items expiring earliest come first, items with no expiry date come after
-                    $sql .= " ORDER BY CASE WHEN expiry_date IS NOT NULL AND expiry_date != '' THEN 0 ELSE 1 END ASC, expiry_date ASC, p.sku ASC, p.name ASC";
+                    $sql .= " ORDER BY CASE WHEN COALESCE(ib.expiry_date, p.expiry_date) IS NOT NULL AND COALESCE(ib.expiry_date, p.expiry_date) >= '2000-01-01' THEN 0 ELSE 1 END ASC, COALESCE(ib.expiry_date, p.expiry_date) ASC, p.sku ASC, p.name ASC";
                     if ($limit !== null && $limit > 0) {
                         $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
                     }
@@ -153,7 +181,7 @@ class ProductController {
                         $p['expiry_date'] = $p['expiry_date'];
                         $p['is_batch'] = true;
                     } else {
-                        $p['stock_quantity'] = (float)$p['stock_quantity'];
+                        $p['stock_quantity'] = (float)($p['product_stock_quantity'] ?? $p['stock_quantity'] ?? 0);
                         // Keep product expiry_date as is
                         $p['is_batch'] = false;
                     }
@@ -167,7 +195,23 @@ class ProductController {
                                    (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date >= '2000-01-01'),
                                    CASE WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END
                                ) AS expiry_date,
-                               p.supplier_id, p.category, s.name AS supplier_name, sh.name AS shop_name
+                               COALESCE(
+                                   p.supplier_id,
+                                   (SELECT po2.supplier_id FROM purchase_order_items poi2 
+                                    JOIN purchase_orders po2 ON poi2.purchase_order_id = po2.id 
+                                    WHERE poi2.product_id = p.id 
+                                    ORDER BY po2.id DESC LIMIT 1)
+                               ) AS supplier_id,
+                               p.category,
+                               COALESCE(
+                                   s.name,
+                                   (SELECT s2.name FROM purchase_order_items poi2 
+                                    JOIN purchase_orders po2 ON poi2.purchase_order_id = po2.id 
+                                    JOIN suppliers s2 ON po2.supplier_id = s2.id 
+                                    WHERE poi2.product_id = p.id 
+                                    ORDER BY po2.id DESC LIMIT 1)
+                               ) AS supplier_name,
+                               sh.name AS shop_name
                         FROM products p
                         LEFT JOIN suppliers s ON p.supplier_id = s.id
                         LEFT JOIN shops sh ON p.shop_id = sh.id
@@ -177,10 +221,24 @@ class ProductController {
 
                 if ($purchasedOnly) {
                     if ($hasShop) {
-                        $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id AND poi.shop_id = ?)";
+                        $sql .= " AND (
+                            EXISTS (
+                                SELECT 1 FROM purchase_order_items poi 
+                                JOIN purchase_orders po ON poi.purchase_order_id = po.id 
+                                WHERE poi.product_id = p.id AND po.shop_id = ?
+                            )
+                            OR (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
+                        )";
                         $params[] = $shopId;
                     } else {
-                        $sql .= " AND EXISTS (SELECT 1 FROM purchase_order_items poi WHERE poi.product_id = p.id)";
+                        $sql .= " AND (
+                            EXISTS (
+                                SELECT 1 FROM purchase_order_items poi 
+                                JOIN purchase_orders po ON poi.purchase_order_id = po.id 
+                                WHERE poi.product_id = p.id
+                            )
+                            OR (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
+                        )";
                     }
                 }
 
@@ -248,7 +306,7 @@ class ProductController {
                     }
                 } else {
                     // Priority: Items expiring earliest come first, items with no expiry date come after
-                    $sql .= " ORDER BY CASE WHEN expiry_date IS NOT NULL THEN 0 ELSE 1 END ASC, expiry_date ASC, p.name ASC";
+                    $sql .= " ORDER BY CASE WHEN p.expiry_date IS NOT NULL AND p.expiry_date >= '2000-01-01' THEN 0 ELSE 1 END ASC, p.expiry_date ASC, p.name ASC";
                     if ($limit !== null && $limit > 0) {
                         $sql .= " LIMIT " . (int)$limit . " OFFSET " . (int)$offset;
                     }
