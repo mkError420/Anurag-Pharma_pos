@@ -8,6 +8,54 @@ require_once __DIR__ . '/../middleware/auth.php';
 
 class ProductController {
 
+    public static function syncInventoryStock($shopId = null) {
+        try {
+            $hasShop = $shopId !== null && (int)$shopId > 0;
+            // 1. Sync products.stock_quantity for all products that have purchase orders:
+            // stock_quantity = Total Purchased - Total Sold + Customer Returns - Supplier Returns - Wastages
+            $sql = "
+                UPDATE products p
+                SET p.stock_quantity = GREATEST(0,
+                    (
+                        SELECT COALESCE(SUM(COALESCE(NULLIF(poi.quantity_received, 0), poi.quantity_ordered, 0)), 0)
+                        FROM purchase_order_items poi
+                        JOIN purchase_orders po ON poi.purchase_order_id = po.id
+                        WHERE poi.product_id = p.id AND (po.status IS NULL OR po.status != 'cancelled')
+                    )
+                    - (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE si.product_id = p.id AND (s.status IS NULL OR s.status != 'cancelled'))
+                    + (SELECT COALESCE(SUM(cr.quantity), 0) FROM customer_returns cr WHERE cr.product_id = p.id)
+                    - (SELECT COALESCE(SUM(sr.quantity), 0) FROM supplier_returns sr WHERE sr.product_id = p.id)
+                    - (SELECT COALESCE(SUM(w.quantity), 0) FROM wastages w WHERE w.product_id = p.id)
+                )
+                WHERE " . ($hasShop ? "p.shop_id = ? AND " : "") . "EXISTS (
+                    SELECT 1 FROM purchase_order_items poi
+                    JOIN purchase_orders po ON poi.purchase_order_id = po.id
+                    WHERE poi.product_id = p.id AND (po.status IS NULL OR po.status != 'cancelled')
+                )
+            ";
+            DB::query($sql, $hasShop ? [(int)$shopId] : []);
+
+            // 2. Also synchronize active single-batch products so batch quantity matches stock_quantity
+            try {
+                DB::query("
+                    UPDATE inventory_batches ib
+                    JOIN (
+                        SELECT product_id, COUNT(*) as cnt, MIN(id) as single_id
+                        FROM inventory_batches
+                        WHERE status = 'active' " . ($hasShop ? "AND shop_id = " . (int)$shopId : "") . "
+                        GROUP BY product_id
+                        HAVING cnt = 1
+                    ) single ON ib.id = single.single_id
+                    JOIN products p ON ib.product_id = p.id
+                    SET ib.quantity = p.stock_quantity,
+                        ib.status = CASE WHEN p.stock_quantity <= 0 THEN 'depleted' ELSE 'active' END
+                ");
+            } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+            error_log('syncInventoryStock warning: ' . $e->getMessage());
+        }
+    }
+
     public static function listProducts() {
         Auth::authenticate();
         Auth::enforceTenant();
@@ -29,6 +77,9 @@ class ProductController {
             $shopId = (int)$_GET['shop_id'];
         }
         $hasShop = $shopId !== null;
+
+        // Synchronize stock with purchase orders and sales transactions
+        self::syncInventoryStock($hasShop ? $shopId : null);
 
         try {
             if ($batchLevel) {
@@ -62,7 +113,23 @@ class ProductController {
                             sh.name AS shop_name,
                             ib.id as batch_id,
                             ib.batch_number,
-                            COALESCE(ib.quantity, p.stock_quantity, 0) as stock_quantity,
+                            CASE 
+                                WHEN (SELECT COUNT(*) FROM purchase_order_items poi_c JOIN purchase_orders po_c ON poi_c.purchase_order_id = po_c.id WHERE poi_c.product_id = p.id AND (po_c.status IS NULL OR po_c.status != 'cancelled')) > 0
+                                THEN GREATEST(0,
+                                    (SELECT COALESCE(SUM(COALESCE(NULLIF(poi_s.quantity_received, 0), poi_s.quantity_ordered, 0)), 0)
+                                     FROM purchase_order_items poi_s
+                                     JOIN purchase_orders po_s ON poi_s.purchase_order_id = po_s.id
+                                     WHERE poi_s.product_id = p.id AND (po_s.status IS NULL OR po_s.status != 'cancelled'))
+                                    - (SELECT COALESCE(SUM(si_s.quantity), 0)
+                                       FROM sale_items si_s
+                                       JOIN sales s_s ON si_s.sale_id = s_s.id
+                                       WHERE si_s.product_id = p.id AND (s_s.status IS NULL OR s_s.status != 'cancelled'))
+                                    + (SELECT COALESCE(SUM(cr_s.quantity), 0) FROM customer_returns cr_s WHERE cr_s.product_id = p.id)
+                                    - (SELECT COALESCE(SUM(sr_s.quantity), 0) FROM supplier_returns sr_s WHERE sr_s.product_id = p.id)
+                                    - (SELECT COALESCE(SUM(w_s.quantity), 0) FROM wastages w_s WHERE w_s.product_id = p.id)
+                                )
+                                ELSE p.stock_quantity
+                            END AS stock_quantity,
                             p.stock_quantity as product_stock_quantity,
                             CASE WHEN ib.expiry_date >= '2000-01-01' THEN ib.expiry_date WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END as expiry_date,
                             ib.received_date,
@@ -175,14 +242,12 @@ class ProductController {
                     $p['price'] = (float)$p['price'];
                     $p['cost_price'] = (float)$p['cost_price'];
                     
-                    // Use batch quantity if available, otherwise use product stock
+                    // Use real-time live stock quantity adjusted with sales transactions
+                    $p['stock_quantity'] = (float)$p['stock_quantity'];
                     if ($p['batch_id'] !== null) {
-                        $p['stock_quantity'] = (float)$p['stock_quantity'];
                         $p['expiry_date'] = $p['expiry_date'];
                         $p['is_batch'] = true;
                     } else {
-                        $p['stock_quantity'] = (float)($p['product_stock_quantity'] ?? $p['stock_quantity'] ?? 0);
-                        // Keep product expiry_date as is
                         $p['is_batch'] = false;
                     }
                     
@@ -190,7 +255,25 @@ class ProductController {
                     $p['supplier_id'] = $p['supplier_id'] !== null ? (int)$p['supplier_id'] : null;
                 }
             } else {
-                $sql = "SELECT p.id, p.shop_id, p.name, p.sku, p.price, p.cost_price, p.stock_quantity, p.low_stock_threshold, p.unit, 
+                $sql = "SELECT p.id, p.shop_id, p.name, p.sku, p.price, p.cost_price, 
+                               CASE 
+                                   WHEN (SELECT COUNT(*) FROM purchase_order_items poi_c JOIN purchase_orders po_c ON poi_c.purchase_order_id = po_c.id WHERE poi_c.product_id = p.id AND (po_c.status IS NULL OR po_c.status != 'cancelled')) > 0
+                                   THEN GREATEST(0,
+                                       (SELECT COALESCE(SUM(COALESCE(NULLIF(poi_s.quantity_received, 0), poi_s.quantity_ordered, 0)), 0)
+                                        FROM purchase_order_items poi_s
+                                        JOIN purchase_orders po_s ON poi_s.purchase_order_id = po_s.id
+                                        WHERE poi_s.product_id = p.id AND (po_s.status IS NULL OR po_s.status != 'cancelled'))
+                                       - (SELECT COALESCE(SUM(si_s.quantity), 0)
+                                          FROM sale_items si_s
+                                          JOIN sales s_s ON si_s.sale_id = s_s.id
+                                          WHERE si_s.product_id = p.id AND (s_s.status IS NULL OR s_s.status != 'cancelled'))
+                                       + (SELECT COALESCE(SUM(cr_s.quantity), 0) FROM customer_returns cr_s WHERE cr_s.product_id = p.id)
+                                       - (SELECT COALESCE(SUM(sr_s.quantity), 0) FROM supplier_returns sr_s WHERE sr_s.product_id = p.id)
+                                       - (SELECT COALESCE(SUM(w_s.quantity), 0) FROM wastages w_s WHERE w_s.product_id = p.id)
+                                   )
+                                   ELSE p.stock_quantity
+                               END AS stock_quantity,
+                               p.low_stock_threshold, p.unit, 
                                COALESCE(
                                    (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date >= '2000-01-01'),
                                    CASE WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END

@@ -84,8 +84,6 @@ class SaleController {
                 );
                 $batches = $batchStmt->fetchAll();
 
-                $batches = $batchStmt->fetchAll();
-
                 if (!empty($batches)) {
                     foreach ($batches as $batch) {
                         if ($remainingQty <= 0) break;

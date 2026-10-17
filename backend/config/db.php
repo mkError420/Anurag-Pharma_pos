@@ -928,6 +928,52 @@ class DB {
                 } catch (\Exception $e) {}
             }
 
+            // Sync products.stock_quantity with purchase orders and sales transactions
+            if ($tableExists('products') && $tableExists('purchase_order_items') && $tableExists('purchase_orders')) {
+                try {
+                    $hasSales = $tableExists('sale_items') && $tableExists('sales');
+                    $hasCustReturns = $tableExists('customer_returns');
+                    $hasSuppReturns = $tableExists('supplier_returns');
+                    $hasWastage = $tableExists('wastages');
+
+                    $salesSql = $hasSales
+                        ? "- (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE si.product_id = p.id AND (s.status IS NULL OR s.status != 'cancelled'))"
+                        : "";
+                    $custReturnsSql = $hasCustReturns
+                        ? "+ (SELECT COALESCE(SUM(cr.quantity), 0) FROM customer_returns cr WHERE cr.product_id = p.id)"
+                        : "";
+                    $suppReturnsSql = $hasSuppReturns
+                        ? "- (SELECT COALESCE(SUM(sr.quantity), 0) FROM supplier_returns sr WHERE sr.product_id = p.id)"
+                        : "";
+                    $wastageSql = $hasWastage
+                        ? "- (SELECT COALESCE(SUM(w.quantity), 0) FROM wastages w WHERE w.product_id = p.id)"
+                        : "";
+
+                    $pdo->exec("
+                        UPDATE `products` p
+                        SET p.stock_quantity = GREATEST(0,
+                            (
+                                SELECT COALESCE(SUM(COALESCE(NULLIF(poi.quantity_received, 0), poi.quantity_ordered, 0)), 0)
+                                FROM purchase_order_items poi
+                                JOIN purchase_orders po ON poi.purchase_order_id = po.id
+                                WHERE poi.product_id = p.id AND (po.status IS NULL OR po.status != 'cancelled')
+                            )
+                            $salesSql
+                            $custReturnsSql
+                            $suppReturnsSql
+                            $wastageSql
+                        )
+                        WHERE EXISTS (
+                            SELECT 1 FROM purchase_order_items poi
+                            JOIN purchase_orders po ON poi.purchase_order_id = po.id
+                            WHERE poi.product_id = p.id AND (po.status IS NULL OR po.status != 'cancelled')
+                        )
+                    ");
+                } catch (\Exception $e) {
+                    error_log('Stock sync migration warning: ' . $e->getMessage());
+                }
+            }
+
 
         } catch (\PDOException $e) {
             error_log("Migration error: " . $e->getMessage());

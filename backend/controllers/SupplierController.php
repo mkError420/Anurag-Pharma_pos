@@ -685,8 +685,8 @@ class SupplierController {
             DB::query("INSERT INTO purchase_order_items ($colNames) VALUES ($placeholders)", $poItemParams);
             $poiId = DB::lastInsertId();
 
-            // If creating as received, immediately credit stock + write inventory batch
-            if ($status === 'received') {
+            // Credit stock + write inventory batch for all active purchase orders (unless cancelled)
+            if ($status !== 'cancelled') {
                 $updatePrice = ($item['selling_price'] > 0) ? $item['selling_price'] : $item['cost_price'];
                 DB::query(
                     'UPDATE products SET stock_quantity = stock_quantity + ?, cost_price = ?, price = ? WHERE id = ? AND shop_id = ?',
@@ -1231,6 +1231,19 @@ class SupplierController {
                     ['cancelled', $notes, $poId, $shopId]
                 );
                 
+                // Reverse stock quantities for items in this cancelled PO
+                try {
+                    $poItemsStmt = DB::query('SELECT product_id, COALESCE(NULLIF(quantity_received, 0), quantity_ordered, 0) as qty FROM purchase_order_items WHERE purchase_order_id = ? AND shop_id = ?', [$poId, $shopId]);
+                    $poItems = $poItemsStmt->fetchAll();
+                    foreach ($poItems as $poi) {
+                        $qtyToRev = (float)$poi['qty'];
+                        if ($qtyToRev > 0) {
+                            DB::query('UPDATE products SET stock_quantity = GREATEST(stock_quantity - ?, 0) WHERE id = ? AND shop_id = ?', [$qtyToRev, (int)$poi['product_id'], $shopId]);
+                            DB::query('UPDATE inventory_batches SET status = "cancelled", quantity = 0 WHERE purchase_order_item_id = (SELECT id FROM purchase_order_items WHERE purchase_order_id = ? AND product_id = ? LIMIT 1)', [$poId, (int)$poi['product_id']]);
+                        }
+                    }
+                } catch (\Exception $e) {}
+
                 if ($po['payment_basis'] === 'credit' && (float)$po['due_amount'] > 0 && ($po['status'] === 'ordered' || $po['status'] === 'received')) {
                     DB::query(
                         'UPDATE suppliers SET due_balance = GREATEST(due_balance - ?, 0) WHERE id = ? AND shop_id = ?',
