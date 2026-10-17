@@ -931,13 +931,13 @@ class DB {
             // Sync products.stock_quantity with purchase orders and sales transactions
             if ($tableExists('products') && $tableExists('purchase_order_items') && $tableExists('purchase_orders')) {
                 try {
-                    $hasSales = $tableExists('sale_items') && $tableExists('sales');
+                    $hasSales = $tableExists('sale_items');
                     $hasCustReturns = $tableExists('customer_returns');
                     $hasSuppReturns = $tableExists('supplier_returns');
                     $hasWastage = $tableExists('wastages');
 
                     $salesSql = $hasSales
-                        ? "- (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE si.product_id = p.id AND (s.status IS NULL OR s.status != 'cancelled'))"
+                        ? "- (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.product_id = p.id)"
                         : "";
                     $custReturnsSql = $hasCustReturns
                         ? "+ (SELECT COALESCE(SUM(cr.quantity), 0) FROM customer_returns cr WHERE cr.product_id = p.id)"

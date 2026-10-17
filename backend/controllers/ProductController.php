@@ -22,7 +22,7 @@ class ProductController {
                         JOIN purchase_orders po ON poi.purchase_order_id = po.id
                         WHERE poi.product_id = p.id AND (po.status IS NULL OR po.status != 'cancelled')
                     )
-                    - (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE si.product_id = p.id AND (s.status IS NULL OR s.status != 'cancelled'))
+                    - (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.product_id = p.id)
                     + (SELECT COALESCE(SUM(cr.quantity), 0) FROM customer_returns cr WHERE cr.product_id = p.id)
                     - (SELECT COALESCE(SUM(sr.quantity), 0) FROM supplier_returns sr WHERE sr.product_id = p.id)
                     - (SELECT COALESCE(SUM(w.quantity), 0) FROM wastages w WHERE w.product_id = p.id)
@@ -121,9 +121,7 @@ class ProductController {
                                      JOIN purchase_orders po_s ON poi_s.purchase_order_id = po_s.id
                                      WHERE poi_s.product_id = p.id AND (po_s.status IS NULL OR po_s.status != 'cancelled'))
                                     - (SELECT COALESCE(SUM(si_s.quantity), 0)
-                                       FROM sale_items si_s
-                                       JOIN sales s_s ON si_s.sale_id = s_s.id
-                                       WHERE si_s.product_id = p.id AND (s_s.status IS NULL OR s_s.status != 'cancelled'))
+                                       FROM sale_items si_s WHERE si_s.product_id = p.id)
                                     + (SELECT COALESCE(SUM(cr_s.quantity), 0) FROM customer_returns cr_s WHERE cr_s.product_id = p.id)
                                     - (SELECT COALESCE(SUM(sr_s.quantity), 0) FROM supplier_returns sr_s WHERE sr_s.product_id = p.id)
                                     - (SELECT COALESCE(SUM(w_s.quantity), 0) FROM wastages w_s WHERE w_s.product_id = p.id)
@@ -264,9 +262,7 @@ class ProductController {
                                         JOIN purchase_orders po_s ON poi_s.purchase_order_id = po_s.id
                                         WHERE poi_s.product_id = p.id AND (po_s.status IS NULL OR po_s.status != 'cancelled'))
                                        - (SELECT COALESCE(SUM(si_s.quantity), 0)
-                                          FROM sale_items si_s
-                                          JOIN sales s_s ON si_s.sale_id = s_s.id
-                                          WHERE si_s.product_id = p.id AND (s_s.status IS NULL OR s_s.status != 'cancelled'))
+                                          FROM sale_items si_s WHERE si_s.product_id = p.id)
                                        + (SELECT COALESCE(SUM(cr_s.quantity), 0) FROM customer_returns cr_s WHERE cr_s.product_id = p.id)
                                        - (SELECT COALESCE(SUM(sr_s.quantity), 0) FROM supplier_returns sr_s WHERE sr_s.product_id = p.id)
                                        - (SELECT COALESCE(SUM(w_s.quantity), 0) FROM wastages w_s WHERE w_s.product_id = p.id)
