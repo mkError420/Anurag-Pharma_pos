@@ -12,7 +12,17 @@ class ProductController {
         try {
             $hasShop = $shopId !== null && (int)$shopId > 0;
             // 1. Sync products.stock_quantity for all products that have purchase orders:
-            // stock_quantity = Total Purchased - Total Sold + Customer Returns - Supplier Returns - Wastages
+            // stock_quantity = Total Purchased - Total Sold + Customer Returns - Supplier Returns - Wastages + Adjustments
+            $hasAdjustments = false;
+            try {
+                $chk = DB::query("SHOW TABLES LIKE 'inventory_adjustments'");
+                $hasAdjustments = (bool)$chk->fetch();
+            } catch (\Exception $e) {}
+
+            $adjSql = $hasAdjustments
+                ? "+ (SELECT COALESCE(SUM(ia.difference), 0) FROM inventory_adjustments ia WHERE ia.product_id = p.id)"
+                : "";
+
             $sql = "
                 UPDATE products p
                 SET p.stock_quantity = GREATEST(0,
@@ -26,6 +36,7 @@ class ProductController {
                     + (SELECT COALESCE(SUM(cr.quantity), 0) FROM customer_returns cr WHERE cr.product_id = p.id)
                     - (SELECT COALESCE(SUM(sr.quantity), 0) FROM supplier_returns sr WHERE sr.product_id = p.id)
                     - (SELECT COALESCE(SUM(w.quantity), 0) FROM wastages w WHERE w.product_id = p.id)
+                    $adjSql
                 )
                 WHERE " . ($hasShop ? "p.shop_id = ? AND " : "") . "EXISTS (
                     SELECT 1 FROM purchase_order_items poi
@@ -126,6 +137,7 @@ class ProductController {
                                     + (SELECT COALESCE(SUM(cr_s.quantity), 0) FROM customer_returns cr_s WHERE cr_s.product_id = p.id)
                                     - (SELECT COALESCE(SUM(sr_s.quantity), 0) FROM supplier_returns sr_s WHERE sr_s.product_id = p.id)
                                     - (SELECT COALESCE(SUM(w_s.quantity), 0) FROM wastages w_s WHERE w_s.product_id = p.id)
+                                    + (SELECT COALESCE(SUM(ia_s.difference), 0) FROM inventory_adjustments ia_s WHERE ia_s.product_id = p.id)
                                 )
                                 ELSE p.stock_quantity
                             END AS stock_quantity,
@@ -277,6 +289,7 @@ class ProductController {
                                        + (SELECT COALESCE(SUM(cr_s.quantity), 0) FROM customer_returns cr_s WHERE cr_s.product_id = p.id)
                                        - (SELECT COALESCE(SUM(sr_s.quantity), 0) FROM supplier_returns sr_s WHERE sr_s.product_id = p.id)
                                        - (SELECT COALESCE(SUM(w_s.quantity), 0) FROM wastages w_s WHERE w_s.product_id = p.id)
+                                       + (SELECT COALESCE(SUM(ia_s.difference), 0) FROM inventory_adjustments ia_s WHERE ia_s.product_id = p.id)
                                    )
                                    ELSE p.stock_quantity
                                END AS stock_quantity,

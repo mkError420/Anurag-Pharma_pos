@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API_BASE_URL from '../config';
 
-export default function Adjustments() {
+export default function Adjustments({ onAdjustmentChange }) {
   const [adjustments, setAdjustments] = useState([]);
   const [products, setProducts] = useState([]);
   const [stats, setStats] = useState(null);
@@ -174,6 +174,9 @@ export default function Adjustments() {
       fetchAdjustments();
       fetchStats();
       fetchProducts();
+      if (typeof onAdjustmentChange === 'function') {
+        onAdjustmentChange();
+      }
     } catch (err) {
       triggerAlert('error', err.message);
     }
@@ -194,6 +197,9 @@ export default function Adjustments() {
       fetchAdjustments();
       fetchStats();
       fetchProducts();
+      if (typeof onAdjustmentChange === 'function') {
+        onAdjustmentChange();
+      }
     } catch (err) {
       triggerAlert('error', err.message);
     }

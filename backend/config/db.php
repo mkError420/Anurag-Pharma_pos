@@ -935,6 +935,7 @@ class DB {
                     $hasCustReturns = $tableExists('customer_returns');
                     $hasSuppReturns = $tableExists('supplier_returns');
                     $hasWastage = $tableExists('wastages');
+                    $hasAdjustments = $tableExists('inventory_adjustments');
 
                     $salesSql = $hasSales
                         ? "- (SELECT COALESCE(SUM(si.quantity), 0) FROM sale_items si WHERE si.product_id = p.id)"
@@ -947,6 +948,9 @@ class DB {
                         : "";
                     $wastageSql = $hasWastage
                         ? "- (SELECT COALESCE(SUM(w.quantity), 0) FROM wastages w WHERE w.product_id = p.id)"
+                        : "";
+                    $adjustmentsSql = $hasAdjustments
+                        ? "+ (SELECT COALESCE(SUM(ia.difference), 0) FROM inventory_adjustments ia WHERE ia.product_id = p.id)"
                         : "";
 
                     $pdo->exec("
@@ -962,6 +966,7 @@ class DB {
                             $custReturnsSql
                             $suppReturnsSql
                             $wastageSql
+                            $adjustmentsSql
                         )
                         WHERE EXISTS (
                             SELECT 1 FROM purchase_order_items poi

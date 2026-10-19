@@ -719,7 +719,12 @@ class OtherController {
             );
             $newId = DB::lastInsertId();
 
+            self::syncBatchesForAdjustment($productId, $shopId, $diff, $newQty);
+
             DB::commit();
+
+            // Resync stock to keep products and single-batch quantities perfectly unified
+            ProductController::syncInventoryStock($shopId);
 
             header('Content-Type: application/json');
             http_response_code(201);
@@ -793,7 +798,14 @@ class OtherController {
                 [$newQty, $newDiff, $type, $reason, $notes, $userId, $adjustmentId, $shopId]
             );
 
+            if ($netChange != 0) {
+                self::syncBatchesForAdjustment($productId, $shopId, $netChange, (float)$product['stock_quantity'] + $netChange);
+            }
+
             DB::commit();
+
+            // Resync stock to keep products and single-batch quantities perfectly unified
+            ProductController::syncInventoryStock($shopId);
 
             header('Content-Type: application/json');
             echo json_encode(['message' => 'Adjustment successfully updated.', 'newStock' => (float)$product['stock_quantity'] + $netChange]);
@@ -824,15 +836,22 @@ class OtherController {
             }
 
             $productId = $adjustment['product_id'];
-            $diff = (int)$adjustment['difference'];
+            $diff = (float)$adjustment['difference'];
 
-            if ($diff !== 0) {
+            if ($diff != 0) {
                 DB::query('UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ? AND shop_id = ?', [$diff, $productId, $shopId]);
             }
 
             DB::query('DELETE FROM inventory_adjustments WHERE id = ? AND shop_id = ?', [$adjustmentId, $shopId]);
 
+            if ($diff != 0) {
+                self::syncBatchesForAdjustment($productId, $shopId, -$diff, null);
+            }
+
             DB::commit();
+
+            // Resync stock to keep products and single-batch quantities perfectly unified
+            ProductController::syncInventoryStock($shopId);
 
             header('Content-Type: application/json');
             echo json_encode(['message' => 'Adjustment successfully deleted and stock reverted.']);
@@ -841,6 +860,63 @@ class OtherController {
             DB::rollBack();
             error_log('Delete adjustment error: ' . $e->getMessage());
             Auth::jsonError('Server error deleting adjustment.', 500);
+        }
+    }
+
+    private static function syncBatchesForAdjustment($productId, $shopId, $deltaQty, $targetTotalStock = null) {
+        try {
+            $batchTable = DB::query("SHOW TABLES LIKE 'inventory_batches'")->fetch();
+            if (!$batchTable) return;
+
+            $activeBatches = DB::query(
+                "SELECT id, quantity, expiry_date FROM inventory_batches 
+                 WHERE product_id = ? AND shop_id = ? AND status = 'active' 
+                 ORDER BY CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END, expiry_date ASC, id ASC",
+                [$productId, $shopId]
+            )->fetchAll();
+
+            if (count($activeBatches) === 1) {
+                $newBatchQty = $targetTotalStock !== null ? max(0, $targetTotalStock) : max(0, (float)$activeBatches[0]['quantity'] + $deltaQty);
+                DB::query(
+                    "UPDATE inventory_batches SET quantity = ?, status = ? WHERE id = ?",
+                    [$newBatchQty, $newBatchQty <= 0 ? 'depleted' : 'active', $activeBatches[0]['id']]
+                );
+            } elseif (count($activeBatches) > 1) {
+                if ($deltaQty > 0) {
+                    $latestBatch = end($activeBatches);
+                    DB::query(
+                        "UPDATE inventory_batches SET quantity = quantity + ? WHERE id = ?",
+                        [$deltaQty, $latestBatch['id']]
+                    );
+                } elseif ($deltaQty < 0) {
+                    $rem = abs($deltaQty);
+                    foreach ($activeBatches as $b) {
+                        if ($rem <= 0) break;
+                        $bQty = (float)$b['quantity'];
+                        if ($bQty <= $rem) {
+                            DB::query("UPDATE inventory_batches SET quantity = 0, status = 'depleted' WHERE id = ?", [$b['id']]);
+                            $rem -= $bQty;
+                        } else {
+                            DB::query("UPDATE inventory_batches SET quantity = quantity - ? WHERE id = ?", [$rem, $b['id']]);
+                            $rem = 0;
+                        }
+                    }
+                }
+            } elseif (count($activeBatches) === 0 && (($targetTotalStock !== null && $targetTotalStock > 0) || $deltaQty > 0)) {
+                $anyBatch = DB::query(
+                    "SELECT id FROM inventory_batches WHERE product_id = ? AND shop_id = ? ORDER BY id DESC LIMIT 1",
+                    [$productId, $shopId]
+                )->fetch();
+                if ($anyBatch) {
+                    $reactivateQty = $targetTotalStock !== null ? max(0, $targetTotalStock) : max(0, $deltaQty);
+                    DB::query(
+                        "UPDATE inventory_batches SET quantity = ?, status = 'active' WHERE id = ?",
+                        [$reactivateQty, $anyBatch['id']]
+                    );
+                }
+            }
+        } catch (\Exception $e) {
+            error_log('Adjustment batch sync error: ' . $e->getMessage());
         }
     }
 

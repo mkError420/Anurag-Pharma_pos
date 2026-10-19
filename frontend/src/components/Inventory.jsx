@@ -444,6 +444,13 @@ export default function Inventory({ onAlertsRefresh }) {
   }, [search, lowStockFilter, expiryFilter, selectedShopId]);
 
   useEffect(() => {
+    if (activeTab === 'inventory') {
+      fetchProducts();
+      if (typeof onAlertsRefresh === 'function') onAlertsRefresh();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
     fetchSuppliers();
     if (isSuperAdmin) {
       const fetchShops = async () => {
@@ -2581,7 +2588,10 @@ export default function Inventory({ onAlertsRefresh }) {
 
       {/* Adjustments Tab Content */}
       {activeTab === 'adjustments' && (
-        <Adjustments />
+        <Adjustments onAdjustmentChange={() => {
+          fetchProducts();
+          if (typeof onAlertsRefresh === 'function') onAlertsRefresh();
+        }} />
       )}
 
       {/* Stock & Sales History Tab Content */}
