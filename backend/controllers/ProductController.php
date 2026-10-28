@@ -90,8 +90,18 @@ class ProductController {
         }
         $hasShop = $shopId !== null;
 
-        // Synchronize stock with purchase orders and sales transactions
-        self::syncInventoryStock($hasShop ? $shopId : null);
+        // Synchronize stock only when explicitly requested (e.g. ?sync=true) or throttled once per hour,
+        // avoiding heavy UPDATE table locks on every standard GET request
+        $forceSync = (isset($_GET['sync']) && $_GET['sync'] === 'true') || (isset($_GET['reconcile']) && $_GET['reconcile'] === 'true');
+        if ($forceSync) {
+            self::syncInventoryStock($hasShop ? $shopId : null);
+        } else if (empty($search) && empty($low_stock) && empty($expiring)) {
+            $syncLockKey = sys_get_temp_dir() . '/sync_stock_' . ($hasShop ? (int)$shopId : 'all') . '.lock';
+            if (!file_exists($syncLockKey) || (time() - @filemtime($syncLockKey)) > 3600) {
+                self::syncInventoryStock($hasShop ? $shopId : null);
+                @touch($syncLockKey);
+            }
+        }
 
         try {
             if ($batchLevel) {
@@ -106,47 +116,20 @@ class ProductController {
                             p.cost_price,
                             p.low_stock_threshold,
                             p.unit,
-                            COALESCE(
-                                p.supplier_id,
-                                (SELECT po2.supplier_id FROM purchase_order_items poi2 
-                                 JOIN purchase_orders po2 ON poi2.purchase_order_id = po2.id 
-                                 WHERE poi2.product_id = p.id 
-                                 ORDER BY po2.id DESC LIMIT 1)
-                            ) AS supplier_id,
+                            p.supplier_id,
                             p.category,
-                            COALESCE(
-                                s.name,
-                                (SELECT s2.name FROM purchase_order_items poi2 
-                                 JOIN purchase_orders po2 ON poi2.purchase_order_id = po2.id 
-                                 JOIN suppliers s2 ON po2.supplier_id = s2.id 
-                                 WHERE poi2.product_id = p.id 
-                                 ORDER BY po2.id DESC LIMIT 1)
-                            ) AS supplier_name,
+                            s.name AS supplier_name,
                             sh.name AS shop_name,
                             ib.id as batch_id,
                             ib.batch_number,
-                            CASE 
-                                WHEN (SELECT COUNT(*) FROM purchase_order_items poi_c JOIN purchase_orders po_c ON poi_c.purchase_order_id = po_c.id WHERE poi_c.product_id = p.id AND (po_c.status IS NULL OR po_c.status != 'cancelled')) > 0
-                                THEN GREATEST(0,
-                                    (SELECT COALESCE(SUM(COALESCE(NULLIF(poi_s.quantity_received, 0), poi_s.quantity_ordered, 0)), 0)
-                                     FROM purchase_order_items poi_s
-                                     JOIN purchase_orders po_s ON poi_s.purchase_order_id = po_s.id
-                                     WHERE poi_s.product_id = p.id AND (po_s.status IS NULL OR po_s.status != 'cancelled'))
-                                    - (SELECT COALESCE(SUM(si_s.quantity), 0)
-                                       FROM sale_items si_s WHERE si_s.product_id = p.id)
-                                    + (SELECT COALESCE(SUM(cr_s.quantity), 0) FROM customer_returns cr_s WHERE cr_s.product_id = p.id)
-                                    - (SELECT COALESCE(SUM(sr_s.quantity), 0) FROM supplier_returns sr_s WHERE sr_s.product_id = p.id)
-                                    - (SELECT COALESCE(SUM(w_s.quantity), 0) FROM wastages w_s WHERE w_s.product_id = p.id)
-                                    + (SELECT COALESCE(SUM(ia_s.difference), 0) FROM inventory_adjustments ia_s WHERE ia_s.product_id = p.id)
-                                )
-                                ELSE p.stock_quantity
-                            END AS stock_quantity,
+                            p.stock_quantity,
                             p.stock_quantity as product_stock_quantity,
+                            COALESCE(NULLIF(ib.quantity, 0), p.stock_quantity) as batch_quantity,
                             CASE WHEN ib.expiry_date >= '2000-01-01' THEN ib.expiry_date WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END as expiry_date,
                             ib.received_date,
                             ib.status as batch_status
                         FROM products p
-                        LEFT JOIN inventory_batches ib ON p.id = ib.product_id AND ib.status = 'active'
+                        LEFT JOIN inventory_batches ib ON p.id = ib.product_id AND p.shop_id = ib.shop_id AND ib.status = 'active'
                         LEFT JOIN suppliers s ON p.supplier_id = s.id
                         LEFT JOIN shops sh ON p.shop_id = sh.id
                         WHERE " . ($hasShop ? "p.shop_id = ?" : "1=1");
@@ -156,22 +139,20 @@ class ProductController {
                 if ($purchasedOnly) {
                     if ($hasShop) {
                         $sql .= " AND (
-                            EXISTS (
+                            (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
+                            OR EXISTS (
                                 SELECT 1 FROM purchase_order_items poi 
-                                JOIN purchase_orders po ON poi.purchase_order_id = po.id 
-                                WHERE poi.product_id = p.id AND po.shop_id = ?
+                                WHERE poi.product_id = p.id AND poi.shop_id = ?
                             )
-                            OR (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
                         )";
                         $params[] = $shopId;
                     } else {
                         $sql .= " AND (
-                            EXISTS (
+                            (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
+                            OR EXISTS (
                                 SELECT 1 FROM purchase_order_items poi 
-                                JOIN purchase_orders po ON poi.purchase_order_id = po.id 
                                 WHERE poi.product_id = p.id
                             )
-                            OR (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
                         )";
                     }
                 }
@@ -277,43 +258,12 @@ class ProductController {
                 }
             } else {
                 $sql = "SELECT p.id, p.shop_id, p.name, p.sku, p.price, p.cost_price, 
-                               CASE 
-                                   WHEN (SELECT COUNT(*) FROM purchase_order_items poi_c JOIN purchase_orders po_c ON poi_c.purchase_order_id = po_c.id WHERE poi_c.product_id = p.id AND (po_c.status IS NULL OR po_c.status != 'cancelled')) > 0
-                                   THEN GREATEST(0,
-                                       (SELECT COALESCE(SUM(COALESCE(NULLIF(poi_s.quantity_received, 0), poi_s.quantity_ordered, 0)), 0)
-                                        FROM purchase_order_items poi_s
-                                        JOIN purchase_orders po_s ON poi_s.purchase_order_id = po_s.id
-                                        WHERE poi_s.product_id = p.id AND (po_s.status IS NULL OR po_s.status != 'cancelled'))
-                                       - (SELECT COALESCE(SUM(si_s.quantity), 0)
-                                          FROM sale_items si_s WHERE si_s.product_id = p.id)
-                                       + (SELECT COALESCE(SUM(cr_s.quantity), 0) FROM customer_returns cr_s WHERE cr_s.product_id = p.id)
-                                       - (SELECT COALESCE(SUM(sr_s.quantity), 0) FROM supplier_returns sr_s WHERE sr_s.product_id = p.id)
-                                       - (SELECT COALESCE(SUM(w_s.quantity), 0) FROM wastages w_s WHERE w_s.product_id = p.id)
-                                       + (SELECT COALESCE(SUM(ia_s.difference), 0) FROM inventory_adjustments ia_s WHERE ia_s.product_id = p.id)
-                                   )
-                                   ELSE p.stock_quantity
-                               END AS stock_quantity,
+                               p.stock_quantity,
                                p.low_stock_threshold, p.unit, 
-                               COALESCE(
-                                   (SELECT MIN(ib.expiry_date) FROM inventory_batches ib WHERE ib.product_id = p.id AND ib.shop_id = p.shop_id AND ib.status = 'active' AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL AND ib.expiry_date >= '2000-01-01'),
-                                   CASE WHEN p.expiry_date >= '2000-01-01' THEN p.expiry_date ELSE NULL END
-                               ) AS expiry_date,
-                               COALESCE(
-                                   p.supplier_id,
-                                   (SELECT po2.supplier_id FROM purchase_order_items poi2 
-                                    JOIN purchase_orders po2 ON poi2.purchase_order_id = po2.id 
-                                    WHERE poi2.product_id = p.id 
-                                    ORDER BY po2.id DESC LIMIT 1)
-                               ) AS supplier_id,
+                               p.expiry_date,
+                               p.supplier_id,
                                p.category,
-                               COALESCE(
-                                   s.name,
-                                   (SELECT s2.name FROM purchase_order_items poi2 
-                                    JOIN purchase_orders po2 ON poi2.purchase_order_id = po2.id 
-                                    JOIN suppliers s2 ON po2.supplier_id = s2.id 
-                                    WHERE poi2.product_id = p.id 
-                                    ORDER BY po2.id DESC LIMIT 1)
-                               ) AS supplier_name,
+                               s.name AS supplier_name,
                                sh.name AS shop_name
                         FROM products p
                         LEFT JOIN suppliers s ON p.supplier_id = s.id
@@ -325,22 +275,20 @@ class ProductController {
                 if ($purchasedOnly) {
                     if ($hasShop) {
                         $sql .= " AND (
-                            EXISTS (
+                            (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
+                            OR EXISTS (
                                 SELECT 1 FROM purchase_order_items poi 
-                                JOIN purchase_orders po ON poi.purchase_order_id = po.id 
-                                WHERE poi.product_id = p.id AND po.shop_id = ?
+                                WHERE poi.product_id = p.id AND poi.shop_id = ?
                             )
-                            OR (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
                         )";
                         $params[] = $shopId;
                     } else {
                         $sql .= " AND (
-                            EXISTS (
+                            (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
+                            OR EXISTS (
                                 SELECT 1 FROM purchase_order_items poi 
-                                JOIN purchase_orders po ON poi.purchase_order_id = po.id 
                                 WHERE poi.product_id = p.id
                             )
-                            OR (p.supplier_id IS NOT NULL AND p.supplier_id > 0)
                         )";
                     }
                 }

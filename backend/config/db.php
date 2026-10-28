@@ -979,6 +979,21 @@ class DB {
                 }
             }
 
+            // High-performance indexes for product catalog and inventory browsing
+            if ($tableExists('products')) {
+                try { $pdo->exec("ALTER TABLE `products` ADD INDEX `idx_prod_shop_stock` (`shop_id`, `stock_quantity`)"); } catch (\Exception $e) {}
+                try { $pdo->exec("ALTER TABLE `products` ADD INDEX `idx_prod_shop_supp` (`shop_id`, `supplier_id`)"); } catch (\Exception $e) {}
+                try { $pdo->exec("ALTER TABLE `products` ADD INDEX `idx_prod_shop_exp` (`shop_id`, `expiry_date`)"); } catch (\Exception $e) {}
+                try { $pdo->exec("ALTER TABLE `products` ADD INDEX `idx_prod_sku` (`sku`)"); } catch (\Exception $e) {}
+            }
+            if ($tableExists('inventory_batches')) {
+                try { $pdo->exec("ALTER TABLE `inventory_batches` ADD INDEX `idx_ib_prod_shop_status` (`product_id`, `shop_id`, `status`)"); } catch (\Exception $e) {}
+                try { $pdo->exec("ALTER TABLE `inventory_batches` ADD INDEX `idx_ib_prod_status` (`product_id`, `status`)"); } catch (\Exception $e) {}
+            }
+            if ($tableExists('purchase_order_items')) {
+                try { $pdo->exec("ALTER TABLE `purchase_order_items` ADD INDEX `idx_poi_product_shop` (`product_id`, `shop_id`)"); } catch (\Exception $e) {}
+            }
+
 
         } catch (\PDOException $e) {
             error_log("Migration error: " . $e->getMessage());
