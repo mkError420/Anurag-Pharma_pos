@@ -535,6 +535,7 @@ $routes = [
         '/^master-supplier-products\/bulk-delete$/' => function($args, $data) { MasterSupplierProductController::bulkDelete($data); },
         '/^suppliers\/bulk-delete$/' => function($args, $data) { SupplierController::bulkDeleteSuppliers($data); },
         '/^suppliers\/purchase-orders$/' => function($args, $data) { SupplierController::createPurchaseOrder($data); },
+        '/^suppliers\/purchase-orders\/sync-adjustments$/' => function() { SupplierController::syncAdjustmentsToPOs(); },
         '/^suppliers\/purchase-orders\/bulk-delete$/' => function($args, $data) { SupplierController::bulkDeletePurchaseOrders($data); },
         '/^suppliers\/(\d+)\/returns\/bulk$/' => function($args, $data) { SupplierController::bulkCreateSupplierReturns($args[0], $data); },
         '/^suppliers\/(\d+)\/returns$/' => function($args, $data) { SupplierController::createSupplierReturn($args[0], $data); },

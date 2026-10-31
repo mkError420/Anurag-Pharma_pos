@@ -108,11 +108,98 @@ class SupplierController {
         }
     }
 
+    public static function syncPurchaseOrdersForAdjustedProducts($shopId) {
+        if (!$shopId) return;
+        try {
+            // Check if inventory_adjustments table exists
+            $tableCheck = DB::query("SHOW TABLES LIKE 'inventory_adjustments'")->fetch();
+            if (!$tableCheck) return;
+
+            // 1. Update purchase_order_items cost_price & subtotal for all products that were adjusted in inventory_adjustments
+            DB::query("
+                UPDATE purchase_order_items poi
+                JOIN products p ON poi.product_id = p.id AND poi.shop_id = p.shop_id
+                SET poi.cost_price = p.cost_price,
+                    poi.subtotal = IF(poi.quantity_received > 0, poi.quantity_received, poi.quantity_ordered) * p.cost_price
+                WHERE poi.shop_id = ?
+                  AND p.cost_price IS NOT NULL
+                  AND poi.product_id IN (SELECT DISTINCT product_id FROM inventory_adjustments WHERE shop_id = ?)
+            ", [$shopId, $shopId]);
+
+            // 2. Recalculate total_amount for all purchase orders containing these adjusted products
+            DB::query("
+                UPDATE purchase_orders po
+                SET po.total_amount = (
+                    SELECT COALESCE(SUM(
+                        IF(po.status = 'received', COALESCE(NULLIF(poi.quantity_received, 0), poi.quantity_ordered), poi.quantity_ordered) * poi.cost_price
+                    ), 0)
+                    FROM purchase_order_items poi
+                    WHERE poi.purchase_order_id = po.id AND poi.shop_id = po.shop_id
+                )
+                WHERE po.shop_id = ?
+                  AND po.id IN (
+                      SELECT poi2.purchase_order_id 
+                      FROM purchase_order_items poi2 
+                      JOIN inventory_adjustments ia ON poi2.product_id = ia.product_id AND poi2.shop_id = ia.shop_id
+                      WHERE poi2.shop_id = ?
+                  )
+            ", [$shopId, $shopId]);
+
+            // 3. Recalculate paid_amount (for cash) and due_amount for these purchase orders
+            DB::query("
+                UPDATE purchase_orders
+                SET paid_amount = IF(payment_basis = 'cash', total_amount, paid_amount),
+                    due_amount = GREATEST(total_amount - IF(payment_basis = 'cash', total_amount, paid_amount), 0)
+                WHERE shop_id = ?
+                  AND id IN (
+                      SELECT poi2.purchase_order_id 
+                      FROM purchase_order_items poi2 
+                      JOIN inventory_adjustments ia ON poi2.product_id = ia.product_id AND poi2.shop_id = ia.shop_id
+                      WHERE poi2.shop_id = ?
+                  )
+            ", [$shopId, $shopId]);
+
+            // 4. Recalculate suppliers due_balance
+            DB::query("
+                UPDATE suppliers s
+                SET s.due_balance = (
+                    SELECT COALESCE(SUM(due_amount), 0)
+                    FROM purchase_orders
+                    WHERE supplier_id = s.id AND shop_id = s.shop_id AND payment_basis = 'credit' AND status IN ('ordered', 'received')
+                )
+                WHERE s.shop_id = ?
+                  AND s.id IN (
+                      SELECT po.supplier_id 
+                      FROM purchase_orders po
+                      JOIN purchase_order_items poi ON po.id = poi.purchase_order_id AND po.shop_id = poi.shop_id
+                      JOIN inventory_adjustments ia ON poi.product_id = ia.product_id AND poi.shop_id = ia.shop_id
+                      WHERE po.shop_id = ?
+                  )
+            ", [$shopId, $shopId]);
+
+        } catch (\Exception $e) {
+            error_log('Sync PO totals with adjustments error: ' . $e->getMessage());
+        }
+    }
+
+    public static function syncAdjustmentsToPOs() {
+        Auth::authenticate();
+        Auth::enforceTenant();
+        Auth::authorize(['shop_admin', 'super_admin']);
+
+        $shopId = Auth::$shopId;
+        self::syncPurchaseOrdersForAdjustedProducts($shopId);
+
+        header('Content-Type: application/json');
+        echo json_encode(['message' => 'Purchase Orders and PO Totals successfully synchronized with inventory adjustments.']);
+    }
+
     public static function listPurchaseOrders() {
         Auth::authenticate();
         Auth::enforceTenant();
 
         $shopId = Auth::$shopId;
+        self::syncPurchaseOrdersForAdjustedProducts($shopId);
         $status = $_GET['status'] ?? null;
         $supplierId = $_GET['supplier_id'] ?? null;
         $startDate = $_GET['start_date'] ?? null;

@@ -158,6 +158,9 @@ export default function Suppliers({ onAlertsRefresh }) {
   const [showPoDeleteModal, setShowPoDeleteModal] = useState(false);
   const [poToDelete, setPoToDelete] = useState(null);
   const [poDeleting, setPoDeleting] = useState(false);
+  // Inventory Adjustments sync state
+  const [inventoryAdjustments, setInventoryAdjustments] = useState([]);
+  const [syncingAdjustments, setSyncingAdjustments] = useState(false);
   const [poDeleteProgress, setPoDeleteProgress] = useState({
     active: false,
     current: 0,
@@ -578,6 +581,59 @@ export default function Suppliers({ onAlertsRefresh }) {
     }
   };
 
+  // Load inventory adjustments to calculate adjustment impact on POs
+  const fetchInventoryAdjustments = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/adjustments`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setInventoryAdjustments(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('Error fetching inventory adjustments:', err);
+    }
+  };
+
+  // Sync adjusted products directly with Purchase Orders and PO Totals
+  const handleSyncAdjustmentsWithPOs = async () => {
+    setSyncingAdjustments(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/suppliers/purchase-orders/sync-adjustments`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to sync adjustments with POs.');
+
+      await Promise.all([
+        fetchPurchaseOrders(),
+        fetchSuppliers(),
+        fetchProducts(),
+        fetchInventoryAdjustments()
+      ]);
+
+      if (activeTab === 'logs') {
+        fetchCostLogs();
+      }
+      if (selectedSupplierId) {
+        loadProfileData(selectedSupplierId);
+      }
+
+      triggerAlert('success', data.message || 'Purchase Orders and PO Totals successfully synchronized with inventory adjustments!');
+    } catch (err) {
+      triggerAlert('error', err.message);
+    } finally {
+      setSyncingAdjustments(false);
+    }
+  };
+
   // Debounced PO fetch to prevent excessive API calls on date changes
   useEffect(() => {
     if (activeTab !== 'pos') return;
@@ -595,6 +651,7 @@ export default function Suppliers({ onAlertsRefresh }) {
       fetchPurchaseOrders();
       fetchSuppliers();
       fetchProducts();
+      fetchInventoryAdjustments();
       if (activeTab === 'logs') {
         fetchCostLogs();
       }
@@ -771,6 +828,7 @@ export default function Suppliers({ onAlertsRefresh }) {
         await Promise.all([
           fetchProducts(),
           fetchPurchaseOrders(),
+          fetchInventoryAdjustments(),
           fetchMasterSupplierNames(),
           fetchAllMasterProducts()
         ]);
@@ -2666,6 +2724,20 @@ export default function Suppliers({ onAlertsRefresh }) {
     }
     return filtered;
   }, [purchaseOrders, poFilterStatus, poSearchTerm]);
+
+  // Adjustments total value and count for PO Totals section
+  const adjustmentsTotalValue = useMemo(() => {
+    return inventoryAdjustments.reduce((sum, adj) => {
+      const unitCost = parseFloat(adj.cost_price || adj.current_cost_price || 0);
+      const diff = parseFloat(adj.difference || 0);
+      return sum + (diff * unitCost);
+    }, 0);
+  }, [inventoryAdjustments]);
+
+  const adjustedProductsCount = useMemo(() => {
+    const uniqueIds = new Set(inventoryAdjustments.map(a => a.product_id).filter(Boolean));
+    return uniqueIds.size || inventoryAdjustments.length;
+  }, [inventoryAdjustments]);
 
   const handleDownloadPOCSV = async () => {
     try {
@@ -4752,23 +4824,51 @@ export default function Suppliers({ onAlertsRefresh }) {
           <div className="space-y-4">
             {/* PO Totals */}
             {!isStaff && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                  <p className="text-xs font-semibold text-slate-500 uppercase">Total Purchase Amount</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-500 uppercase">Total Purchase Amount</p>
+                    <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-100">Adjusted</span>
+                  </div>
                   <p className="text-2xl font-bold text-slate-800 mt-1">
                     {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0))}
                   </p>
+                  <p className="text-[11px] text-slate-400 mt-1">Reflects current adjusted unit costs</p>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
                   <p className="text-xs font-semibold text-slate-500 uppercase">Total Paid</p>
                   <p className="text-2xl font-bold text-emerald-600 mt-1">
                     {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0))}
                   </p>
+                  <p className="text-[11px] text-slate-400 mt-1">Payments recorded</p>
                 </div>
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
                   <p className="text-xs font-semibold text-slate-500 uppercase">Total Due</p>
                   <p className="text-2xl font-bold text-rose-600 mt-1">
                     {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.due_amount || 0), 0))}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">Outstanding vendor balance</p>
+                </div>
+                <div className="bg-white border border-indigo-100 rounded-2xl p-4 shadow-xs bg-gradient-to-br from-indigo-50/40 to-white">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-indigo-700 uppercase">Inventory Adjustments</p>
+                    <button
+                      onClick={handleSyncAdjustmentsWithPOs}
+                      disabled={syncingAdjustments}
+                      title="Sync existing and new adjustments with POs"
+                      className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-semibold disabled:opacity-50 cursor-pointer"
+                    >
+                      <svg className={`w-3.5 h-3.5 ${syncingAdjustments ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      {syncingAdjustments ? 'Syncing...' : 'Sync'}
+                    </button>
+                  </div>
+                  <p className={`text-2xl font-bold mt-1 ${adjustmentsTotalValue >= 0 ? 'text-indigo-900' : 'text-rose-700'}`}>
+                    {adjustmentsTotalValue >= 0 ? '+' : '-'}{formatCurrency(Math.abs(adjustmentsTotalValue))}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    {adjustedProductsCount} product{adjustedProductsCount === 1 ? '' : 's'} adjusted & synced
                   </p>
                 </div>
               </div>
@@ -4890,6 +4990,17 @@ export default function Suppliers({ onAlertsRefresh }) {
                 )}
                 {!isStaff && (
                   <>
+                    <button
+                      onClick={handleSyncAdjustmentsWithPOs}
+                      disabled={syncingAdjustments}
+                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-semibold py-2 px-3.5 rounded-xl text-sm shadow-xs transition-colors flex items-center space-x-1.5 disabled:opacity-60 cursor-pointer"
+                      title="Synchronize all adjusted products from Inventory Adjustments into Purchase Orders and PO Totals"
+                    >
+                      <svg className={`w-4 h-4 ${syncingAdjustments ? 'animate-spin text-indigo-600' : 'text-indigo-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>{syncingAdjustments ? 'Syncing...' : 'Sync with Adjustments'}</span>
+                    </button>
                     <button
                       onClick={handleDownloadPOCSV}
                       className="bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold py-2 px-4 rounded-xl text-sm shadow transition-colors flex items-center space-x-2"
