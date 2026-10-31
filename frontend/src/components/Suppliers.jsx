@@ -730,8 +730,11 @@ export default function Suppliers({ onAlertsRefresh }) {
     const initData = async () => {
       setLoading(true);
 
-      // Always fetch suppliers first (needed for all tabs)
-      await fetchSuppliers();
+      // Always fetch suppliers and products first (needed for all tabs)
+      await Promise.all([
+        fetchSuppliers(),
+        fetchProducts()
+      ]);
 
       // Then fetch additional data based on active tab
       if (activeTab === 'pos') {
@@ -754,6 +757,7 @@ export default function Suppliers({ onAlertsRefresh }) {
   useEffect(() => {
     if (selectedSupplierId) {
       loadProfileData(selectedSupplierId);
+      fetchProducts();
       // Reset profile-level filters on supplier switch
       setProfilePoFilter('all');
       setProfilePoDateFrom('');

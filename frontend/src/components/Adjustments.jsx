@@ -35,9 +35,14 @@ export default function Adjustments({ onAdjustmentChange }) {
   const [formData, setFormData] = useState({
     product_id: '',
     adjusted_quantity: '',
+    cost_price: '',
+    price: '',
+    supplier_id: '',
     reason: '',
     notes: ''
   });
+
+  const [suppliers, setSuppliers] = useState([]);
 
   const [productSearch, setProductSearch] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -115,11 +120,26 @@ export default function Adjustments({ onAdjustmentChange }) {
     }
   };
 
+  const fetchSuppliers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/suppliers`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        setSuppliers(await response.json());
+      }
+    } catch (err) {
+      console.error('Error fetching suppliers:', err);
+    }
+  };
+
   useEffect(() => {
     fetchAdjustments();
     fetchProducts();
     fetchStats();
     fetchShops();
+    fetchSuppliers();
   }, [filterProductId, filterType, filterStartDate, filterEndDate, filterShopId]);
 
   const triggerAlert = (type, message) => {
@@ -160,6 +180,9 @@ export default function Adjustments({ onAdjustmentChange }) {
           shop_id: editMode ? editShopId : (selectedProduct ? selectedProduct.shop_id : null),
           product_id: parseInt(formData.product_id),
           adjusted_quantity: finalQuantity,
+          cost_price: formData.cost_price !== '' && formData.cost_price !== null ? parseFloat(formData.cost_price) : null,
+          price: formData.price !== '' && formData.price !== null ? parseFloat(formData.price) : null,
+          supplier_id: formData.supplier_id ? parseInt(formData.supplier_id) : null,
           reason: formData.reason,
           notes: formData.notes
         })
@@ -209,6 +232,9 @@ export default function Adjustments({ onAdjustmentChange }) {
     setFormData({
       product_id: '',
       adjusted_quantity: '',
+      cost_price: '',
+      price: '',
+      supplier_id: '',
       reason: '',
       notes: ''
     });
@@ -224,6 +250,9 @@ export default function Adjustments({ onAdjustmentChange }) {
       setFormData({
         product_id: String(product.id),
         adjusted_quantity: String(product.stock_quantity),
+        cost_price: product.cost_price !== undefined && product.cost_price !== null ? String(product.cost_price) : '',
+        price: product.price !== undefined && product.price !== null ? String(product.price) : '',
+        supplier_id: product.supplier_id ? String(product.supplier_id) : '',
         reason: '',
         notes: ''
       });
@@ -238,9 +267,17 @@ export default function Adjustments({ onAdjustmentChange }) {
     setEditMode(true);
     setEditAdjustmentId(adj.id);
     setEditShopId(adj.shop_id);
+    const prod = products.find(p => p.id === adj.product_id);
     setFormData({
       product_id: String(adj.product_id),
       adjusted_quantity: String(adj.adjusted_quantity),
+      cost_price: adj.cost_price !== undefined && adj.cost_price !== null
+        ? String(adj.cost_price)
+        : (prod && prod.cost_price !== undefined && prod.cost_price !== null ? String(prod.cost_price) : ''),
+      price: adj.price !== undefined && adj.price !== null
+        ? String(adj.price)
+        : (prod && prod.price !== undefined && prod.price !== null ? String(prod.price) : ''),
+      supplier_id: adj.supplier_id ? String(adj.supplier_id) : (prod && prod.supplier_id ? String(prod.supplier_id) : ''),
       reason: adj.reason || '',
       notes: adj.notes || ''
     });
@@ -465,6 +502,7 @@ export default function Adjustments({ onAdjustmentChange }) {
                   <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Shop</th>
                 )}
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Product</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Cost Price</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Previous Qty (Unit)</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Adjusted Qty (Unit)</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Difference (Unit)</th>
@@ -477,11 +515,11 @@ export default function Adjustments({ onAdjustmentChange }) {
             <tbody className="divide-y divide-slate-200">
               {loading ? (
                 <tr>
-                  <td colSpan="9" className="px-6 py-8 text-center text-slate-500">Loading adjustments...</td>
+                  <td colSpan={isSuperAdmin ? 11 : 10} className="px-6 py-8 text-center text-slate-500">Loading adjustments...</td>
                 </tr>
               ) : adjustments.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-6 py-8 text-center text-slate-500">No adjustments found</td>
+                  <td colSpan={isSuperAdmin ? 11 : 10} className="px-6 py-8 text-center text-slate-500">No adjustments found</td>
                 </tr>
               ) : (
                 currentAdjustments.map(adj => (
@@ -495,6 +533,16 @@ export default function Adjustments({ onAdjustmentChange }) {
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-slate-900">{adj.product_name}</div>
                       <div className="text-xs text-slate-500">{adj.product_sku}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-semibold text-slate-900">৳{Number(adj.cost_price || adj.current_cost_price || 0).toFixed(2)}</div>
+                      {adj.supplier_name ? (
+                        <div className="text-[10px] text-indigo-600 font-medium truncate max-w-[130px]" title={adj.supplier_name}>
+                          Vendor: {adj.supplier_name}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-slate-400">No Vendor</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-700">{+Number(adj.previous_quantity).toFixed(3)} <span className="text-xs uppercase text-slate-500">{adj.product_unit}</span></td>
                     <td className="px-6 py-4 text-sm font-medium text-slate-900">{+Number(adj.adjusted_quantity).toFixed(3)} <span className="text-xs uppercase text-slate-500">{adj.product_unit}</span></td>
@@ -636,7 +684,14 @@ export default function Adjustments({ onAdjustmentChange }) {
                           e.preventDefault();
                           if (productFocusedIndex >= 0 && filtered[productFocusedIndex]) {
                             const p = filtered[productFocusedIndex];
-                            setFormData({ ...formData, product_id: String(p.id), adjusted_quantity: String(p.stock_quantity) });
+                            setFormData({
+                              ...formData,
+                              product_id: String(p.id),
+                              adjusted_quantity: String(p.stock_quantity),
+                              cost_price: p.cost_price !== undefined && p.cost_price !== null ? String(p.cost_price) : '',
+                              price: p.price !== undefined && p.price !== null ? String(p.price) : '',
+                              supplier_id: p.supplier_id ? String(p.supplier_id) : ''
+                            });
                             setProductSearch(`${p.name} (${p.sku})`);
                             setShowProductDropdown(false);
                             setProductFocusedIndex(-1);
@@ -661,7 +716,14 @@ export default function Adjustments({ onAdjustmentChange }) {
                             key={p.id}
                             className={`px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm border-b border-slate-100 last:border-0 ${productFocusedIndex === idx ? 'bg-indigo-100 ring-1 ring-indigo-500' : ''}`}
                             onClick={() => {
-                              setFormData({ ...formData, product_id: String(p.id), adjusted_quantity: String(p.stock_quantity) });
+                              setFormData({
+                                ...formData,
+                                product_id: String(p.id),
+                                adjusted_quantity: String(p.stock_quantity),
+                                cost_price: p.cost_price !== undefined && p.cost_price !== null ? String(p.cost_price) : '',
+                                price: p.price !== undefined && p.price !== null ? String(p.price) : '',
+                                supplier_id: p.supplier_id ? String(p.supplier_id) : ''
+                              });
                               setProductSearch(`${p.name} (${p.sku})`);
                               setShowProductDropdown(false);
                             }}
@@ -729,6 +791,108 @@ export default function Adjustments({ onAdjustmentChange }) {
                   );
                 })()}
               </div>
+
+              {/* Price & Supplier Directory Sync Section */}
+              {formData.product_id && (() => {
+                const selectedProduct = products.find(p => p.id === parseInt(formData.product_id));
+                const currentCost = selectedProduct?.cost_price !== undefined && selectedProduct?.cost_price !== null ? Number(selectedProduct.cost_price) : 0;
+                const currentPrice = selectedProduct?.price !== undefined && selectedProduct?.price !== null ? Number(selectedProduct.price) : 0;
+                const isCostChanged = formData.cost_price !== '' && parseFloat(formData.cost_price) !== currentCost;
+                const isPriceChanged = formData.price !== '' && parseFloat(formData.price) !== currentPrice;
+
+                return (
+                  <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Price & Supplier Directory Adjustment
+                      </span>
+                      <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                        Syncs with Supplier
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Cost Price (Supplier Price)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-xs font-bold text-slate-400">৳</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            name="cost_price"
+                            value={formData.cost_price}
+                            onChange={handleInputChange}
+                            placeholder="0.00"
+                            className="w-full pl-6 pr-2.5 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-1 focus:ring-indigo-500 outline-none font-semibold text-slate-800"
+                          />
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Current: <span className="font-semibold text-slate-700">৳{currentCost.toFixed(2)}</span>
+                          {isCostChanged && (
+                            <span className="text-indigo-600 font-bold ml-1.5 block sm:inline">
+                              → Supplier updates to ৳{parseFloat(formData.cost_price).toFixed(2)}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Selling Price (Retail)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-xs font-bold text-slate-400">৳</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            name="price"
+                            value={formData.price}
+                            onChange={handleInputChange}
+                            placeholder="0.00"
+                            className="w-full pl-6 pr-2.5 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-1 focus:ring-indigo-500 outline-none font-semibold text-slate-800"
+                          />
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          Current: <span className="font-semibold text-slate-700">৳{currentPrice.toFixed(2)}</span>
+                          {isPriceChanged && (
+                            <span className="text-emerald-600 font-bold ml-1.5 block sm:inline">
+                              → New: ৳{parseFloat(formData.price).toFixed(2)}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Supplier / Vendor (Supplier Directory)
+                      </label>
+                      <select
+                        name="supplier_id"
+                        value={formData.supplier_id}
+                        onChange={handleInputChange}
+                        className="w-full border border-slate-200 rounded-lg p-2 text-xs bg-white focus:ring-1 focus:ring-indigo-500 outline-none font-medium text-slate-800"
+                      >
+                        <option value="">(Auto-detect or keep existing supplier)</option>
+                        {suppliers.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Price adjustment will be tracked under this supplier in Supplier Directory & Cost Price Logs.
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Reason *</label>
                 <select
