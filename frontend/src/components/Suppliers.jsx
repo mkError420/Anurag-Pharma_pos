@@ -589,6 +589,36 @@ export default function Suppliers({ onAlertsRefresh }) {
     return () => clearTimeout(timeoutId);
   }, [poStartDate, poEndDate, activeTab]);
 
+  // Live listener to auto-refresh Purchase Orders and PO Totals when inventory adjustments occur
+  useEffect(() => {
+    const handleSync = () => {
+      fetchPurchaseOrders();
+      fetchSuppliers();
+      fetchProducts();
+      if (activeTab === 'logs') {
+        fetchCostLogs();
+      }
+      if (selectedSupplierId) {
+        loadProfileData(selectedSupplierId);
+      }
+    };
+
+    window.addEventListener('inventory-adjusted', handleSync);
+    const onStorage = (e) => {
+      if (e.key === 'pos_last_inventory_adjustment') {
+        handleSync();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('focus', handleSync);
+
+    return () => {
+      window.removeEventListener('inventory-adjusted', handleSync);
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', handleSync);
+    };
+  }, [activeTab, selectedSupplierId]);
+
   const fetchFilteredPOItems = async () => {
     if (!poStartDate || !poEndDate) return;
     setFilteredPOLoading(true);

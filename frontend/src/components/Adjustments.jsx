@@ -200,6 +200,10 @@ export default function Adjustments({ onAdjustmentChange }) {
       if (typeof onAdjustmentChange === 'function') {
         onAdjustmentChange();
       }
+      try {
+        window.dispatchEvent(new CustomEvent('inventory-adjusted', { detail: { productId: formData.product_id } }));
+        localStorage.setItem('pos_last_inventory_adjustment', Date.now().toString());
+      } catch (e) {}
     } catch (err) {
       triggerAlert('error', err.message);
     }
@@ -223,6 +227,10 @@ export default function Adjustments({ onAdjustmentChange }) {
       if (typeof onAdjustmentChange === 'function') {
         onAdjustmentChange();
       }
+      try {
+        window.dispatchEvent(new CustomEvent('inventory-adjusted', { detail: { productId: formData.product_id } }));
+        localStorage.setItem('pos_last_inventory_adjustment', Date.now().toString());
+      } catch (e) {}
     } catch (err) {
       triggerAlert('error', err.message);
     }

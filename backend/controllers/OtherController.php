@@ -802,18 +802,16 @@ class OtherController {
 
             self::syncBatchesForAdjustment($productId, $shopId, $diff, $newQty);
 
-            // Log cost price change and sync PO items & active batches if cost price changed
-            if (abs($newCostPrice - $oldCostPrice) > 0.0001) {
+            // Sync PO items, PO totals, and due amounts for this product
+            $effectiveCostPrice = $newCostPrice > 0 ? $newCostPrice : $oldCostPrice;
+            if ($effectiveCostPrice > 0) {
+                // Update cost prices and subtotal in past purchase order items dynamically
                 DB::query(
-                    'INSERT INTO cost_price_logs (shop_id, product_id, supplier_id, old_cost_price, new_cost_price, reason)
-                     VALUES (?, ?, ?, ?, ?, ?)',
-                    [$shopId, $productId, $supplierId, $oldCostPrice, $newCostPrice, 'Inventory adjustment: ' . $reason]
-                );
-
-                // Update cost prices in past purchase order items dynamically
-                DB::query(
-                    'UPDATE purchase_order_items SET cost_price = ? WHERE product_id = ? AND shop_id = ?',
-                    [$newCostPrice, $productId, $shopId]
+                    'UPDATE purchase_order_items 
+                     SET cost_price = ?,
+                         subtotal = IF(quantity_received > 0, quantity_received, quantity_ordered) * ?
+                     WHERE product_id = ? AND shop_id = ?',
+                    [$effectiveCostPrice, $effectiveCostPrice, $productId, $shopId]
                 );
 
                 // Recalculate total_amount for all affected purchase orders
@@ -830,6 +828,42 @@ class OtherController {
                          SELECT purchase_order_id FROM purchase_order_items WHERE product_id = ? AND shop_id = ?
                      )',
                     [$shopId, $productId, $shopId]
+                );
+
+                // Update paid_amount (for cash) and due_amount based on the new total_amount
+                DB::query(
+                    'UPDATE purchase_orders
+                     SET paid_amount = IF(payment_basis = "cash", total_amount, paid_amount),
+                         due_amount = GREATEST(total_amount - IF(payment_basis = "cash", total_amount, paid_amount), 0)
+                     WHERE shop_id = ? AND id IN (
+                         SELECT purchase_order_id FROM purchase_order_items WHERE product_id = ? AND shop_id = ?
+                     )',
+                    [$shopId, $productId, $shopId]
+                );
+
+                // Recalculate supplier due_balance for all affected vendors
+                DB::query(
+                    'UPDATE suppliers s
+                     SET s.due_balance = (
+                         SELECT COALESCE(SUM(due_amount), 0)
+                         FROM purchase_orders
+                         WHERE supplier_id = s.id AND shop_id = s.shop_id AND payment_basis = "credit" AND status IN ("ordered", "received")
+                     )
+                     WHERE s.shop_id = ? AND s.id IN (
+                         SELECT supplier_id FROM purchase_orders WHERE id IN (
+                             SELECT purchase_order_id FROM purchase_order_items WHERE product_id = ? AND shop_id = ?
+                         )
+                     )',
+                    [$shopId, $productId, $shopId]
+                );
+            }
+
+            // Log cost price change and sync active batches if cost price changed
+            if (abs($newCostPrice - $oldCostPrice) > 0.0001) {
+                DB::query(
+                    'INSERT INTO cost_price_logs (shop_id, product_id, supplier_id, old_cost_price, new_cost_price, reason)
+                     VALUES (?, ?, ?, ?, ?, ?)',
+                    [$shopId, $productId, $supplierId, $oldCostPrice, $newCostPrice, 'Inventory adjustment: ' . $reason]
                 );
 
                 // Sync active inventory_batches cost_price
@@ -961,17 +995,15 @@ class OtherController {
                 self::syncBatchesForAdjustment($productId, $shopId, $netChange, (float)$product['stock_quantity'] + $netChange);
             }
 
-            // If cost price changed
-            if (abs($newCostPrice - $oldCostPrice) > 0.0001) {
+            // Sync PO items, PO totals, and due amounts for this product
+            $effectiveCostPrice = $newCostPrice > 0 ? $newCostPrice : $oldCostPrice;
+            if ($effectiveCostPrice > 0) {
                 DB::query(
-                    'INSERT INTO cost_price_logs (shop_id, product_id, supplier_id, old_cost_price, new_cost_price, reason)
-                     VALUES (?, ?, ?, ?, ?, ?)',
-                    [$shopId, $productId, $supplierId, $oldCostPrice, $newCostPrice, 'Inventory adjustment update: ' . $reason]
-                );
-
-                DB::query(
-                    'UPDATE purchase_order_items SET cost_price = ? WHERE product_id = ? AND shop_id = ?',
-                    [$newCostPrice, $productId, $shopId]
+                    'UPDATE purchase_order_items 
+                     SET cost_price = ?,
+                         subtotal = IF(quantity_received > 0, quantity_received, quantity_ordered) * ?
+                     WHERE product_id = ? AND shop_id = ?',
+                    [$effectiveCostPrice, $effectiveCostPrice, $productId, $shopId]
                 );
 
                 DB::query(
@@ -987,6 +1019,40 @@ class OtherController {
                          SELECT purchase_order_id FROM purchase_order_items WHERE product_id = ? AND shop_id = ?
                      )',
                     [$shopId, $productId, $shopId]
+                );
+
+                DB::query(
+                    'UPDATE purchase_orders
+                     SET paid_amount = IF(payment_basis = "cash", total_amount, paid_amount),
+                         due_amount = GREATEST(total_amount - IF(payment_basis = "cash", total_amount, paid_amount), 0)
+                     WHERE shop_id = ? AND id IN (
+                         SELECT purchase_order_id FROM purchase_order_items WHERE product_id = ? AND shop_id = ?
+                     )',
+                    [$shopId, $productId, $shopId]
+                );
+
+                DB::query(
+                    'UPDATE suppliers s
+                     SET s.due_balance = (
+                         SELECT COALESCE(SUM(due_amount), 0)
+                         FROM purchase_orders
+                         WHERE supplier_id = s.id AND shop_id = s.shop_id AND payment_basis = "credit" AND status IN ("ordered", "received")
+                     )
+                     WHERE s.shop_id = ? AND s.id IN (
+                         SELECT supplier_id FROM purchase_orders WHERE id IN (
+                             SELECT purchase_order_id FROM purchase_order_items WHERE product_id = ? AND shop_id = ?
+                         )
+                     )',
+                    [$shopId, $productId, $shopId]
+                );
+            }
+
+            // If cost price changed
+            if (abs($newCostPrice - $oldCostPrice) > 0.0001) {
+                DB::query(
+                    'INSERT INTO cost_price_logs (shop_id, product_id, supplier_id, old_cost_price, new_cost_price, reason)
+                     VALUES (?, ?, ?, ?, ?, ?)',
+                    [$shopId, $productId, $supplierId, $oldCostPrice, $newCostPrice, 'Inventory adjustment update: ' . $reason]
                 );
 
                 try {
