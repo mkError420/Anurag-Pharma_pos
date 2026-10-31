@@ -606,6 +606,18 @@ class OtherController {
     // INVENTORY ADJUSTMENTS
     // ==========================================
 
+    private static function ensureAdjustmentPriceColumns() {
+        static $checked = false;
+        if ($checked) return;
+        try {
+            $colCheck = DB::query("SHOW COLUMNS FROM inventory_adjustments LIKE 'cost_price'")->fetch();
+            if (!$colCheck) {
+                DB::query("ALTER TABLE inventory_adjustments ADD COLUMN cost_price DECIMAL(10,2) NULL AFTER difference, ADD COLUMN price DECIMAL(10,2) NULL AFTER cost_price");
+            }
+        } catch (\Exception $e) {}
+        $checked = true;
+    }
+
     public static function listAdjustments() {
         Auth::authenticate();
         Auth::enforceTenant();
@@ -617,9 +629,26 @@ class OtherController {
         $endDate = $_GET['end_date'] ?? null;
 
         try {
-            $sql = 'SELECT ia.*, p.name AS product_name, p.sku AS product_sku, p.unit AS product_unit, u.name AS adjusted_by_name, s.name AS shop_name
+            self::ensureAdjustmentPriceColumns();
+            $sql = 'SELECT ia.*, p.name AS product_name, p.sku AS product_sku, p.unit AS product_unit,
+                           p.cost_price AS current_cost_price, p.price AS current_price,
+                           COALESCE(sup.name, (
+                               SELECT s2.name FROM purchase_order_items poi2 
+                               JOIN purchase_orders po2 ON poi2.purchase_order_id = po2.id 
+                               JOIN suppliers s2 ON po2.supplier_id = s2.id 
+                               WHERE poi2.product_id = p.id AND poi2.shop_id = ia.shop_id 
+                               ORDER BY po2.id DESC LIMIT 1
+                           )) AS supplier_name,
+                           COALESCE(p.supplier_id, (
+                               SELECT po2.supplier_id FROM purchase_order_items poi2 
+                               JOIN purchase_orders po2 ON poi2.purchase_order_id = po2.id 
+                               WHERE poi2.product_id = p.id AND poi2.shop_id = ia.shop_id 
+                               ORDER BY po2.id DESC LIMIT 1
+                           )) AS supplier_id,
+                           u.name AS adjusted_by_name, s.name AS shop_name
                     FROM inventory_adjustments ia
                     JOIN products p ON ia.product_id = p.id
+                    LEFT JOIN suppliers sup ON p.supplier_id = sup.id
                     JOIN users u ON ia.adjusted_by = u.id
                     LEFT JOIN shops s ON ia.shop_id = s.id
                     WHERE 1=1';
@@ -660,6 +689,12 @@ class OtherController {
                 $ia['previous_quantity'] = (float)$ia['previous_quantity'];
                 $ia['adjusted_quantity'] = (float)$ia['adjusted_quantity'];
                 $ia['difference'] = (float)$ia['difference'];
+                $ia['cost_price'] = isset($ia['cost_price']) && $ia['cost_price'] !== null 
+                    ? (float)$ia['cost_price'] 
+                    : ($ia['current_cost_price'] !== null ? (float)$ia['current_cost_price'] : 0.0);
+                $ia['price'] = isset($ia['price']) && $ia['price'] !== null 
+                    ? (float)$ia['price'] 
+                    : ($ia['current_price'] !== null ? (float)$ia['current_price'] : 0.0);
                 $ia['adjusted_by'] = (int)$ia['adjusted_by'];
             }
 
@@ -696,7 +731,7 @@ class OtherController {
         try {
             DB::beginTransaction();
 
-            $stmt = DB::query('SELECT id, stock_quantity, name, sku FROM products WHERE id = ? AND shop_id = ? FOR UPDATE', [$productId, $shopId]);
+            $stmt = DB::query('SELECT id, stock_quantity, name, sku, cost_price, price, supplier_id FROM products WHERE id = ? AND shop_id = ? FOR UPDATE', [$productId, $shopId]);
             $product = $stmt->fetch();
 
             if (!$product) {
@@ -708,18 +743,103 @@ class OtherController {
             $diff = $newQty - $prevQty;
             $type = $diff >= 0 ? 'increase' : 'decrease';
 
-            // Update product stock
-            DB::query('UPDATE products SET stock_quantity = ? WHERE id = ? AND shop_id = ?', [$newQty, $productId, $shopId]);
+            // Prices
+            $oldCostPrice = $product['cost_price'] !== null ? (float)$product['cost_price'] : 0.0;
+            $newCostPrice = (isset($requestData['cost_price']) && $requestData['cost_price'] !== '' && $requestData['cost_price'] !== null)
+                ? (float)$requestData['cost_price']
+                : $oldCostPrice;
+
+            $oldPrice = $product['price'] !== null ? (float)$product['price'] : 0.0;
+            $newPrice = (isset($requestData['price']) && $requestData['price'] !== '' && $requestData['price'] !== null)
+                ? (float)$requestData['price']
+                : $oldPrice;
+
+            // Resolve supplier
+            $supplierId = !empty($requestData['supplier_id']) ? (int)$requestData['supplier_id'] : (!empty($product['supplier_id']) ? (int)$product['supplier_id'] : null);
+            if (!$supplierId) {
+                $suppStmt = DB::query(
+                    'SELECT po.supplier_id FROM purchase_order_items poi 
+                     JOIN purchase_orders po ON poi.purchase_order_id = po.id 
+                     WHERE poi.product_id = ? AND poi.shop_id = ? 
+                     ORDER BY po.id DESC LIMIT 1',
+                    [$productId, $shopId]
+                );
+                $suppRow = $suppStmt->fetch();
+                if ($suppRow && !empty($suppRow['supplier_id'])) {
+                    $supplierId = (int)$suppRow['supplier_id'];
+                }
+            }
+
+            // Update product stock and prices (and assign supplier if specified)
+            if ($supplierId && empty($product['supplier_id'])) {
+                DB::query(
+                    'UPDATE products SET stock_quantity = ?, cost_price = ?, price = ?, supplier_id = ? WHERE id = ? AND shop_id = ?',
+                    [$newQty, $newCostPrice, $newPrice, $supplierId, $productId, $shopId]
+                );
+            } else {
+                DB::query(
+                    'UPDATE products SET stock_quantity = ?, cost_price = ?, price = ? WHERE id = ? AND shop_id = ?',
+                    [$newQty, $newCostPrice, $newPrice, $productId, $shopId]
+                );
+            }
 
             // Save adjustment log
-            DB::query(
-                'INSERT INTO inventory_adjustments (shop_id, product_id, previous_quantity, adjusted_quantity, difference, adjustment_type, reason, notes, adjusted_by) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [$shopId, $productId, $prevQty, $newQty, $diff, $type, $reason, $notes, $userId]
-            );
+            self::ensureAdjustmentPriceColumns();
+            try {
+                DB::query(
+                    'INSERT INTO inventory_adjustments (shop_id, product_id, previous_quantity, adjusted_quantity, difference, adjustment_type, reason, notes, adjusted_by, cost_price, price) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [$shopId, $productId, $prevQty, $newQty, $diff, $type, $reason, $notes, $userId, $newCostPrice, $newPrice]
+                );
+            } catch (\Exception $ex) {
+                DB::query(
+                    'INSERT INTO inventory_adjustments (shop_id, product_id, previous_quantity, adjusted_quantity, difference, adjustment_type, reason, notes, adjusted_by) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [$shopId, $productId, $prevQty, $newQty, $diff, $type, $reason, $notes, $userId]
+                );
+            }
             $newId = DB::lastInsertId();
 
             self::syncBatchesForAdjustment($productId, $shopId, $diff, $newQty);
+
+            // Log cost price change and sync PO items & active batches if cost price changed
+            if (abs($newCostPrice - $oldCostPrice) > 0.0001) {
+                DB::query(
+                    'INSERT INTO cost_price_logs (shop_id, product_id, supplier_id, old_cost_price, new_cost_price, reason)
+                     VALUES (?, ?, ?, ?, ?, ?)',
+                    [$shopId, $productId, $supplierId, $oldCostPrice, $newCostPrice, 'Inventory adjustment: ' . $reason]
+                );
+
+                // Update cost prices in past purchase order items dynamically
+                DB::query(
+                    'UPDATE purchase_order_items SET cost_price = ? WHERE product_id = ? AND shop_id = ?',
+                    [$newCostPrice, $productId, $shopId]
+                );
+
+                // Recalculate total_amount for all affected purchase orders
+                DB::query(
+                    'UPDATE purchase_orders po
+                     SET po.total_amount = (
+                         SELECT COALESCE(SUM(
+                             IF(po.status = "received", poi.quantity_received, poi.quantity_ordered) * poi.cost_price
+                         ), 0)
+                         FROM purchase_order_items poi
+                         WHERE poi.purchase_order_id = po.id AND poi.shop_id = po.shop_id
+                     )
+                     WHERE po.shop_id = ? AND po.id IN (
+                         SELECT purchase_order_id FROM purchase_order_items WHERE product_id = ? AND shop_id = ?
+                     )',
+                    [$shopId, $productId, $shopId]
+                );
+
+                // Sync active inventory_batches cost_price
+                try {
+                    DB::query(
+                        "UPDATE inventory_batches SET cost_price = ? WHERE product_id = ? AND shop_id = ? AND status = 'active'",
+                        [$newCostPrice, $productId, $shopId]
+                    );
+                } catch (\Exception $e) {}
+            }
 
             DB::commit();
 
@@ -729,9 +849,11 @@ class OtherController {
             header('Content-Type: application/json');
             http_response_code(201);
             echo json_encode([
-                'message' => 'Stock quantity successfully adjusted.',
+                'message' => 'Stock quantity and product price successfully adjusted.',
                 'adjustmentId' => (int)$newId,
-                'newStock' => $newQty
+                'newStock' => $newQty,
+                'costPrice' => $newCostPrice,
+                'price' => $newPrice
             ]);
 
         } catch (\Exception $e) {
@@ -776,7 +898,7 @@ class OtherController {
             $oldDiff = (float)$adjustment['difference'];
             $prevQty = (float)$adjustment['previous_quantity'];
 
-            $stmt = DB::query('SELECT id, stock_quantity FROM products WHERE id = ? AND shop_id = ? FOR UPDATE', [$productId, $shopId]);
+            $stmt = DB::query('SELECT id, stock_quantity, cost_price, price, supplier_id FROM products WHERE id = ? AND shop_id = ? FOR UPDATE', [$productId, $shopId]);
             $product = $stmt->fetch();
 
             if (!$product) {
@@ -789,26 +911,103 @@ class OtherController {
 
             $netChange = $newDiff - $oldDiff;
 
-            if ($netChange != 0) {
-                DB::query('UPDATE products SET stock_quantity = stock_quantity + ? WHERE id = ? AND shop_id = ?', [$netChange, $productId, $shopId]);
+            $oldCostPrice = $product['cost_price'] !== null ? (float)$product['cost_price'] : 0.0;
+            $newCostPrice = (isset($requestData['cost_price']) && $requestData['cost_price'] !== '' && $requestData['cost_price'] !== null)
+                ? (float)$requestData['cost_price']
+                : $oldCostPrice;
+
+            $oldPrice = $product['price'] !== null ? (float)$product['price'] : 0.0;
+            $newPrice = (isset($requestData['price']) && $requestData['price'] !== '' && $requestData['price'] !== null)
+                ? (float)$requestData['price']
+                : $oldPrice;
+
+            $supplierId = !empty($requestData['supplier_id']) ? (int)$requestData['supplier_id'] : (!empty($product['supplier_id']) ? (int)$product['supplier_id'] : null);
+            if (!$supplierId) {
+                $suppStmt = DB::query(
+                    'SELECT po.supplier_id FROM purchase_order_items poi 
+                     JOIN purchase_orders po ON poi.purchase_order_id = po.id 
+                     WHERE poi.product_id = ? AND poi.shop_id = ? 
+                     ORDER BY po.id DESC LIMIT 1',
+                    [$productId, $shopId]
+                );
+                $suppRow = $suppStmt->fetch();
+                if ($suppRow && !empty($suppRow['supplier_id'])) {
+                    $supplierId = (int)$suppRow['supplier_id'];
+                }
             }
 
-            DB::query(
-                'UPDATE inventory_adjustments SET adjusted_quantity = ?, difference = ?, adjustment_type = ?, reason = ?, notes = ?, adjusted_by = ? WHERE id = ? AND shop_id = ?',
-                [$newQty, $newDiff, $type, $reason, $notes, $userId, $adjustmentId, $shopId]
-            );
+            if ($netChange != 0) {
+                DB::query('UPDATE products SET stock_quantity = stock_quantity + ?, cost_price = ?, price = ? WHERE id = ? AND shop_id = ?', 
+                    [$netChange, $newCostPrice, $newPrice, $productId, $shopId]);
+            } else {
+                DB::query('UPDATE products SET cost_price = ?, price = ? WHERE id = ? AND shop_id = ?', 
+                    [$newCostPrice, $newPrice, $productId, $shopId]);
+            }
+
+            self::ensureAdjustmentPriceColumns();
+            try {
+                DB::query(
+                    'UPDATE inventory_adjustments SET adjusted_quantity = ?, difference = ?, adjustment_type = ?, reason = ?, notes = ?, adjusted_by = ?, cost_price = ?, price = ? WHERE id = ? AND shop_id = ?',
+                    [$newQty, $newDiff, $type, $reason, $notes, $userId, $newCostPrice, $newPrice, $adjustmentId, $shopId]
+                );
+            } catch (\Exception $ex) {
+                DB::query(
+                    'UPDATE inventory_adjustments SET adjusted_quantity = ?, difference = ?, adjustment_type = ?, reason = ?, notes = ?, adjusted_by = ? WHERE id = ? AND shop_id = ?',
+                    [$newQty, $newDiff, $type, $reason, $notes, $userId, $adjustmentId, $shopId]
+                );
+            }
 
             if ($netChange != 0) {
                 self::syncBatchesForAdjustment($productId, $shopId, $netChange, (float)$product['stock_quantity'] + $netChange);
             }
 
+            // If cost price changed
+            if (abs($newCostPrice - $oldCostPrice) > 0.0001) {
+                DB::query(
+                    'INSERT INTO cost_price_logs (shop_id, product_id, supplier_id, old_cost_price, new_cost_price, reason)
+                     VALUES (?, ?, ?, ?, ?, ?)',
+                    [$shopId, $productId, $supplierId, $oldCostPrice, $newCostPrice, 'Inventory adjustment update: ' . $reason]
+                );
+
+                DB::query(
+                    'UPDATE purchase_order_items SET cost_price = ? WHERE product_id = ? AND shop_id = ?',
+                    [$newCostPrice, $productId, $shopId]
+                );
+
+                DB::query(
+                    'UPDATE purchase_orders po
+                     SET po.total_amount = (
+                         SELECT COALESCE(SUM(
+                             IF(po.status = "received", poi.quantity_received, poi.quantity_ordered) * poi.cost_price
+                         ), 0)
+                         FROM purchase_order_items poi
+                         WHERE poi.purchase_order_id = po.id AND poi.shop_id = po.shop_id
+                     )
+                     WHERE po.shop_id = ? AND po.id IN (
+                         SELECT purchase_order_id FROM purchase_order_items WHERE product_id = ? AND shop_id = ?
+                     )',
+                    [$shopId, $productId, $shopId]
+                );
+
+                try {
+                    DB::query(
+                        "UPDATE inventory_batches SET cost_price = ? WHERE product_id = ? AND shop_id = ? AND status = 'active'",
+                        [$newCostPrice, $productId, $shopId]
+                    );
+                } catch (\Exception $e) {}
+            }
+
             DB::commit();
 
-            // Resync stock to keep products and single-batch quantities perfectly unified
             ProductController::syncInventoryStock($shopId);
 
             header('Content-Type: application/json');
-            echo json_encode(['message' => 'Adjustment successfully updated.', 'newStock' => (float)$product['stock_quantity'] + $netChange]);
+            echo json_encode([
+                'message' => 'Adjustment and product price successfully updated.',
+                'newStock' => (float)$product['stock_quantity'] + $netChange,
+                'costPrice' => $newCostPrice,
+                'price' => $newPrice
+            ]);
 
         } catch (\Exception $e) {
             DB::rollBack();

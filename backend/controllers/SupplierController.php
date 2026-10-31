@@ -258,7 +258,7 @@ class SupplierController {
             $sql = 'SELECT cpl.*, p.name AS product_name, p.sku AS product_sku, s.name AS supplier_name 
                     FROM cost_price_logs cpl 
                     JOIN products p ON cpl.product_id = p.id 
-                    LEFT JOIN suppliers s ON cpl.supplier_id = s.id 
+                    LEFT JOIN suppliers s ON COALESCE(cpl.supplier_id, p.supplier_id) = s.id 
                     WHERE cpl.shop_id = ?';
             
             $params = [$shopId];
@@ -1854,9 +1854,9 @@ class SupplierController {
                 'SELECT cpl.*, p.name AS product_name, p.sku AS product_sku 
                  FROM cost_price_logs cpl 
                  JOIN products p ON cpl.product_id = p.id 
-                 WHERE cpl.supplier_id = ? AND cpl.shop_id = ? 
+                 WHERE (cpl.supplier_id = ? OR (cpl.supplier_id IS NULL AND p.supplier_id = ?)) AND cpl.shop_id = ? 
                  ORDER BY cpl.created_at DESC',
-                [$supplierId, $shopId]
+                [$supplierId, $supplierId, $shopId]
             );
             $costLogs = $stmt->fetchAll();
             foreach ($costLogs as &$log) {

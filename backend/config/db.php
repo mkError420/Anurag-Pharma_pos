@@ -571,6 +571,12 @@ class DB {
                     $pdo->exec("ALTER TABLE `inventory_adjustments` MODIFY COLUMN `previous_quantity` DECIMAL(10,3) NOT NULL");
                     $pdo->exec("ALTER TABLE `inventory_adjustments` MODIFY COLUMN `adjusted_quantity` DECIMAL(10,3) NOT NULL");
                     $pdo->exec("ALTER TABLE `inventory_adjustments` MODIFY COLUMN `difference` DECIMAL(10,3) NOT NULL");
+                    if (!$columnExists('inventory_adjustments', 'cost_price')) {
+                        $pdo->exec("ALTER TABLE `inventory_adjustments` ADD COLUMN `cost_price` DECIMAL(10,2) NULL AFTER `difference`");
+                    }
+                    if (!$columnExists('inventory_adjustments', 'price')) {
+                        $pdo->exec("ALTER TABLE `inventory_adjustments` ADD COLUMN `price` DECIMAL(10,2) NULL AFTER `cost_price`");
+                    }
                 } catch (\Exception $e) {}
             }
 
