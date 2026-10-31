@@ -94,7 +94,18 @@ export default function Adjustments({ onAdjustmentChange }) {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/adjustments/stats`, {
+      let url = `${API_BASE_URL}/adjustments/stats`;
+      const params = new URLSearchParams();
+
+      if (filterProductId) params.append('product_id', filterProductId);
+      if (filterType) params.append('adjustment_type', filterType);
+      if (filterStartDate) params.append('start_date', filterStartDate);
+      if (filterEndDate) params.append('end_date', filterEndDate);
+      if (filterShopId) params.append('shop_id', filterShopId);
+
+      if (params.toString()) url += `?${params.toString()}`;
+
+      const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -307,6 +318,38 @@ export default function Adjustments({ onAdjustmentChange }) {
       : 'bg-rose-100 text-rose-800 border-rose-200';
   };
 
+  // KPI Stats Calculations
+  const totalAdjustments = stats?.stats?.total_adjustments ?? adjustments.length;
+
+  const totalIncreaseQty = adjustments
+    .filter(a => Number(a.difference) > 0)
+    .reduce((sum, a) => sum + Number(a.difference), 0);
+
+  const totalDecreaseQty = adjustments
+    .filter(a => Number(a.difference) < 0)
+    .reduce((sum, a) => sum + Math.abs(Number(a.difference)), 0);
+
+  const netQuantityChange = stats?.stats?.net_change ?? adjustments.reduce((sum, a) => sum + Number(a.difference || 0), 0);
+
+  const totalIncreaseAmount = stats?.stats?.total_increase_amount ?? adjustments
+    .filter(a => Number(a.difference) > 0)
+    .reduce((sum, a) => {
+      const cost = Number(a.cost_price !== undefined && a.cost_price !== null ? a.cost_price : (a.current_cost_price || 0));
+      return sum + (Number(a.difference) * cost);
+    }, 0);
+
+  const totalDecreaseAmount = stats?.stats?.total_decrease_amount ?? adjustments
+    .filter(a => Number(a.difference) < 0)
+    .reduce((sum, a) => {
+      const cost = Number(a.cost_price !== undefined && a.cost_price !== null ? a.cost_price : (a.current_cost_price || 0));
+      return sum + (Math.abs(Number(a.difference)) * cost);
+    }, 0);
+
+  const totalGrossAdjustmentAmount = stats?.stats?.total_adjustment_amount ?? (totalIncreaseAmount + totalDecreaseAmount);
+  const netAdjustmentAmount = stats?.stats?.net_adjustment_amount ?? (totalIncreaseAmount - totalDecreaseAmount);
+  const increaseCount = stats?.stats?.increases ?? adjustments.filter(a => Number(a.difference) > 0).length;
+  const decreaseCount = stats?.stats?.decreases ?? adjustments.filter(a => Number(a.difference) < 0).length;
+
   return (
     <div className="space-y-6">
       {/* Alerts Banner */}
@@ -337,28 +380,93 @@ export default function Adjustments({ onAdjustmentChange }) {
       </div>
 
       {/* Stats Cards */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Adjustments</div>
-            <div className="text-2xl font-bold text-slate-800 mt-1">{stats.stats.total_adjustments || 0}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Total Adjustment Amount */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Adjustment Amount</span>
+            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
           </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Increases</div>
-            <div className="text-2xl font-bold text-emerald-600 mt-1">{stats.stats.increases || 0}</div>
-          </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Decreases</div>
-            <div className="text-2xl font-bold text-rose-600 mt-1">{stats.stats.decreases || 0}</div>
-          </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Net Change</div>
-            <div className={`text-2xl font-bold mt-1 ${stats.stats.net_change >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {stats.stats.net_change >= 0 ? '+' : ''}{stats.stats.net_change || 0}
+          <div className="mt-3">
+            <div className="text-2xl font-bold text-slate-900">
+              ৳{totalGrossAdjustmentAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
+              <span>{totalAdjustments} total records</span>
+              <span className={`font-semibold ${netAdjustmentAmount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                Net: {netAdjustmentAmount >= 0 ? '+' : '-'}৳{Math.abs(netAdjustmentAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
             </div>
           </div>
         </div>
-      )}
+
+        {/* Card 2: Stock Increases */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Stock Increases</span>
+            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-bold text-emerald-600">
+              +৳{totalIncreaseAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
+              <span>+{+totalIncreaseQty.toFixed(2)} units</span>
+              <span className="font-semibold text-slate-700">{increaseCount} entries</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Stock Decreases */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Stock Decreases</span>
+            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 17h8m0 0v-8m0 8l-8-8-4 4-6-6" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl font-bold text-rose-600">
+              -৳{totalDecreaseAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
+              <span>-{+totalDecreaseQty.toFixed(2)} units</span>
+              <span className="font-semibold text-slate-700">{decreaseCount} entries</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 4: Net Amount Impact */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Net Amount Impact</span>
+            <div className={`p-2.5 rounded-xl ${netAdjustmentAmount >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className={`text-2xl font-bold ${netAdjustmentAmount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {netAdjustmentAmount >= 0 ? '+' : '-'}৳{Math.abs(netAdjustmentAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
+              <span>Net qty: {netQuantityChange >= 0 ? '+' : ''}{+netQuantityChange.toFixed(2)}</span>
+              <span className="font-semibold text-slate-700">{netAdjustmentAmount >= 0 ? 'Net Addition' : 'Net Reduction'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Filter Bar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
@@ -514,6 +622,7 @@ export default function Adjustments({ onAdjustmentChange }) {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Previous Qty (Unit)</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Adjusted Qty (Unit)</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Difference (Unit)</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Total Amount</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Reason</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Adjusted By</th>
@@ -523,73 +632,106 @@ export default function Adjustments({ onAdjustmentChange }) {
             <tbody className="divide-y divide-slate-200">
               {loading ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? 11 : 10} className="px-6 py-8 text-center text-slate-500">Loading adjustments...</td>
+                  <td colSpan={isSuperAdmin ? 12 : 11} className="px-6 py-8 text-center text-slate-500">Loading adjustments...</td>
                 </tr>
               ) : adjustments.length === 0 ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? 11 : 10} className="px-6 py-8 text-center text-slate-500">No adjustments found</td>
+                  <td colSpan={isSuperAdmin ? 12 : 11} className="px-6 py-8 text-center text-slate-500">No adjustments found</td>
                 </tr>
               ) : (
-                currentAdjustments.map(adj => (
-                  <tr key={adj.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm text-slate-700">{formatDate(adj.created_at)}</td>
-                    {isSuperAdmin && (
-                      <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                        {adj.shop_name || 'N/A'}
-                      </td>
-                    )}
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-slate-900">{adj.product_name}</div>
-                      <div className="text-xs text-slate-500">{adj.product_sku}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-semibold text-slate-900">৳{Number(adj.cost_price || adj.current_cost_price || 0).toFixed(2)}</div>
-                      {adj.supplier_name ? (
-                        <div className="text-[10px] text-indigo-600 font-medium truncate max-w-[130px]" title={adj.supplier_name}>
-                          Vendor: {adj.supplier_name}
-                        </div>
-                      ) : (
-                        <div className="text-[10px] text-slate-400">No Vendor</div>
+                currentAdjustments.map(adj => {
+                  const rowCostPrice = Number(adj.cost_price !== undefined && adj.cost_price !== null ? adj.cost_price : (adj.current_cost_price || 0));
+                  const rowDiff = Number(adj.difference || 0);
+                  const rowAmount = rowDiff * rowCostPrice;
+                  return (
+                    <tr key={adj.id} className="hover:bg-slate-50">
+                      <td className="px-6 py-4 text-sm text-slate-700">{formatDate(adj.created_at)}</td>
+                      {isSuperAdmin && (
+                        <td className="px-6 py-4 text-sm font-medium text-slate-900">
+                          {adj.shop_name || 'N/A'}
+                        </td>
                       )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-700">{+Number(adj.previous_quantity).toFixed(3)} <span className="text-xs uppercase text-slate-500">{adj.product_unit}</span></td>
-                    <td className="px-6 py-4 text-sm font-medium text-slate-900">{+Number(adj.adjusted_quantity).toFixed(3)} <span className="text-xs uppercase text-slate-500">{adj.product_unit}</span></td>
-                    <td className={`px-6 py-4 text-sm font-semibold ${adj.difference >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {adj.difference >= 0 ? '+' : ''}{+Number(adj.difference).toFixed(3)} <span className="text-xs uppercase opacity-75">{adj.product_unit}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${getAdjustmentBadge(adj.adjustment_type)}`}>
-                        {adj.adjustment_type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-700">{adj.reason}</td>
-                    <td className="px-6 py-4 text-sm text-slate-700">{adj.adjusted_by_name}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-3">
-                        <button
-                          onClick={() => openEditModal(adj)}
-                          className="text-indigo-600 hover:text-indigo-800 transition-colors p-1 bg-indigo-50 hover:bg-indigo-100 rounded"
-                          title="Edit"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDelete(adj)}
-                          className="text-rose-600 hover:text-rose-800 transition-colors p-1 bg-rose-50 hover:bg-rose-100 rounded"
-                          title="Delete"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-slate-900">{adj.product_name}</div>
+                        <div className="text-xs text-slate-500">{adj.product_sku}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-semibold text-slate-900">৳{rowCostPrice.toFixed(2)}</div>
+                        {adj.supplier_name ? (
+                          <div className="text-[10px] text-indigo-600 font-medium truncate max-w-[130px]" title={adj.supplier_name}>
+                            Vendor: {adj.supplier_name}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-slate-400">No Vendor</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700">{+Number(adj.previous_quantity).toFixed(3)} <span className="text-xs uppercase text-slate-500">{adj.product_unit}</span></td>
+                      <td className="px-6 py-4 text-sm font-medium text-slate-900">{+Number(adj.adjusted_quantity).toFixed(3)} <span className="text-xs uppercase text-slate-500">{adj.product_unit}</span></td>
+                      <td className={`px-6 py-4 text-sm font-semibold ${rowDiff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {rowDiff >= 0 ? '+' : ''}{+rowDiff.toFixed(3)} <span className="text-xs uppercase opacity-75">{adj.product_unit}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className={`text-sm font-semibold ${rowAmount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {rowAmount >= 0 ? '+' : '-'}৳{Math.abs(rowAmount).toFixed(2)}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {Math.abs(rowDiff).toFixed(2)} × ৳{rowCostPrice.toFixed(2)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${getAdjustmentBadge(adj.adjustment_type)}`}>
+                          {adj.adjustment_type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700">{adj.reason}</td>
+                      <td className="px-6 py-4 text-sm text-slate-700">{adj.adjusted_by_name}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-3">
+                          <button
+                            onClick={() => openEditModal(adj)}
+                            className="text-indigo-600 hover:text-indigo-800 transition-colors p-1 bg-indigo-50 hover:bg-indigo-100 rounded"
+                            title="Edit"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDelete(adj)}
+                            className="text-rose-600 hover:text-rose-800 transition-colors p-1 bg-rose-50 hover:bg-rose-100 rounded"
+                            title="Delete"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
+            {adjustments.length > 0 && (
+              <tfoot className="bg-slate-50 border-t-2 border-slate-200">
+                <tr>
+                  <td colSpan={isSuperAdmin ? 7 : 6} className="px-6 py-3.5 text-right text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Total Adjustment Amount:
+                  </td>
+                  <td className="px-6 py-3.5 whitespace-nowrap">
+                    <div className={`text-sm font-bold ${netAdjustmentAmount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {netAdjustmentAmount >= 0 ? '+' : '-'}৳{Math.abs(netAdjustmentAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-medium">
+                      Gross: ৳{totalGrossAdjustmentAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </td>
+                  <td colSpan={4} className="px-6 py-3.5 text-xs text-slate-500 font-medium">
+                    {totalAdjustments} total record{totalAdjustments !== 1 ? 's' : ''}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
@@ -783,19 +925,37 @@ export default function Adjustments({ onAdjustmentChange }) {
                   const unit = selectedProduct?.unit || '';
                   const newQty = parseFloat(formData.adjusted_quantity);
                   const diff = newQty - currentStock;
+                  const costVal = formData.cost_price !== '' && formData.cost_price !== null
+                    ? parseFloat(formData.cost_price)
+                    : (selectedProduct?.cost_price !== undefined && selectedProduct?.cost_price !== null ? Number(selectedProduct.cost_price) : 0);
+                  const estimatedAmt = !isNaN(diff) && !isNaN(costVal) ? diff * costVal : 0;
+
                   return (
-                    <p className="text-xs text-slate-500 mt-1.5 flex items-center flex-wrap">
-                      <span>Current stock: <span className="font-semibold text-slate-700">{currentStock}</span> {unit}</span>
-                      {!isNaN(newQty) && diff > 0 && (
-                        <span className="text-emerald-600 ml-2 font-medium">→ Increase by {+diff.toFixed(3)} {unit}</span>
+                    <div className="mt-1.5 space-y-1">
+                      <p className="text-xs text-slate-500 flex items-center flex-wrap">
+                        <span>Current stock: <span className="font-semibold text-slate-700">{currentStock}</span> {unit}</span>
+                        {!isNaN(newQty) && diff > 0 && (
+                          <span className="text-emerald-600 ml-2 font-medium">→ Increase by {+diff.toFixed(3)} {unit}</span>
+                        )}
+                        {!isNaN(newQty) && diff < 0 && (
+                          <span className="text-rose-600 ml-2 font-medium">→ Decrease by {+(-diff).toFixed(3)} {unit}</span>
+                        )}
+                        {!isNaN(newQty) && diff === 0 && (
+                          <span className="text-slate-500 ml-2 font-medium">→ No change</span>
+                        )}
+                      </p>
+                      {!isNaN(newQty) && diff !== 0 && (
+                        <p className="text-xs font-semibold flex items-center gap-1.5">
+                          <span className="text-slate-600">Adjustment Amount:</span>
+                          <span className={estimatedAmt >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                            {estimatedAmt >= 0 ? '+' : '-'}৳{Math.abs(estimatedAmt).toFixed(2)}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            ({Math.abs(diff).toFixed(2)} {unit} × ৳{costVal.toFixed(2)})
+                          </span>
+                        </p>
                       )}
-                      {!isNaN(newQty) && diff < 0 && (
-                        <span className="text-rose-600 ml-2 font-medium">→ Decrease by {+(-diff).toFixed(3)} {unit}</span>
-                      )}
-                      {!isNaN(newQty) && diff === 0 && (
-                        <span className="text-slate-500 ml-2 font-medium">→ No change</span>
-                      )}
-                    </p>
+                    </div>
                   );
                 })()}
               </div>

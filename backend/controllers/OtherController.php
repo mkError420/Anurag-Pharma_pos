@@ -707,6 +707,94 @@ class OtherController {
         }
     }
 
+    public static function getAdjustmentStats() {
+        Auth::authenticate();
+        Auth::enforceTenant();
+
+        $shopId = Auth::$shopId;
+        $productId = $_GET['product_id'] ?? null;
+        $adjustmentType = $_GET['adjustment_type'] ?? null;
+        $startDate = $_GET['start_date'] ?? null;
+        $endDate = $_GET['end_date'] ?? null;
+
+        try {
+            self::ensureAdjustmentPriceColumns();
+            $sql = 'SELECT ia.id, ia.difference, ia.adjustment_type,
+                           COALESCE(ia.cost_price, p.cost_price, 0) AS cost_price
+                    FROM inventory_adjustments ia
+                    JOIN products p ON ia.product_id = p.id
+                    WHERE 1=1';
+            $params = [];
+            if ($shopId !== null) {
+                $sql .= ' AND ia.shop_id = ?';
+                $params[] = $shopId;
+            }
+            if (!empty($productId)) {
+                $sql .= ' AND ia.product_id = ?';
+                $params[] = (int)$productId;
+            }
+            if (!empty($adjustmentType)) {
+                $sql .= ' AND ia.adjustment_type = ?';
+                $params[] = $adjustmentType;
+            }
+            if (!empty($startDate)) {
+                $sql .= ' AND DATE(ia.created_at) >= ?';
+                $params[] = $startDate;
+            }
+            if (!empty($endDate)) {
+                $sql .= ' AND DATE(ia.created_at) <= ?';
+                $params[] = $endDate;
+            }
+
+            $stmt = DB::query($sql, $params);
+            $rows = $stmt->fetchAll();
+
+            $totalAdjustments = count($rows);
+            $increases = 0;
+            $decreases = 0;
+            $netChange = 0.0;
+            $totalGrossAmount = 0.0;
+            $totalIncreaseAmount = 0.0;
+            $totalDecreaseAmount = 0.0;
+            $netAmount = 0.0;
+
+            foreach ($rows as $r) {
+                $diff = (float)$r['difference'];
+                $cost = (float)$r['cost_price'];
+                $amount = abs($diff) * $cost;
+
+                $netChange += $diff;
+                $netAmount += ($diff * $cost);
+                $totalGrossAmount += $amount;
+
+                if ($diff >= 0 || $r['adjustment_type'] === 'increase') {
+                    $increases++;
+                    $totalIncreaseAmount += $amount;
+                } else {
+                    $decreases++;
+                    $totalDecreaseAmount += $amount;
+                }
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'stats' => [
+                    'total_adjustments' => $totalAdjustments,
+                    'increases' => $increases,
+                    'decreases' => $decreases,
+                    'net_change' => $netChange,
+                    'total_adjustment_amount' => $totalGrossAmount,
+                    'total_increase_amount' => $totalIncreaseAmount,
+                    'total_decrease_amount' => $totalDecreaseAmount,
+                    'net_adjustment_amount' => $netAmount
+                ]
+            ]);
+        } catch (\Exception $e) {
+            error_log('Fetch adjustment stats error: ' . $e->getMessage());
+            Auth::jsonError('Server error fetching adjustment statistics.', 500);
+        }
+    }
+
     public static function createAdjustment($requestData) {
         Auth::authenticate();
         Auth::enforceTenant();

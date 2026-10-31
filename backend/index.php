@@ -360,6 +360,7 @@ $routes = [
         // Returns
         '/^returns$/' => function() { OtherController::listReturns(); },
         // Adjustments
+        '/^adjustments\/stats$/' => function() { OtherController::getAdjustmentStats(); },
         '/^adjustments$/' => function() { OtherController::listAdjustments(); },
         // Shops
         '/^shops$/' => function() { OtherController::listShops(); },
