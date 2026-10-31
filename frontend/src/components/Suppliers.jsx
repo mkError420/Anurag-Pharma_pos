@@ -640,6 +640,7 @@ export default function Suppliers({ onAlertsRefresh }) {
 
     const timeoutId = setTimeout(() => {
       fetchPurchaseOrders();
+      fetchInventoryAdjustments();
     }, 500); // 500ms debounce delay
 
     return () => clearTimeout(timeoutId);
@@ -2725,19 +2726,30 @@ export default function Suppliers({ onAlertsRefresh }) {
     return filtered;
   }, [purchaseOrders, poFilterStatus, poSearchTerm]);
 
-  // Adjustments total value and count for PO Totals section
+  // Adjustments filtered by date range (if set) and total value/count for PO Totals section
+  const filteredAdjustments = useMemo(() => {
+    return inventoryAdjustments.filter(adj => {
+      if (poStartDate || poEndDate) {
+        const adjDate = adj.created_at ? adj.created_at.slice(0, 10) : '';
+        if (poStartDate && adjDate && adjDate < poStartDate) return false;
+        if (poEndDate && adjDate && adjDate > poEndDate) return false;
+      }
+      return true;
+    });
+  }, [inventoryAdjustments, poStartDate, poEndDate]);
+
   const adjustmentsTotalValue = useMemo(() => {
-    return inventoryAdjustments.reduce((sum, adj) => {
+    return filteredAdjustments.reduce((sum, adj) => {
       const unitCost = parseFloat(adj.cost_price || adj.current_cost_price || 0);
       const diff = parseFloat(adj.difference || 0);
       return sum + (diff * unitCost);
     }, 0);
-  }, [inventoryAdjustments]);
+  }, [filteredAdjustments]);
 
   const adjustedProductsCount = useMemo(() => {
-    const uniqueIds = new Set(inventoryAdjustments.map(a => a.product_id).filter(Boolean));
-    return uniqueIds.size || inventoryAdjustments.length;
-  }, [inventoryAdjustments]);
+    const uniqueIds = new Set(filteredAdjustments.map(a => a.product_id).filter(Boolean));
+    return uniqueIds.size || filteredAdjustments.length;
+  }, [filteredAdjustments]);
 
   const handleDownloadPOCSV = async () => {
     try {
@@ -3575,7 +3587,7 @@ export default function Suppliers({ onAlertsRefresh }) {
               return (
                 <div className="space-y-6">
                   {/* KPI Executive Summary Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {/* Card 1: Expired Stock Value */}
                     <div className="bg-gradient-to-br from-rose-50 to-rose-100/50 border border-rose-200/80 p-4.5 shadow-xs relative overflow-hidden">
                       <div className="flex justify-between items-start">
@@ -3675,8 +3687,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                       <button
                         onClick={() => setExpiredSubTab('watchlist')}
                         className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ${expiredSubTab === 'watchlist'
-                            ? 'bg-white text-rose-700 shadow-xs border border-rose-200/50'
-                            : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-white text-rose-700 shadow-xs border border-rose-200/50'
+                          : 'text-slate-600 hover:text-slate-900'
                           }`}
                       >
                         <span>🚨 Expiry Watchlist & Alerts</span>
@@ -3689,8 +3701,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                       <button
                         onClick={() => setExpiredSubTab('new_return')}
                         className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ${expiredSubTab === 'new_return'
-                            ? 'bg-white text-indigo-700 shadow-xs border border-indigo-200/50'
-                            : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-white text-indigo-700 shadow-xs border border-indigo-200/50'
+                          : 'text-slate-600 hover:text-slate-900'
                           }`}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3702,8 +3714,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                       <button
                         onClick={() => setExpiredSubTab('history')}
                         className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 ${expiredSubTab === 'history'
-                            ? 'bg-white text-slate-800 shadow-xs border border-slate-200'
-                            : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-white text-slate-800 shadow-xs border border-slate-200'
+                          : 'text-slate-600 hover:text-slate-900'
                           }`}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3752,8 +3764,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                                 key={f.key}
                                 onClick={() => setExpiryFilterDays(f.key)}
                                 className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${expiryFilterDays === f.key
-                                    ? 'bg-rose-500 text-white border-rose-600 shadow-xs'
-                                    : 'bg-white text-slate-650 border-slate-200 hover:border-slate-300'
+                                  ? 'bg-rose-500 text-white border-rose-600 shadow-xs'
+                                  : 'bg-white text-slate-650 border-slate-200 hover:border-slate-300'
                                   }`}
                               >
                                 {f.label}
@@ -3909,8 +3921,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                                     </td>
                                     <td className="p-3.5">
                                       <span className={`font-bold px-2.5 py-1 rounded-lg border text-xs ${p.stock_quantity > 0
-                                          ? 'bg-slate-100 text-slate-800 border-slate-200'
-                                          : 'bg-rose-50 text-rose-600 border-rose-200'
+                                        ? 'bg-slate-100 text-slate-800 border-slate-200'
+                                        : 'bg-rose-50 text-rose-600 border-rose-200'
                                         }`}>
                                         {p.stock_quantity} {p.unit || 'units'}
                                       </span>
@@ -3939,8 +3951,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                                           }}
                                           disabled={!(p.stock_quantity > 0)}
                                           className={`font-bold py-1.5 px-3 rounded-lg text-xs border transition-all ${p.stock_quantity > 0
-                                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 shadow-2xs'
-                                              : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+                                            ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 shadow-2xs'
+                                            : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
                                             }`}
                                           title={p.stock_quantity > 0 ? "Return to Supplier" : "No stock to return"}
                                         >
@@ -4069,8 +4081,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                                   type="button"
                                   onClick={() => setDeskFormData(prev => ({ ...prev, action_type: 'return' }))}
                                   className={`p-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center space-x-1.5 ${deskFormData.action_type === 'return'
-                                      ? 'bg-rose-500 text-white border-rose-600 shadow-xs'
-                                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                    ? 'bg-rose-500 text-white border-rose-600 shadow-xs'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                                     }`}
                                 >
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4083,8 +4095,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                                   type="button"
                                   onClick={() => setDeskFormData(prev => ({ ...prev, action_type: 'replace' }))}
                                   className={`p-2.5 rounded-xl text-xs font-bold border transition-all flex items-center justify-center space-x-1.5 ${deskFormData.action_type === 'replace'
-                                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                    ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                                     }`}
                                 >
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4283,8 +4295,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                                 key={f.key}
                                 onClick={() => setHistoryActionFilter(f.key)}
                                 className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${historyActionFilter === f.key
-                                    ? 'bg-slate-800 text-white border-slate-900 shadow-xs'
-                                    : 'bg-white text-slate-650 border-slate-200 hover:border-slate-300'
+                                  ? 'bg-slate-800 text-white border-slate-900 shadow-xs'
+                                  : 'bg-white text-slate-650 border-slate-200 hover:border-slate-300'
                                   }`}
                               >
                                 {f.label}
@@ -4403,8 +4415,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                                   <td className="p-3.5">
                                     <div className="flex flex-col items-start gap-1">
                                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${log.action_type === 'return'
-                                          ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                         }`}>
                                         {log.action_type === 'return' ? 'Returned' : 'Replaced'}
                                       </span>
@@ -4823,56 +4835,48 @@ export default function Suppliers({ onAlertsRefresh }) {
         return (
           <div className="space-y-4">
             {/* PO Totals */}
-            {!isStaff && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs relative overflow-hidden">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-500 uppercase">Total Purchase Amount</p>
-                    <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-100">Adjusted</span>
+            {!isStaff && (() => {
+              const basePOTotal = filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0);
+              const adjustedPOTotal = Math.max(0, basePOTotal + adjustmentsTotalValue);
+              const basePaidTotal = filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0);
+              const adjustedPaidTotal = Math.max(0, basePaidTotal + adjustmentsTotalValue);
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Total Purchase Amount</p>
+                      <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full border border-indigo-100">Adjusted</span>
+                    </div>
+                    <p className="text-2xl font-bold text-slate-800 mt-1">
+                      {formatCurrency(adjustedPOTotal)}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Base PO: {formatCurrency(basePOTotal)} {adjustmentsTotalValue !== 0 && `(${adjustmentsTotalValue >= 0 ? '+' : '-'}${formatCurrency(Math.abs(adjustmentsTotalValue))} adj)`}
+                    </p>
                   </div>
-                  <p className="text-2xl font-bold text-slate-800 mt-1">
-                    {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0))}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-1">Reflects current adjusted unit costs</p>
-                </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                  <p className="text-xs font-semibold text-slate-500 uppercase">Total Paid</p>
-                  <p className="text-2xl font-bold text-emerald-600 mt-1">
-                    {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0))}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-1">Payments recorded</p>
-                </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                  <p className="text-xs font-semibold text-slate-500 uppercase">Total Due</p>
-                  <p className="text-2xl font-bold text-rose-600 mt-1">
-                    {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.due_amount || 0), 0))}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-1">Outstanding vendor balance</p>
-                </div>
-                <div className="bg-white border border-indigo-100 rounded-2xl p-4 shadow-xs bg-gradient-to-br from-indigo-50/40 to-white">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-indigo-700 uppercase">Inventory Adjustments</p>
-                    <button
-                      onClick={handleSyncAdjustmentsWithPOs}
-                      disabled={syncingAdjustments}
-                      title="Sync existing and new adjustments with POs"
-                      className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-semibold disabled:opacity-50 cursor-pointer"
-                    >
-                      <svg className={`w-3.5 h-3.5 ${syncingAdjustments ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      {syncingAdjustments ? 'Syncing...' : 'Sync'}
-                    </button>
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Total Paid</p>
+                      <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100">Adjusted</span>
+                    </div>
+                    <p className="text-2xl font-bold text-emerald-600 mt-1">
+                      {formatCurrency(adjustedPaidTotal)}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Base Paid: {formatCurrency(basePaidTotal)} {adjustmentsTotalValue !== 0 && `(${adjustmentsTotalValue >= 0 ? '+' : '-'}${formatCurrency(Math.abs(adjustmentsTotalValue))} adj)`}
+                    </p>
                   </div>
-                  <p className={`text-2xl font-bold mt-1 ${adjustmentsTotalValue >= 0 ? 'text-indigo-900' : 'text-rose-700'}`}>
-                    {adjustmentsTotalValue >= 0 ? '+' : '-'}{formatCurrency(Math.abs(adjustmentsTotalValue))}
-                  </p>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    {adjustedProductsCount} product{adjustedProductsCount === 1 ? '' : 's'} adjusted & synced
-                  </p>
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                    <p className="text-xs font-semibold text-slate-500 uppercase">Total Due</p>
+                    <p className="text-2xl font-bold text-rose-600 mt-1">
+                      {formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.due_amount || 0), 0))}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">Outstanding vendor balance</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
             {/* Date Filter and View Details - shown under Purchase Orders tab */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs">
               <div className="flex flex-wrap items-center gap-2">
@@ -5142,8 +5146,22 @@ export default function Suppliers({ onAlertsRefresh }) {
                     <tfoot>
                       <tr className="bg-slate-50/50 border-t-2 border-slate-200 font-bold">
                         <td colSpan="5" className="p-4 text-slate-500 uppercase text-xs">Total</td>
-                        <td className="p-4 font-bold text-slate-800">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0))}</td>
-                        <td className="p-4 font-bold text-emerald-700">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0))}</td>
+                        <td className="p-4 font-bold text-slate-800">
+                          <div>{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0))}</div>
+                          {adjustmentsTotalValue !== 0 && (
+                            <div className="text-[10px] font-normal text-indigo-600">
+                              Adj: {formatCurrency(Math.max(0, filteredPOs.reduce((sum, po) => sum + parseFloat(po.total_amount || 0), 0) + adjustmentsTotalValue))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-4 font-bold text-emerald-700">
+                          <div>{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0))}</div>
+                          {adjustmentsTotalValue !== 0 && (
+                            <div className="text-[10px] font-normal text-emerald-600">
+                              Adj: {formatCurrency(Math.max(0, filteredPOs.reduce((sum, po) => sum + parseFloat(po.paid_amount || 0), 0) + adjustmentsTotalValue))}
+                            </div>
+                          )}
+                        </td>
                         <td className="p-4 font-bold text-rose-700">{formatCurrency(filteredPOs.reduce((sum, po) => sum + parseFloat(po.due_amount || 0), 0))}</td>
                         <td colSpan="2"></td>
                       </tr>
@@ -6020,8 +6038,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                 type="button"
                 onClick={() => setIsBulkSupplierMode(false)}
                 className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${!isBulkSupplierMode
-                    ? 'bg-white text-slate-800 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
                   }`}
               >
                 Single Supplier
@@ -6030,8 +6048,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                 type="button"
                 onClick={() => setIsBulkSupplierMode(true)}
                 className={`flex-1 py-2 px-3 rounded-md text-sm font-semibold transition-colors ${isBulkSupplierMode
-                    ? 'bg-white text-slate-800 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
                   }`}
               >
                 Bulk Upload (CSV)
@@ -6231,8 +6249,8 @@ export default function Suppliers({ onAlertsRefresh }) {
 
             {/* ── BARCODE SCANNER STRIP ─────────────────────────── */}
             <div className={`rounded-xl border-2 transition-all duration-200 ${barcodeMode
-                ? 'border-indigo-400 bg-indigo-50/60 shadow-sm'
-                : 'border-dashed border-slate-300 bg-slate-50/50'
+              ? 'border-indigo-400 bg-indigo-50/60 shadow-sm'
+              : 'border-dashed border-slate-300 bg-slate-50/50'
               } p-3`}>
               <div className="flex items-center gap-3">
                 {/* Barcode icon */}
@@ -6262,8 +6280,8 @@ export default function Suppliers({ onAlertsRefresh }) {
                           if (next) setTimeout(() => barcodeInputRef.current?.focus(), 80);
                         }}
                         className={`text-xs font-bold px-2.5 py-1 rounded-lg transition-colors ${barcodeMode
-                            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                            : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                          : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
                           }`}
                       >
                         {barcodeMode ? 'Disable' : 'Enable Scanner'}
@@ -6305,10 +6323,10 @@ export default function Suppliers({ onAlertsRefresh }) {
                   {/* Scan feedback status */}
                   {barcodeStatus && (
                     <div className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 ${barcodeStatus.type === 'success'
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        : barcodeStatus.type === 'warn'
-                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                          : 'bg-rose-100 text-rose-800 border border-rose-200'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      : barcodeStatus.type === 'warn'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-rose-100 text-rose-800 border border-rose-200'
                       }`}>
                       {barcodeStatus.msg}
                     </div>
@@ -6843,7 +6861,7 @@ export default function Suppliers({ onAlertsRefresh }) {
                 </div>
                 {poFormData.margin_percent !== '' && parseFloat(poFormData.selling_price) > 0 && (
                   <p className="text-[10px] text-indigo-500 mt-0.5 font-medium">
-                    Cost = {parseFloat(poFormData.selling_price).toFixed(2)} × {(1 - parseFloat(poFormData.margin_percent)/100).toFixed(4)} = ৳{poFormData.cost_price}
+                    Cost = {parseFloat(poFormData.selling_price).toFixed(2)} × {(1 - parseFloat(poFormData.margin_percent) / 100).toFixed(4)} = ৳{poFormData.cost_price}
                   </p>
                 )}
               </div>
